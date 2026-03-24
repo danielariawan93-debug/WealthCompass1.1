@@ -12,12 +12,12 @@ import {
 } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBUKtd-3swn6ZDA3LqHa8nAnNPvz3d7Va0",
+  apiKey: "AIzaSyBUKtd-3swn6ZDA3lqHa8nAnNPvZ3d7Va0",
   authDomain: "wealthcompass-fee04.firebaseapp.com",
   projectId: "wealthcompass-fee04",
   storageBucket: "wealthcompass-fee04.firebasestorage.app",
-  messagingSenderId: "803676982978",
-  appId: "1:803676982978:web:f31ccd89d4021b68e8bc83"
+  messagingSenderId: "803676982970",
+  appId: "1:803676982970:web:f31ccd09d4021b60e0bc83"
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
