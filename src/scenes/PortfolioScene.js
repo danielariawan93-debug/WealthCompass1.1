@@ -230,7 +230,7 @@ function PortfolioScene({
         r.readAsDataURL(pdfFile);
       });
       const prompt = `Ekstrak semua instrumen investasi dari dokumen ini. Return HANYA JSON array:\n[{"name":"...","classKey":"cash|bond|fixedincome_plus|mixed|equity|crypto","value":0,"currency":"IDR","notes":"..."}]\nJika kosong: []`;
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
