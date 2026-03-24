@@ -34,8 +34,7 @@ import {
 } from "./components/ui";
 import { NAV_ITEMS, Sidebar } from "./components/Sidebar";
 import UpgradePanel from "./components/UpgradePanel";
-import LoginScreen, { auth } from './components/LoginScreen';
-import { signOut } from 'firebase/auth';
+import LoginScreen from "./components/LoginScreen";
 import ProfileScene from "./scenes/ProfileScene";
 import PortfolioScene from "./scenes/PortfolioScene";
 import RiskScene from "./scenes/RiskScene";
@@ -176,7 +175,6 @@ export default function WealthCompassV7() {
     localStorage.removeItem("wc_custom_theme");
     setTheme("dark");
     setCustomPresetId("midnight");
-    signOut(auth).catch(() => {});
     setUser(null);
   };
 
@@ -212,44 +210,118 @@ export default function WealthCompassV7() {
     } catch {}
   };
 
-  const fetchPrices = useCallback(async () => {
+  // ── Fetch crypto (60 menit) + metals (60 menit) ──────────────────
+  const fetchCryptoAndMetals = useCallback(async () => {
     setPriceLoading(true);
+    const CACHE_KEY = 'wc_cache_crypto';
+    const TTL = 60 * 60 * 1000; // 60 menit
     try {
-      const ids = CRYPTO_COINS.map((c) => c.id).join(",");
-      const res = await fetch(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=idr`
-      );
-      const data = await res.json();
-      setLivePrices((p) => ({
-        ...p,
-        crypto: data,
-        silver: (p.gold || 1500000) / 80, // approximate silver from gold/silver ratio
-      }));
-      setLastUpdated(new Date().toLocaleTimeString("id-ID"));
-      setAssets((prev) =>
-        prev.map((a) => {
-          if (a.coinId && data[a.coinId])
-            return { ...a, liveValue: a.quantity * data[a.coinId].idr };
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (cached && Date.now() - cached.ts < TTL) {
+        setLivePrices(p => ({ ...p, crypto: cached.crypto, gold: cached.gold, silver: cached.silver }));
+        setAssets(prev => prev.map(a => {
+          if (a.coinId && cached.crypto[a.coinId])
+            return { ...a, liveValue: a.quantity * cached.crypto[a.coinId].idr };
           return a;
-        })
-      );
-    } catch (e) {
-      console.warn("Price fetch unavailable in sandbox:", e.message);
-      // Fallback harga jika API gagal
-      setLivePrices((p) => ({
+        }));
+        setPriceLoading(false);
+        return;
+      }
+    } catch {}
+
+    try {
+      const ids = CRYPTO_COINS.map(c => c.id).join(',');
+      // Fetch crypto + metals sekaligus
+      const [cryptoRes, metalsRes] = await Promise.all([
+        fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=idr`),
+        fetch('https://metals.live/api/v1/spot'),
+      ]);
+      const cryptoData = await cryptoRes.json();
+      const metalsData = await metalsRes.json();
+
+      // metals.live return: [{gold: price_usd_per_oz}, {silver: ...}]
+      const goldUSD = metalsData.find?.(m => m.gold)?.gold || null;
+      const silverUSD = metalsData.find?.(m => m.silver)?.silver || null;
+
+      // Ambil rate USD→IDR dari cache forex atau fallback
+      let usdToIdr = 16800;
+      try {
+        const fxCache = JSON.parse(localStorage.getItem('wc_cache_forex') || 'null');
+        if (fxCache?.rates?.USD) usdToIdr = fxCache.rates.USD;
+      } catch {}
+
+      // troy oz → gram: 1 troy oz = 31.1035 gram
+      const goldPerGram = goldUSD ? Math.round((goldUSD * usdToIdr) / 31.1035) : null;
+      const silverPerGram = silverUSD ? Math.round((silverUSD * usdToIdr) / 31.1035) : null;
+
+      const toSave = {
+        ts: Date.now(),
+        crypto: cryptoData,
+        gold: goldPerGram || 1580000,
+        silver: silverPerGram || 20000,
+      };
+      localStorage.setItem(CACHE_KEY, JSON.stringify(toSave));
+
+      setLivePrices(p => ({
         ...p,
-        gold: p.gold || 1580000, // ~Rp1.58jt/gram per Mar 2026
-        silver: p.silver || 20000, // ~Rp18rb/gram
+        crypto: cryptoData,
+        gold: toSave.gold,
+        silver: toSave.silver,
+      }));
+      setLastUpdated(new Date().toLocaleTimeString('id-ID'));
+      setAssets(prev => prev.map(a => {
+        if (a.coinId && cryptoData[a.coinId])
+          return { ...a, liveValue: a.quantity * cryptoData[a.coinId].idr };
+        return a;
+      }));
+    } catch (e) {
+      console.warn('Crypto/metals fetch failed:', e.message);
+      setLivePrices(p => ({
+        ...p,
+        gold: p.gold || 1580000,
+        silver: p.silver || 20000,
       }));
     }
     setPriceLoading(false);
   }, []);
 
+  // ── Fetch forex (4 jam) ───────────────────────────────────────────
+  const fetchForex = useCallback(async () => {
+    const CACHE_KEY = 'wc_cache_forex';
+    const TTL = 4 * 60 * 60 * 1000; // 4 jam
+    try {
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (cached && Date.now() - cached.ts < TTL) {
+        Object.assign(RATES, cached.rates);
+        return;
+      }
+    } catch {}
+
+    try {
+      const res = await fetch('https://api.frankfurter.app/latest?from=IDR&to=USD,EUR,CNY');
+      const data = await res.json();
+      // frankfurter from=IDR → rates.USD = berapa USD per 1 IDR
+      // kita butuh kebalikan: berapa IDR per 1 USD
+      const newRates = {
+        IDR: 1,
+        USD: data.rates?.USD ? Math.round(1 / data.rates.USD) : 16800,
+        EUR: data.rates?.EUR ? Math.round(1 / data.rates.EUR) : 19000,
+        CNY: data.rates?.CNY ? Math.round(1 / data.rates.CNY) : 2400,
+      };
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rates: newRates }));
+      Object.assign(RATES, newRates);
+    } catch (e) {
+      console.warn('Forex fetch failed:', e.message);
+    }
+  }, []);
+
   useEffect(() => {
-    fetchPrices();
-    const t = setInterval(fetchPrices, 60000);
-    return () => clearInterval(t);
-  }, [fetchPrices]);
+    fetchCryptoAndMetals();
+    fetchForex();
+    const t1 = setInterval(fetchCryptoAndMetals, 60 * 60 * 1000); // 60 menit
+    const t2 = setInterval(fetchForex, 4 * 60 * 60 * 1000);       // 4 jam
+    return () => { clearInterval(t1); clearInterval(t2); };
+  }, [fetchCryptoAndMetals, fetchForex]);
 
   const total = useMemo(
     () => assets.reduce((s, a) => s + getIDR(a), 0),
