@@ -56,13 +56,8 @@ import ComingSoonScene from "./scenes/ComingSoonScene";
 
 export default function WealthCompassV7() {
   // ── ALL STATE DECLARATIONS FIRST (handlers reference these via closure) ─────
-  const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("wc_session") || "null");
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState(null);
+  const [authChecking, setAuthChecking] = useState(true);
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem("wc_theme") || "dark";
@@ -115,6 +110,24 @@ export default function WealthCompassV7() {
   const [assets, setAssets] = useState([]);
 
   // ── AUTH HANDLERS (safe to reference state now) ────────────────────────────
+  // Cek Firebase session saat app load
+  useEffect(() => {
+    const { auth } = require('./components/LoginScreen');
+    const { onAuthStateChanged } = require('firebase/auth');
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser && (firebaseUser.emailVerified || firebaseUser.providerData?.[0]?.providerId === 'google.com')) {
+        const cached = (() => { try { return JSON.parse(localStorage.getItem('wc_session') || 'null'); } catch { return null; } })();
+        if (cached?.email === firebaseUser.email) {
+          handleLogin(cached);
+        } else {
+          const userData = { email: firebaseUser.email, name: firebaseUser.displayName || firebaseUser.email.split('@')[0], photo: firebaseUser.photoURL, uid: firebaseUser.uid };
+          handleLogin(userData);
+        }
+      }
+      setAuthChecking(false);
+    });
+    return () => unsub();
+  }, []);
   const handleLogin = (userData) => {
     const saved = loadAccountData(userData.email);
     const d = saved || DEFAULT_ACCOUNT_STATE;
@@ -234,14 +247,20 @@ export default function WealthCompassV7() {
       // Fetch crypto + metals sekaligus
       const [cryptoRes, metalsRes] = await Promise.all([
         fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=idr`),
-        fetch('https://metals.live/api/v1/spot'),
+        fetch('https://api.metals.live/v1/spot/gold,silver'),
       ]);
       const cryptoData = await cryptoRes.json();
-      const metalsData = await metalsRes.json();
+      const metalsRaw = await metalsRes.json();
 
-      // metals.live return: [{gold: price_usd_per_oz}, {silver: ...}]
-      const goldUSD = metalsData.find?.(m => m.gold)?.gold || null;
-      const silverUSD = metalsData.find?.(m => m.silver)?.silver || null;
+      // metals.live v1: [{gold: price}, {silver: price}] atau {gold: price, silver: price}
+      let goldUSD = null, silverUSD = null;
+      if (Array.isArray(metalsRaw)) {
+        goldUSD = metalsRaw.find(m => m.gold)?.gold || null;
+        silverUSD = metalsRaw.find(m => m.silver)?.silver || null;
+      } else if (metalsRaw.gold) {
+        goldUSD = metalsRaw.gold;
+        silverUSD = metalsRaw.silver || null;
+      }
 
       // Ambil rate USD→IDR dari cache forex atau fallback
       let usdToIdr = 16800;
@@ -395,6 +414,11 @@ export default function WealthCompassV7() {
   ]);
 
   // ── Show login if not authenticated ────────────────────────────────────────
+  if (authChecking) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.bg }}>
+      <div style={{ color: T.muted, fontSize: 13 }}>Memuat...</div>
+    </div>
+  );
   if (!user) return <LoginScreen onLogin={handleLogin} T={T} />;
 
   return (
