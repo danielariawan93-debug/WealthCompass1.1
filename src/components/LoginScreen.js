@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';
+import {
+  getAuth,
+  signInWithPopup,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  updateProfile,
+} from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBUKtd-3swn6ZDA3LqHa8nAnNPvz3d7Va0",
@@ -13,18 +22,23 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
-const provider = new GoogleAuthProvider();
+const googleProvider = new GoogleAuthProvider();
 
 export { auth };
 
 function LoginScreen({ onLogin, T }) {
-  const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState('login'); // login | register
+  const [form, setForm] = useState({ email: '', password: '', name: '' });
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
   const [checking, setChecking] = useState(true);
 
+  // Auto-login jika sudah ada sesi Firebase
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) {
+      if (user && user.emailVerified) {
         const userData = {
           email: user.email,
           name: user.displayName || user.email.split('@')[0],
@@ -39,11 +53,59 @@ function LoginScreen({ onLogin, T }) {
     return () => unsub();
   }, []);
 
+  const handleEmailSubmit = async () => {
+    setError('');
+    setInfo('');
+    if (!form.email || !form.password) { setError('Email dan password wajib diisi.'); return; }
+    if (mode === 'register' && !form.name) { setError('Nama wajib diisi.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { setError('Format email tidak valid.'); return; }
+    if (form.password.length < 6) { setError('Password minimal 6 karakter.'); return; }
+
+    setLoading(true);
+    try {
+      if (mode === 'register') {
+        const result = await createUserWithEmailAndPassword(auth, form.email, form.password);
+        await updateProfile(result.user, { displayName: form.name });
+        await sendEmailVerification(result.user);
+        await auth.signOut();
+        setInfo('✓ Akun dibuat! Cek email kamu untuk verifikasi sebelum login.');
+        setMode('login');
+        setForm(p => ({ ...p, password: '' }));
+      } else {
+        const result = await signInWithEmailAndPassword(auth, form.email, form.password);
+        if (!result.user.emailVerified) {
+          await auth.signOut();
+          setError('Email belum diverifikasi. Cek inbox kamu.');
+          setLoading(false);
+          return;
+        }
+        const userData = {
+          email: result.user.email,
+          name: result.user.displayName || result.user.email.split('@')[0],
+          photo: result.user.photoURL,
+          uid: result.user.uid,
+        };
+        localStorage.setItem('wc_session', JSON.stringify(userData));
+        onLogin(userData);
+      }
+    } catch (e) {
+      const msg = {
+        'auth/email-already-in-use': 'Email sudah terdaftar.',
+        'auth/user-not-found': 'Email tidak ditemukan.',
+        'auth/wrong-password': 'Password salah.',
+        'auth/invalid-credential': 'Email atau password salah.',
+        'auth/too-many-requests': 'Terlalu banyak percobaan. Coba lagi nanti.',
+      };
+      setError(msg[e.code] || 'Terjadi kesalahan. Coba lagi.');
+    }
+    setLoading(false);
+  };
+
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError('');
     try {
-      const result = await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       const userData = {
         email: user.email,
@@ -55,7 +117,7 @@ function LoginScreen({ onLogin, T }) {
       onLogin(userData);
     } catch (e) {
       if (e.code !== 'auth/popup-closed-by-user') {
-        setError('Login gagal. Coba lagi.');
+        setError('Login Google gagal. Coba lagi.');
       }
     }
     setLoading(false);
@@ -70,42 +132,110 @@ function LoginScreen({ onLogin, T }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: T?.bg || '#07090c', padding: '20px' }}>
-      <div style={{ width: '100%', maxWidth: 380, background: T?.card || '#131920', borderRadius: 20, padding: '40px 32px', border: `1px solid ${T?.border || '#1c2636'}`, textAlign: 'center' }}>
-        
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 32, fontFamily: "'Playfair Display', Georgia, serif", color: T?.accent || '#d4a843', letterSpacing: 3, fontWeight: 'bold' }}>WEALTH</div>
-          <div style={{ fontSize: 10, color: T?.muted || '#4d5866', letterSpacing: 5, marginTop: 4 }}>COMPASS</div>
-          <div style={{ width: 36, height: 2, background: T?.accent || '#d4a843', margin: '12px auto 0', borderRadius: 1 }} />
-        </div>
+    <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ width: '100%', maxWidth: 380 }}>
 
-        <div style={{ color: T?.textSoft || '#9aa3b0', fontSize: 13, lineHeight: 1.8, marginBottom: 32 }}>
-          Kelola kekayaan Anda dengan cerdas.<br />
-          <span style={{ color: T?.muted || '#4d5866', fontSize: 11 }}>Mulai perjalanan financial freedom.</span>
-        </div>
-
-        <button
-          onClick={handleGoogleLogin}
-          disabled={loading}
-          style={{ width: '100%', padding: '14px 20px', borderRadius: 12, border: `1px solid ${T?.border || '#1c2636'}`, background: T?.surface || '#0d1117', color: T?.text || '#ddd8cf', cursor: loading ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, opacity: loading ? 0.7 : 1 }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-          </svg>
-          {loading ? 'Menghubungkan...' : 'Masuk dengan Google'}
-        </button>
-
-        {error && (
-          <div style={{ marginTop: 16, padding: '10px 14px', background: '#f26b6b18', border: '1px solid #f26b6b33', borderRadius: 9, color: '#f26b6b', fontSize: 12 }}>
-            {error}
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{ color: T.accent, fontSize: 32, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 'bold', letterSpacing: 2 }}>
+            WEALTH◎COMPASS
           </div>
-        )}
+          <div style={{ color: T.muted, fontSize: 11, letterSpacing: 3, marginTop: 4 }}>
+            PORTFOLIO INTELLIGENCE
+          </div>
+        </div>
 
-        <div style={{ color: T?.muted || '#4d5866', fontSize: 10, marginTop: 28, lineHeight: 1.7 }}>
-          Dengan masuk, Anda menyetujui Syarat & Ketentuan<br />dan Kebijakan Privasi WealthCompass.
+        {/* Card */}
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 20, padding: 28, boxShadow: `0 24px 60px ${T.shadow}` }}>
+
+          {/* Tab toggle */}
+          <div style={{ display: 'flex', background: T.surface, borderRadius: 10, padding: 4, marginBottom: 24 }}>
+            {[['login', 'Masuk'], ['register', 'Daftar']].map(([m, l]) => (
+              <button key={m} onClick={() => { setMode(m); setError(''); setInfo(''); }}
+                style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: mode === m ? T.accent : 'none', color: mode === m ? '#000' : T.muted, cursor: 'pointer', fontWeight: mode === m ? 'bold' : 'normal', fontSize: 13, transition: 'all 0.2s' }}>
+                {l}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* Nama — hanya saat register */}
+            {mode === 'register' && (
+              <div>
+                <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 5 }}>Nama Lengkap</div>
+                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                  placeholder="Nama kamu"
+                  style={{ width: '100%', boxSizing: 'border-box', background: T.inputBg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 10, padding: '11px 14px', fontSize: 13, outline: 'none' }} />
+              </div>
+            )}
+
+            {/* Email */}
+            <div>
+              <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 5 }}>Email</div>
+              <input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                placeholder="email@contoh.com" type="email"
+                style={{ width: '100%', boxSizing: 'border-box', background: T.inputBg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 10, padding: '11px 14px', fontSize: 13, outline: 'none' }} />
+            </div>
+
+            {/* Password */}
+            <div>
+              <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 5 }}>Password</div>
+              <div style={{ position: 'relative', width: '100%' }}>
+                <input value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && handleEmailSubmit()}
+                  placeholder="Min. 6 karakter" type={showPass ? 'text' : 'password'}
+                  style={{ width: '100%', boxSizing: 'border-box', background: T.inputBg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 10, padding: '11px 40px 11px 14px', fontSize: 13, outline: 'none' }} />
+                <button onClick={() => setShowPass(p => !p)}
+                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: T.muted, cursor: 'pointer', fontSize: 14 }}>
+                  {showPass ? '🙈' : '👁'}
+                </button>
+              </div>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div style={{ padding: '9px 12px', background: T.redDim, border: `1px solid ${T.red}33`, borderRadius: 9, color: T.red, fontSize: 12 }}>
+                {error}
+              </div>
+            )}
+
+            {/* Info (verifikasi email) */}
+            {info && (
+              <div style={{ padding: '9px 12px', background: T.greenDim, border: `1px solid ${T.green}33`, borderRadius: 9, color: T.green, fontSize: 12 }}>
+                {info}
+              </div>
+            )}
+
+            {/* Tombol submit */}
+            <button onClick={handleEmailSubmit} disabled={loading}
+              style={{ width: '100%', padding: 13, borderRadius: 11, border: 'none', background: loading ? T.border : T.accent, color: loading ? T.muted : '#000', cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 14, marginTop: 4, transition: 'all 0.2s' }}>
+              {loading ? '⏳ Memproses...' : mode === 'login' ? 'Masuk →' : 'Buat Akun →'}
+            </button>
+
+            {/* Divider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0' }}>
+              <div style={{ flex: 1, height: 1, background: T.border }} />
+              <span style={{ color: T.muted, fontSize: 11 }}>atau</span>
+              <div style={{ flex: 1, height: 1, background: T.border }} />
+            </div>
+
+            {/* Google Login */}
+            <button onClick={handleGoogleLogin} disabled={loading}
+              style={{ width: '100%', padding: 13, borderRadius: 11, border: `1px solid ${T.border}`, background: T.surface, color: T.text, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s', opacity: loading ? 0.7 : 1 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Masuk dengan Google
+            </button>
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center', color: T.muted, fontSize: 10, marginTop: 20, lineHeight: 1.8 }}>
+          Data tersimpan aman · ⚠️ Bukan layanan investasi resmi
         </div>
       </div>
     </div>
