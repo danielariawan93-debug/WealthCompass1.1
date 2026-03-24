@@ -174,7 +174,7 @@ function WealthCompassV7() {
     localStorage.removeItem("wc_custom_theme");
     setTheme("dark");
     setCustomPresetId("midnight");
-    try { const { auth } = await import('./components/LoginScreen'); const { signOut } = await import('firebase/auth'); signOut(auth); } catch {}
+    try { import('./components/LoginScreen').then(({auth}) => { import('firebase/auth').then(({signOut}) => signOut(auth)); }); } catch {}
     setUser(null);
   };
 
