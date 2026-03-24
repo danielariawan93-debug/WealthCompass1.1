@@ -34,7 +34,8 @@ import {
 } from "./components/ui";
 import { NAV_ITEMS, Sidebar } from "./components/Sidebar";
 import UpgradePanel from "./components/UpgradePanel";
-import LoginScreen from "./components/LoginScreen";
+import LoginScreen, { auth } from './components/LoginScreen';
+import { signOut } from 'firebase/auth';
 import ProfileScene from "./scenes/ProfileScene";
 import PortfolioScene from "./scenes/PortfolioScene";
 import RiskScene from "./scenes/RiskScene";
@@ -175,6 +176,7 @@ export default function WealthCompassV7() {
     localStorage.removeItem("wc_custom_theme");
     setTheme("dark");
     setCustomPresetId("midnight");
+    signOut(auth).catch(() => {});
     setUser(null);
   };
 
