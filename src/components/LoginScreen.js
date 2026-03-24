@@ -96,7 +96,7 @@ function LoginScreen({ onLogin, T }) {
         'auth/invalid-credential': 'Email atau password salah.',
         'auth/too-many-requests': 'Terlalu banyak percobaan. Coba lagi nanti.',
       };
-      setError(msg[e.code] || 'Terjadi kesalahan. Coba lagi.');
+      setError(msg[e.code] || `Error: ${e.code}`);
     }
     setLoading(false);
   };
