@@ -91,7 +91,7 @@ function AIScene({
   const model =
     tier.id === "free"
       ? "claude-haiku-4-5-20251001"
-      : "claude-sonnet-4-20250514";
+      : "claude-sonnet-4-5-20250514";
 
   const totalDebts = debts.reduce((s, d) => s + parseVal(d.outstanding), 0);
   const totalMonthlyDebt = debts.reduce(
