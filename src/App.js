@@ -54,7 +54,7 @@ import { DebtScene } from "./scenes/DebtScene";
 import { RealAssetsScene } from "./scenes/RealAssetsScene";
 import ComingSoonScene from "./scenes/ComingSoonScene";
 
-export default // CoinCap API credentials
+// CoinCap API credentials
 const CC_KEY = '29eb9eb7f921e41d70cb469c1ea9f23bddf88694c9c9873064c38c02183a5234';
 const CC_HDR = { 'Authorization': `Bearer ${CC_KEY}` };
 
