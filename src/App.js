@@ -54,15 +54,14 @@ import { DebtScene } from "./scenes/DebtScene";
 import { RealAssetsScene } from "./scenes/RealAssetsScene";
 import ComingSoonScene from "./scenes/ComingSoonScene";
 
-export default function WealthCompassV7() {
+export default // CoinCap API credentials
+const CC_KEY = '29eb9eb7f921e41d70cb469c1ea9f23bddf88694c9c9873064c38c02183a5234';
+const CC_HDR = { 'Authorization': `Bearer ${CC_KEY}` };
+
+function WealthCompassV7() {
   // ── ALL STATE DECLARATIONS FIRST (handlers reference these via closure) ─────
-  const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("wc_session") || "null");
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState(null);
+  const [authChecking, setAuthChecking] = useState(true);
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem("wc_theme") || "dark";
@@ -175,6 +174,7 @@ export default function WealthCompassV7() {
     localStorage.removeItem("wc_custom_theme");
     setTheme("dark");
     setCustomPresetId("midnight");
+    try { const { auth } = await import('./components/LoginScreen'); const { signOut } = await import('firebase/auth'); signOut(auth); } catch {}
     setUser(null);
   };
 
@@ -210,9 +210,7 @@ export default function WealthCompassV7() {
     } catch {}
   };
 
-  // ── CoinCap API ──────────────────────────────────────────────────
-  const CC_KEY = '29eb9eb7f921e41d70cb469c1ea9f23bddf88694c9c9873064c38c02183a5234';
-  const CC_HDR = { 'Authorization': `Bearer ${CC_KEY}` };
+
 
   // ── Fetch crypto + metals + USD/IDR via CoinCap (60 menit) ───────
   const fetchCryptoAndMetals = useCallback(async () => {
@@ -389,7 +387,38 @@ export default function WealthCompassV7() {
     settings,
   ]);
 
+  // ── Firebase session check on mount ────────────────────────────────────────
+  useEffect(() => {
+    let unsub;
+    import('./components/LoginScreen').then(({ auth }) => {
+      import('firebase/auth').then(({ onAuthStateChanged }) => {
+        unsub = onAuthStateChanged(auth, (firebaseUser) => {
+          if (firebaseUser) {
+            // Google: emailVerified OR providerData contains google
+            const isGoogle = firebaseUser.providerData?.some(p => p.providerId === 'google.com');
+            if (firebaseUser.emailVerified || isGoogle) {
+              const cached = (() => { try { return JSON.parse(localStorage.getItem('wc_session') || 'null'); } catch { return null; } })();
+              if (cached?.email === firebaseUser.email) {
+                handleLogin(cached);
+              } else {
+                const userData = { email: firebaseUser.email, name: firebaseUser.displayName || firebaseUser.email.split('@')[0], photo: firebaseUser.photoURL, uid: firebaseUser.uid };
+                handleLogin(userData);
+              }
+            }
+          }
+          setAuthChecking(false);
+        });
+      });
+    });
+    return () => { if (unsub) unsub(); };
+  }, []);
+
   // ── Show login if not authenticated ────────────────────────────────────────
+  if (authChecking) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.bg }}>
+      <div style={{ color: T.muted, fontSize: 13 }}>Memuat...</div>
+    </div>
+  );
   if (!user) return <LoginScreen onLogin={handleLogin} T={T} />;
 
   return (
