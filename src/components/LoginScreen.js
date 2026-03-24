@@ -38,7 +38,8 @@ function LoginScreen({ onLogin, T }) {
   // Auto-login jika sudah ada sesi Firebase
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user && user.emailVerified) {
+      const isGoogle = user?.providerData?.some(p => p.providerId === 'google.com');
+      if (user && (user.emailVerified || isGoogle)) {
         const userData = {
           email: user.email,
           name: user.displayName || user.email.split('@')[0],
