@@ -56,8 +56,13 @@ import ComingSoonScene from "./scenes/ComingSoonScene";
 
 export default function WealthCompassV7() {
   // ── ALL STATE DECLARATIONS FIRST (handlers reference these via closure) ─────
-  const [user, setUser] = useState(null);
-  const [authChecking, setAuthChecking] = useState(true);
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("wc_session") || "null");
+    } catch {
+      return null;
+    }
+  });
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem("wc_theme") || "dark";
@@ -110,24 +115,6 @@ export default function WealthCompassV7() {
   const [assets, setAssets] = useState([]);
 
   // ── AUTH HANDLERS (safe to reference state now) ────────────────────────────
-  // Cek Firebase session saat app load
-  useEffect(() => {
-    const { auth } = require('./components/LoginScreen');
-    const { onAuthStateChanged } = require('firebase/auth');
-    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser && (firebaseUser.emailVerified || firebaseUser.providerData?.[0]?.providerId === 'google.com')) {
-        const cached = (() => { try { return JSON.parse(localStorage.getItem('wc_session') || 'null'); } catch { return null; } })();
-        if (cached?.email === firebaseUser.email) {
-          handleLogin(cached);
-        } else {
-          const userData = { email: firebaseUser.email, name: firebaseUser.displayName || firebaseUser.email.split('@')[0], photo: firebaseUser.photoURL, uid: firebaseUser.uid };
-          handleLogin(userData);
-        }
-      }
-      setAuthChecking(false);
-    });
-    return () => unsub();
-  }, []);
   const handleLogin = (userData) => {
     const saved = loadAccountData(userData.email);
     const d = saved || DEFAULT_ACCOUNT_STATE;
@@ -223,17 +210,22 @@ export default function WealthCompassV7() {
     } catch {}
   };
 
-  // ── Fetch crypto (60 menit) + metals (60 menit) ──────────────────
+  // ── CoinCap API ──────────────────────────────────────────────────
+  const CC_KEY = '29eb9eb7f921e41d70cb469c1ea9f23bddf88694c9c9873064c38c02183a5234';
+  const CC_HDR = { 'Authorization': `Bearer ${CC_KEY}` };
+
+  // ── Fetch crypto + metals + USD/IDR via CoinCap (60 menit) ───────
   const fetchCryptoAndMetals = useCallback(async () => {
     setPriceLoading(true);
     const CACHE_KEY = 'wc_cache_crypto';
-    const TTL = 60 * 60 * 1000; // 60 menit
+    const TTL = 60 * 60 * 1000;
     try {
       const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
       if (cached && Date.now() - cached.ts < TTL) {
         setLivePrices(p => ({ ...p, crypto: cached.crypto, gold: cached.gold, silver: cached.silver }));
+        if (cached.rates) Object.assign(RATES, cached.rates);
         setAssets(prev => prev.map(a => {
-          if (a.coinId && cached.crypto[a.coinId])
+          if (a.coinId && cached.crypto?.[a.coinId])
             return { ...a, liveValue: a.quantity * cached.crypto[a.coinId].idr };
           return a;
         }));
@@ -241,52 +233,47 @@ export default function WealthCompassV7() {
         return;
       }
     } catch {}
-
     try {
-      const ids = CRYPTO_COINS.map(c => c.id).join(',');
-      // Fetch crypto + metals sekaligus
-      const [cryptoRes, metalsRes] = await Promise.all([
-        fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=idr`),
-        fetch('https://api.metals.live/v1/spot/gold,silver'),
+      const COIN_MAP = { bitcoin: 'bitcoin', ethereum: 'ethereum', binancecoin: 'binance-coin', solana: 'solana', ripple: 'ripple' };
+      const ccIds = Object.values(COIN_MAP).join(',');
+      const [cryptoRes, goldRes, silverRes, idrRes] = await Promise.all([
+        fetch(`https://api.coincap.io/v2/assets?ids=${ccIds}&limit=10`, { headers: CC_HDR }),
+        fetch('https://api.coincap.io/v2/rates/tether-gold', { headers: CC_HDR }),
+        fetch('https://api.coincap.io/v2/rates/silver', { headers: CC_HDR }),
+        fetch('https://api.coincap.io/v2/rates/indonesian-rupiah', { headers: CC_HDR }),
       ]);
-      const cryptoData = await cryptoRes.json();
-      const metalsRaw = await metalsRes.json();
+      const [cryptoRaw, goldRaw, silverRaw, idrRaw] = await Promise.all([
+        cryptoRes.json(), goldRes.json(), silverRes.json(), idrRes.json()
+      ]);
 
-      // metals.live v1: [{gold: price}, {silver: price}] atau {gold: price, silver: price}
-      let goldUSD = null, silverUSD = null;
-      if (Array.isArray(metalsRaw)) {
-        goldUSD = metalsRaw.find(m => m.gold)?.gold || null;
-        silverUSD = metalsRaw.find(m => m.silver)?.silver || null;
-      } else if (metalsRaw.gold) {
-        goldUSD = metalsRaw.gold;
-        silverUSD = metalsRaw.silver || null;
-      }
+      const idrRateUsd = parseFloat(idrRaw?.data?.rateUsd || 0);
+      const usdToIdr = idrRateUsd > 0 ? Math.round(1 / idrRateUsd) : 16800;
 
-      // Ambil rate USD→IDR dari cache forex atau fallback
-      let usdToIdr = 16800;
+      const cryptoData = {};
+      (cryptoRaw?.data || []).forEach(coin => {
+        const priceUsd = parseFloat(coin.priceUsd || 0);
+        const geckoId = Object.keys(COIN_MAP).find(k => COIN_MAP[k] === coin.id) || coin.id;
+        cryptoData[geckoId] = { idr: Math.round(priceUsd * usdToIdr), usd: priceUsd };
+      });
+
+      const goldUsdOz = parseFloat(goldRaw?.data?.rateUsd || 0);
+      const silverUsdOz = parseFloat(silverRaw?.data?.rateUsd || 0);
+      const goldPerGram = goldUsdOz > 0 ? Math.round((goldUsdOz * usdToIdr) / 31.1035) : 1580000;
+      const silverPerGram = silverUsdOz > 0 ? Math.round((silverUsdOz * usdToIdr) / 31.1035) : 20000;
+
+      const newRates = { IDR: 1, USD: usdToIdr };
       try {
         const fxCache = JSON.parse(localStorage.getItem('wc_cache_forex') || 'null');
-        if (fxCache?.rates?.USD) usdToIdr = fxCache.rates.USD;
+        if (fxCache?.rates?.EUR) newRates.EUR = fxCache.rates.EUR;
+        if (fxCache?.rates?.CNY) newRates.CNY = fxCache.rates.CNY;
+        if (fxCache?.rates?.SGD) newRates.SGD = fxCache.rates.SGD;
       } catch {}
+      Object.assign(RATES, newRates);
 
-      // troy oz → gram: 1 troy oz = 31.1035 gram
-      const goldPerGram = goldUSD ? Math.round((goldUSD * usdToIdr) / 31.1035) : null;
-      const silverPerGram = silverUSD ? Math.round((silverUSD * usdToIdr) / 31.1035) : null;
-
-      const toSave = {
-        ts: Date.now(),
-        crypto: cryptoData,
-        gold: goldPerGram || 1580000,
-        silver: silverPerGram || 20000,
-      };
+      const toSave = { ts: Date.now(), crypto: cryptoData, gold: goldPerGram, silver: silverPerGram, rates: newRates };
       localStorage.setItem(CACHE_KEY, JSON.stringify(toSave));
 
-      setLivePrices(p => ({
-        ...p,
-        crypto: cryptoData,
-        gold: toSave.gold,
-        silver: toSave.silver,
-      }));
+      setLivePrices(p => ({ ...p, crypto: cryptoData, gold: goldPerGram, silver: silverPerGram }));
       setLastUpdated(new Date().toLocaleTimeString('id-ID'));
       setAssets(prev => prev.map(a => {
         if (a.coinId && cryptoData[a.coinId])
@@ -294,51 +281,40 @@ export default function WealthCompassV7() {
         return a;
       }));
     } catch (e) {
-      console.warn('Crypto/metals fetch failed:', e.message);
-      setLivePrices(p => ({
-        ...p,
-        gold: p.gold || 1580000,
-        silver: p.silver || 20000,
-      }));
+      console.warn('CoinCap fetch failed:', e.message);
+      setLivePrices(p => ({ ...p, gold: p.gold || 1580000, silver: p.silver || 20000 }));
     }
     setPriceLoading(false);
   }, []);
 
-  // ── Fetch forex (4 jam) ───────────────────────────────────────────
+  // ── Fetch EUR/CNY/SGD via frankfurter (4 jam) ────────────────────
   const fetchForex = useCallback(async () => {
     const CACHE_KEY = 'wc_cache_forex';
-    const TTL = 4 * 60 * 60 * 1000; // 4 jam
+    const TTL = 4 * 60 * 60 * 1000;
     try {
       const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-      if (cached && Date.now() - cached.ts < TTL) {
-        Object.assign(RATES, cached.rates);
-        return;
-      }
+      if (cached && Date.now() - cached.ts < TTL) { Object.assign(RATES, cached.rates); return; }
     } catch {}
-
     try {
-      const res = await fetch('https://api.frankfurter.app/latest?from=IDR&to=USD,EUR,CNY');
+      const res = await fetch('https://api.frankfurter.app/latest?from=IDR&to=USD,EUR,CNY,SGD');
       const data = await res.json();
-      // frankfurter from=IDR → rates.USD = berapa USD per 1 IDR
-      // kita butuh kebalikan: berapa IDR per 1 USD
       const newRates = {
         IDR: 1,
         USD: data.rates?.USD ? Math.round(1 / data.rates.USD) : 16800,
         EUR: data.rates?.EUR ? Math.round(1 / data.rates.EUR) : 19000,
         CNY: data.rates?.CNY ? Math.round(1 / data.rates.CNY) : 2400,
+        SGD: data.rates?.SGD ? Math.round(1 / data.rates.SGD) : 13000,
       };
       localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rates: newRates }));
       Object.assign(RATES, newRates);
-    } catch (e) {
-      console.warn('Forex fetch failed:', e.message);
-    }
+    } catch (e) { console.warn('Forex fetch failed:', e.message); }
   }, []);
 
   useEffect(() => {
     fetchCryptoAndMetals();
     fetchForex();
-    const t1 = setInterval(fetchCryptoAndMetals, 60 * 60 * 1000); // 60 menit
-    const t2 = setInterval(fetchForex, 4 * 60 * 60 * 1000);       // 4 jam
+    const t1 = setInterval(fetchCryptoAndMetals, 60 * 60 * 1000);
+    const t2 = setInterval(fetchForex, 4 * 60 * 60 * 1000);
     return () => { clearInterval(t1); clearInterval(t2); };
   }, [fetchCryptoAndMetals, fetchForex]);
 
@@ -414,11 +390,6 @@ export default function WealthCompassV7() {
   ]);
 
   // ── Show login if not authenticated ────────────────────────────────────────
-  if (authChecking) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.bg }}>
-      <div style={{ color: T.muted, fontSize: 13 }}>Memuat...</div>
-    </div>
-  );
   if (!user) return <LoginScreen onLogin={handleLogin} T={T} />;
 
   return (
@@ -494,10 +465,15 @@ export default function WealthCompassV7() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ textAlign: "right" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div
-                  style={{ color: T.accent, fontSize: 15, fontWeight: "bold" }}
-                >
-                  {displayMoney(total, dispCur)}
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ color: T.accent, fontSize: 15, fontWeight: "bold" }}>
+                    {displayMoney(total, dispCur)}
+                  </div>
+                  {dispCur !== "IDR" && RATES[dispCur] && (
+                    <div style={{ color: T.muted, fontSize: 10, marginTop: 1 }}>
+                      1 {dispCur} = Rp{RATES[dispCur].toLocaleString("id-ID")}
+                    </div>
+                  )}
                 </div>
                 {/* Hide/show toggle */}
                 <button
