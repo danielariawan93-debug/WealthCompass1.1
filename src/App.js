@@ -1032,3 +1032,4 @@ function WealthCompassV7() {
     </div>
   );
 }
+export default WealthCompassV7;
