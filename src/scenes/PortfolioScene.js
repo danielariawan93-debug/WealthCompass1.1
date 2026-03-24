@@ -1258,17 +1258,17 @@ function PortfolioScene({
                   T={T}
                 >
                   {tier?.id === "proplus"
-                    ? "💎 20x/bulan"
+                    ? "💎 25x/bulan"
                     : tier?.id === "pro"
                     ? `⭐ ${pdfRemaining}x / bulan`
                     : `${pdfRemaining}x tersisa`}
                 </Chip>
                 <div style={{ color: T.muted, fontSize: 10, marginTop: 3 }}>
                   {tier?.id === "proplus"
-                    ? "Pro+ — tidak terbatas"
+                    ? "Pro+ — 25x per bulan, reset tiap bulan"
                     : tier?.id === "pro"
-                    ? "Pro — 7x per bulan, reset tiap bulan"
-                    : "Free — 3x seumur hidup"}
+                    ? "Pro — 10x per bulan, reset tiap bulan"
+                    : "Free — 5x seumur hidup"}
                 </div>
               </div>
             </div>
