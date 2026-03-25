@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { auth } from "./components/LoginScreen";
+import { signOut, onAuthStateChanged } from "firebase/auth";
 import { THEMES, CUSTOM_PRESETS, applyPreset } from "./constants/themes";
 import {
   ASSET_CLASSES,
@@ -62,6 +64,7 @@ function WealthCompassV7() {
   // ── ALL STATE DECLARATIONS FIRST (handlers reference these via closure) ─────
   const [user, setUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
+  const [keepSignIn] = useState(() => localStorage.getItem('wc_keep_signin') !== 'false');
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem("wc_theme") || "dark";
@@ -174,7 +177,7 @@ function WealthCompassV7() {
     localStorage.removeItem("wc_custom_theme");
     setTheme("dark");
     setCustomPresetId("midnight");
-    try { import('./components/LoginScreen').then(({auth}) => { import('firebase/auth').then(({signOut}) => signOut(auth)); }); } catch {}
+    signOut(auth).catch(() => {});
     setUser(null);
   };
 
@@ -390,8 +393,7 @@ function WealthCompassV7() {
   // ── Firebase session check on mount ────────────────────────────────────────
   useEffect(() => {
     let unsub;
-    import('./components/LoginScreen').then(({ auth }) => {
-      import('firebase/auth').then(({ onAuthStateChanged }) => {
+    unsub = onAuthStateChanged(auth, (firebaseUser) => {
         unsub = onAuthStateChanged(auth, (firebaseUser) => {
           if (firebaseUser) {
             // Google: emailVerified OR providerData contains google
@@ -408,7 +410,6 @@ function WealthCompassV7() {
           }
           setAuthChecking(false);
         });
-      });
     });
     return () => { if (unsub) unsub(); };
   }, []);
@@ -1032,4 +1033,5 @@ function WealthCompassV7() {
     </div>
   );
 }
+
 export default WealthCompassV7;
