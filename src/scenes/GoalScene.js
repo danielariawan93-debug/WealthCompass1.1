@@ -188,15 +188,15 @@ function GoalScene({
         );
         const pct = Math.min((allocated / goal.target) * 100, 100);
         // KODE BARU (OPSI B):
-const currentYear = 2026; // Sesuai tahun saat ini
-const isCalendarYear = goal.years > 1000;
-const duration = isCalendarYear ? Math.max(0.08, goal.years - currentYear) : goal.years;
-const totalMonths = duration * 12;
+        const currentYear = 2026; // Sesuai tahun saat ini
+        const isCalendarYear = goal.years > 1000;
+        const duration = isCalendarYear ? Math.max(0.08, goal.years - currentYear) : goal.years;
+        const totalMonths = duration * 12;
 
-const monthly = Math.max(
-  0, 
-  (goal.target - allocated) / (totalMonths || 1)
-);
+        const monthly = Math.max(
+        0, 
+        (goal.target - allocated) / (totalMonths || 1)
+        );
         
         const isActive = activeGoal === goal.id;
         return (
