@@ -232,16 +232,26 @@ function GoalScene({
                   ◇ {goal.name}
                 </div>
                 <div style={{ color: T.muted, fontSize: 11 }}>
-                  Target {fV(goal.target, dispCur)} · {isCalendarYear ? `Tahun ${goal.years}` : `${goal.years} tahun`}
-                </div>
+  Target {fV(goal.target, dispCur)} · {goal.years} tahun
+</div>
+    
               </div>
               <div style={{ display: "flex", gap: 6 }}>
-                <Chip
-                  color={pct >= 100 ? T.green : pct > 50 ? T.orange : T.red}
-                  T={T}
-                >
-                  {pct.toFixed(1)}%
-                </Chip>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+  <button
+    onClick={() => setEditingGoal(editingGoal === goal.id ? null : goal.id)}
+    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, opacity: 0.6 }}
+  >
+    {editingGoal === goal.id ? "💾" : "✏️"}
+  </button>
+  <Chip
+    color={pct >= 100 ? T.green : pct > 50 ? T.orange : T.red}
+    T={T}
+  >
+    {pct.toFixed(1)}%
+  </Chip>
+</div>
+      
                 <button
                   onClick={() =>
                     setGoals((p) => p.filter((g) => g.id !== goal.id))
