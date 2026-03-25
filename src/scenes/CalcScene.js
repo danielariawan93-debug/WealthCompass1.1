@@ -17,25 +17,49 @@ function CalcScene({ assets, dispCur, T }) {
 
   const N = { yearly: 1, quarterly: 4, monthly: 12 }[p.compound] || 1;
 
+  // LOGIKA PERHITUNGAN ANUITAS (AKURAT UNTUK 1 TAHUN & JANGKA PANJANG)
   const gen = useCallback(() => {
     const d = [];
-    let b = p.principal;
-    let contrib = p.principal;
-    const r = p.rate / 100;
-    const inf = p.inflation / 100;
+    let balance = p.principal;
+    let contribution = p.principal;
+    const rAnn = p.rate / 100;
+    const iAnn = p.inflation / 100;
+    const rMonth = rAnn / 12;
 
-    for (let y = 0; y <= p.years; y++) {
-      const inflationFactor = Math.pow(1 + inf, y);
+    // Tahun 0 (Titik Awal)
+    d.push({ 
+      y: Math.round(balance), 
+      contrib: Math.round(contribution), 
+      real: Math.round(balance), 
+      label: "Thn 0" 
+    });
+
+    for (let y = 1; y <= p.years; y++) {
+      // 1. Hitung pertumbuhan saldo awal tahun (Compounding)
+      const prevBalance = balance;
+      balance = balance * Math.pow(1 + rAnn / N, N);
+
+      // 2. Hitung nilai masa depan dari tabungan bulanan (FV of Annuity)
+      // Tabungan bulanan dianggap berbunga setiap bulan
+      if (rMonth > 0) {
+        const fvAnnuity = p.monthly * ((Math.pow(1 + rMonth, 12) - 1) / rMonth);
+        balance += fvAnnuity;
+      } else {
+        balance += p.monthly * 12;
+      }
+
+      contribution += p.monthly * 12;
+      
+      // 3. Hitung Nilai Riil (Disesuaikan Inflasi)
+      const inflationFactor = Math.pow(1 + iAnn, y);
+      const realValue = balance / inflationFactor;
+
       d.push({ 
-        y: Math.round(b), 
-        contrib: Math.round(contrib),
-        real: Math.round(b / inflationFactor),
+        y: Math.round(balance), 
+        contrib: Math.round(contribution), 
+        real: Math.round(realValue),
         label: `Thn ${y}` 
       });
-      if (y < p.years) {
-        b = b * Math.pow(1 + r / N, N) + p.monthly * 12;
-        contrib += p.monthly * 12;
-      }
     }
     return d;
   }, [p.principal, p.monthly, p.rate, p.inflation, p.years, p.compound, N]);
@@ -47,8 +71,12 @@ function CalcScene({ assets, dispCur, T }) {
 
   const calcFinal = (r) => {
     let b = p.principal;
-    for (let y = 0; y < p.years; y++)
-      b = b * Math.pow(1 + r / 100 / N, N) + p.monthly * 12;
+    const mR = (r / 100) / 12;
+    for (let y = 0; y < p.years; y++) {
+      b = b * Math.pow(1 + (r / 100) / N, N);
+      if (mR > 0) b += p.monthly * ((Math.pow(1 + mR, 12) - 1) / mR);
+      else b += p.monthly * 12;
+    }
     return b;
   };
 
@@ -118,23 +146,23 @@ function CalcScene({ assets, dispCur, T }) {
           ))}
         </div>
 
-        <SL T={T}>Visualisasi Pertumbuhan</SL>
-        <div style={{ background: T.surface, borderRadius: 10, padding: "16px 12px", border: `1px solid ${T.border}` }}>
+        <SL T={T}>Grafik Proyeksi</SL>
+        <div style={{ background: T.surface, borderRadius: 10, padding: "16px 12px", border: `1px solid ${T.border}`, position: 'relative' }}>
           <LineChart
             data={data}
             T={T}
-            height={140}
-            interactive={true}
+            height={160}
+            interactive={true} 
             series={[
               { key: 'y', color: T.accent, label: 'Nominal' },
-              { key: 'contrib', color: T.textSoft, label: 'Kontribusi' },
+              { key: 'contrib', color: T.textSoft, label: 'Modal' },
               { key: 'real', color: T.blue, label: 'Riil' }
             ]}
           />
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.muted, marginTop: 12, borderTop: `1px solid ${T.border}`, paddingTop: 8 }}>
-             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 8, height: 2, background: T.accent }} />Nominal</div>
-             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 8, height: 2, background: T.textSoft }} />Modal</div>
-             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 8, height: 2, background: T.blue }} />Riil</div>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 8, height: 2, background: T.accent }} /> Nominal</div>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 8, height: 2, background: T.textSoft }} /> Modal</div>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 8, height: 2, background: T.blue }} /> Riil</div>
           </div>
         </div>
 
