@@ -231,9 +231,28 @@ function GoalScene({
                 >
                   ◇ {goal.name}
                 </div>
-                <div style={{ color: T.muted, fontSize: 11 }}>
-  Target {fV(goal.target, dispCur)} · {goal.years} tahun
+                <div style={{ color: T.muted, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+  {editingGoal === goal.id ? (
+    <>
+      <input 
+        type="number" 
+        defaultValue={goal.target} 
+        onBlur={(e) => saveEdit(goal.id, 'target', e.target.value)}
+        style={{ width: 85, background: T.surface, color: T.text, border: `1px solid ${T.border}`, borderRadius: 4, fontSize: 11, padding: '2px 4px' }}
+      />
+      <span>·</span>
+      <input 
+        type="number" 
+        defaultValue={goal.years} 
+        onBlur={(e) => saveEdit(goal.id, 'years', e.target.value)}
+        style={{ width: 55, background: T.surface, color: T.text, border: `1px solid ${T.border}`, borderRadius: 4, fontSize: 11, padding: '2px 4px' }}
+      />
+    </>
+  ) : (
+    <>Target {fV(goal.target, dispCur)} · {goal.years > 1000 ? `Thn ${goal.years}` : `${goal.years} thn`}</>
+  )}
 </div>
+
     
               </div>
               <div style={{ display: "flex", gap: 6 }}>
