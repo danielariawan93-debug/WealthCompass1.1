@@ -226,7 +226,7 @@ function GoalScene({
                   ◇ {goal.name}
                 </div>
                 <div style={{ color: T.muted, fontSize: 11 }}>
-                  Target {fV(goal.target, dispCur)} · {goal.years} tahun
+                  Target {fV(goal.target, dispCur)} · {isCalendarYear ? `Tahun ${goal.years}` : `${goal.years} tahun`}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6 }}>
