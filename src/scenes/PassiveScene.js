@@ -46,7 +46,19 @@ function DebtIncomeCard({
   const totalInflow  = passiveIncomeMon + activeIncomeMon;
   const surplus      = totalInflow - totalOutflow;
 
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem("wc_cashflow_collapsed") === "1"; }
+    catch { return false; }
+  });
+  const toggleCollapse = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    try { localStorage.setItem("wc_cashflow_collapsed", next ? "1" : "0"); } catch {}
+  };
+
   if (totalAssets === 0 && totalDebt === 0) return null;
+
+  const surplusColor = surplus >= 0 ? T.green : T.red;
 
   return (
     <div
@@ -57,6 +69,49 @@ function DebtIncomeCard({
         border: `1px solid ${T.border}`,
       }}
     >
+      {/* ── Collapsible header ── */}
+      <div
+        role="button"
+        onClick={toggleCollapse}
+        style={{
+          cursor: "pointer",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "12px 16px",
+          background: T.card,
+          borderBottom: collapsed ? "none" : `1px solid ${T.border}`,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 14 }}>⚖️</span>
+          <div>
+            <div style={{ color: T.text, fontSize: 13, fontWeight: "bold" }}>
+              Ringkasan Arus Kas
+            </div>
+            <div style={{ color: surplusColor, fontSize: 11 }}>
+              {surplus >= 0 ? "✓ Surplus " : "⚠ Defisit "}
+              {fV(Math.abs(surplus), dispCur)}/bln
+              {activeIncomeMon > 0 && (
+                <span style={{ color: T.muted }}> · incl. active income</span>
+              )}
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            color: T.muted,
+            fontSize: 16,
+            transition: "transform 0.2s",
+            transform: collapsed ? "none" : "rotate(180deg)",
+          }}
+        >
+          ▾
+        </span>
+      </div>
+
+      {!collapsed && (
+        <>
       {/* FREE section — always visible: Aset vs Hutang */}
       <div style={{ padding: "14px 16px", background: T.card }}>
         <div
@@ -251,6 +306,8 @@ function DebtIncomeCard({
             Upgrade Pro →
           </span>
         </button>
+      )}
+        </>
       )}
     </div>
   );
