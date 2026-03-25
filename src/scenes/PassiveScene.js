@@ -1,4 +1,3 @@
-import CalcScene from './CalcScene';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Card, SL, Chip, Bar, TInput, TSelect, TBtn, Donut, InfoBtn, LineChart } from '../components/ui';
 import { fMoney, fM, parseVal, getIDR, FREQ_MULT, LS, LS2, getWealthSegment } from '../utils/helpers';
@@ -28,16 +27,23 @@ function DebtIncomeCard({
     .filter((a) => a.income?.amount > 0 && ["property","business"].includes(a.classKey))
     .reduce((s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 12), 0);
 
-  const totalIncomeMon = (instrIncomeAnnual + propBizIncomeAnnual) / 12;
-  const instrIncomeMon = instrIncomeAnnual / 12;
-  const propBizIncomeMon = propBizIncomeAnnual / 12;
-  const totalDebtMon = debts.reduce((s, d) => s + parseVal(d.monthlyPayment), 0);
-  const biayaBulanan = parseVal(monthlyExpense);
+  // Read active incomes (gaji, freelance, bisnis aktif) from localStorage
+  const activeIncomes = (() => {
+    try { return JSON.parse(localStorage.getItem("wc_active_incomes") || "[]"); }
+    catch { return []; }
+  })();
+  const activeIncomeMon = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
 
-  // Total outflow vs inflow
+  const passiveIncomeMon = (instrIncomeAnnual + propBizIncomeAnnual) / 12;
+  const instrIncomeMon   = instrIncomeAnnual / 12;
+  const propBizIncomeMon = propBizIncomeAnnual / 12;
+  const totalDebtMon     = debts.reduce((s, d) => s + parseVal(d.monthlyPayment), 0);
+  const biayaBulanan     = parseVal(monthlyExpense);
+
+  // Total outflow vs inflow (passive + active)
   const totalOutflow = totalDebtMon + biayaBulanan;
-  const totalInflow  = totalIncomeMon;
-  const surplus = totalInflow - totalOutflow;
+  const totalInflow  = passiveIncomeMon + activeIncomeMon;
+  const surplus      = totalInflow - totalOutflow;
 
   if (totalAssets === 0 && totalDebt === 0) return null;
 
@@ -187,6 +193,20 @@ function DebtIncomeCard({
                   {propBizIncomeMon > 0 ? fV(propBizIncomeMon, dispCur) : <span style={{ color: T.muted, fontSize: 11 }}>—</span>}
                 </div>
                 <div style={{ color: T.muted, fontSize: 9 }}>sewa + profit usaha</div>
+              </div>
+            </div>
+            {/* Active Income row */}
+            <div style={{ marginTop: 8, padding: "10px 12px", background: T.greenDim, borderRadius: 10, border: `1px solid ${T.green}22`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ color: T.muted, fontSize: 10, marginBottom: 2 }}>💼 Active Income</div>
+                <div style={{ color: T.muted, fontSize: 9 }}>
+                  {activeIncomes.length > 0
+                    ? activeIncomes.map(a => a.label).join(" · ")
+                    : "Gaji / Freelance / Bisnis Aktif"}
+                </div>
+              </div>
+              <div style={{ color: T.green, fontSize: 13, fontWeight: "bold" }}>
+                {activeIncomeMon > 0 ? fV(activeIncomeMon, dispCur) : <span style={{ color: T.muted, fontSize: 11 }}>—</span>}
               </div>
             </div>
           </div>
@@ -418,6 +438,49 @@ function PassiveIncomeScene({
       return "";
     }
   });
+
+  // ── ACTIVE INCOME (Gaji + Bisnis Aktif) ──────────────────────────────────
+  const [activeIncomes, setActiveIncomes] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("wc_active_incomes") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [showActiveForm, setShowActiveForm] = useState(false);
+  const [activeForm, setActiveForm] = useState({ label: "", amount: "", type: "salary" });
+
+  const ACTIVE_TYPES = [
+    { value: "salary",    label: "Gaji / Take-home Pay",   icon: "💼" },
+    { value: "freelance", label: "Freelance / Konsultan",   icon: "🖥️" },
+    { value: "biz_active",label: "Bisnis Aktif (dikelola)", icon: "🏪" },
+    { value: "other",     label: "Lainnya",                 icon: "💰" },
+  ];
+
+  const saveActiveIncome = () => {
+    if (!activeForm.amount) return;
+    const entry = {
+      id: Date.now().toString(),
+      label: activeForm.label || ACTIVE_TYPES.find(t => t.value === activeForm.type)?.label || "Active Income",
+      amount: parseVal(activeForm.amount),
+      type: activeForm.type,
+    };
+    const updated = [...activeIncomes, entry];
+    setActiveIncomes(updated);
+    try { localStorage.setItem("wc_active_incomes", JSON.stringify(updated)); } catch {}
+    setActiveForm({ label: "", amount: "", type: "salary" });
+    setShowActiveForm(false);
+  };
+
+  const removeActiveIncome = (id) => {
+    const updated = activeIncomes.filter(a => a.id !== id);
+    setActiveIncomes(updated);
+    try { localStorage.setItem("wc_active_incomes", JSON.stringify(updated)); } catch {}
+  };
+
+  const totalActiveMonthly = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
+  // ────────────────────────────────────────────────────────────────────────────
+
   const [editIncomeId, setEditIncomeId] = useState(null);
   // Fix 3b: inputMode per-form ('nominal'|'pct')
   const [incomeForm, setIncomeForm] = useState({
@@ -435,8 +498,11 @@ function PassiveIncomeScene({
   );
   const totalMonthly = totalAnnual / 12;
   const expense = parseVal(monthlyExpense);
-  const coverage = expense > 0 ? (totalMonthly / expense) * 100 : 0;
-  const gap = Math.max(0, expense - totalMonthly);
+  // Combined cashflow = passive income + active income (gaji, dll)
+  const totalCashflowMonthly = totalMonthly + totalActiveMonthly;
+  const coverage = expense > 0 ? (totalCashflowMonthly / expense) * 100 : 0;
+  const passiveCoverage = expense > 0 ? (totalMonthly / expense) * 100 : 0;
+  const gap = Math.max(0, expense - totalCashflowMonthly);
   const totalIDR = assets.reduce((s, a) => s + getIDR(a), 0);
 
   // Group assets by ASSET_CLASS for display (Fix 3a)
@@ -618,7 +684,7 @@ function PassiveIncomeScene({
                   marginBottom: 6,
                 }}
               >
-                <span>Coverage passive income</span>
+                <span>Coverage total cashflow</span>
                 <span
                   style={{
                     color: coverage >= 100 ? T.green : T.orange,
@@ -634,6 +700,15 @@ function PassiveIncomeScene({
                 h={8}
                 T={T}
               />
+              {/* Show passive-only coverage as secondary info */}
+              {totalActiveMonthly > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.muted, marginTop: 5 }}>
+                  <span>— dari passive income saja</span>
+                  <span style={{ color: passiveCoverage >= 100 ? T.green : T.textSoft }}>
+                    {passiveCoverage.toFixed(1)}%
+                  </span>
+                </div>
+              )}
               <div style={{ marginTop: 10 }}>
                 {coverage >= 100 ? (
                   <div
@@ -661,6 +736,119 @@ function PassiveIncomeScene({
             </div>
           )}
         </div>
+      </Card>
+
+      {/* ── ACTIVE INCOME CARD ─────────────────────────────────────────────── */}
+      <Card T={T} style={{ marginBottom: 16 }}>
+        <SL T={T}>Active Income</SL>
+        <div style={{ color: T.textSoft, fontSize: 12, marginBottom: 14, lineHeight: 1.6 }}>
+          Catat gaji, freelance, dan bisnis yang Anda kelola aktif. Tidak dihitung sebagai aset, tapi masuk ke arus kas bulanan.
+        </div>
+
+        {/* Summary chip */}
+        {activeIncomes.length > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "10px 14px", background: T.greenDim, borderRadius: 10,
+              border: `1px solid ${T.green}33`, marginBottom: 14 }}>
+            <span style={{ color: T.textSoft, fontSize: 12 }}>Total / Bulan</span>
+            <span style={{ color: T.green, fontSize: 14, fontWeight: "bold",
+                fontFamily: "'Playfair Display', Georgia, serif" }}>
+              {fV(totalActiveMonthly, dispCur)}
+            </span>
+          </div>
+        )}
+
+        {/* List of active income entries */}
+        {activeIncomes.map((entry) => {
+          const typeInfo = [
+            { value: "salary",     label: "Gaji / Take-home Pay",   icon: "💼" },
+            { value: "freelance",  label: "Freelance / Konsultan",   icon: "🖥️" },
+            { value: "biz_active", label: "Bisnis Aktif (dikelola)", icon: "🏪" },
+            { value: "other",      label: "Lainnya",                 icon: "💰" },
+          ].find(t => t.value === entry.type) || { icon: "💰", label: "Income" };
+          return (
+            <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 12,
+                padding: "11px 14px", background: T.card, borderRadius: 10,
+                border: `1px solid ${T.green}33`, marginBottom: 8 }}>
+              <span style={{ fontSize: 18 }}>{typeInfo.icon}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: T.text, fontSize: 13, fontWeight: 500 }}>{entry.label}</div>
+                <div style={{ color: T.muted, fontSize: 10 }}>{typeInfo.label}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ color: T.green, fontSize: 13, fontWeight: "bold" }}>{fV(entry.amount, dispCur)}</div>
+                <div style={{ color: T.muted, fontSize: 10 }}>/bulan</div>
+              </div>
+              <button onClick={() => removeActiveIncome(entry.id)}
+                style={{ background: T.redDim, border: "none", color: T.red, borderRadius: 7,
+                    padding: "5px 9px", cursor: "pointer", fontSize: 11 }}>
+                ✕
+              </button>
+            </div>
+          );
+        })}
+
+        {/* Add form toggle */}
+        {!showActiveForm ? (
+          <button onClick={() => setShowActiveForm(true)}
+            style={{ width: "100%", padding: "10px 0", borderRadius: 9, border: `1px dashed ${T.accentSoft}`,
+                background: T.accentDim, color: T.accent, cursor: "pointer", fontSize: 12, fontWeight: "bold" }}>
+            + Tambah Active Income
+          </button>
+        ) : (
+          <div style={{ padding: "14px", background: T.surface, borderRadius: 10,
+              border: `1px solid ${T.accentSoft}` }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+              <div>
+                <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Jenis</div>
+                <select value={activeForm.type}
+                  onChange={e => setActiveForm(p => ({ ...p, type: e.target.value }))}
+                  style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`,
+                      color: T.text, borderRadius: 8, padding: "8px 10px", fontSize: 11 }}>
+                  <option value="salary">💼 Gaji / Take-home Pay</option>
+                  <option value="freelance">🖥️ Freelance / Konsultan</option>
+                  <option value="biz_active">🏪 Bisnis Aktif</option>
+                  <option value="other">💰 Lainnya</option>
+                </select>
+              </div>
+              <div>
+                <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Label (opsional)</div>
+                <input value={activeForm.label}
+                  onChange={e => setActiveForm(p => ({ ...p, label: e.target.value }))}
+                  placeholder="Contoh: PT XYZ"
+                  style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`,
+                      color: T.text, borderRadius: 8, padding: "8px 10px", fontSize: 11,
+                      outline: "none", boxSizing: "border-box" }} />
+              </div>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Nominal / Bulan (IDR)</div>
+              <input value={activeForm.amount}
+                onChange={e => setActiveForm(p => ({ ...p, amount: e.target.value }))}
+                placeholder="Contoh: 15000000"
+                style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.accent}`,
+                    color: T.text, borderRadius: 8, padding: "9px 12px", fontSize: 12,
+                    outline: "none", boxSizing: "border-box" }} />
+              {parseVal(activeForm.amount) > 0 && (
+                <div style={{ color: T.green, fontSize: 10, marginTop: 4 }}>
+                  ≈ {fV(parseVal(activeForm.amount) * 12, dispCur)} / tahun
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={saveActiveIncome}
+                style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none",
+                    background: T.accent, color: "#000", cursor: "pointer", fontSize: 12, fontWeight: "bold" }}>
+                ✓ Simpan
+              </button>
+              <button onClick={() => setShowActiveForm(false)}
+                style={{ padding: "9px 14px", borderRadius: 8, border: "none",
+                    background: T.border, color: T.textSoft, cursor: "pointer", fontSize: 12 }}>
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Fix 3a: Assets grouped by category */}
