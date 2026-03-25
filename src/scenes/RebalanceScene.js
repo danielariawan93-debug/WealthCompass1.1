@@ -13,10 +13,10 @@ function RebalanceScene({
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
   const [showRec, setShowRec] = useState(false);
+  const liquidAssets = assets.filter(a => !['property','business'].includes(a.classKey));
   const total = liquidAssets.reduce((s, a) => s + getIDR(a), 0);
   const target = riskProfile ? RISK_PROFILES[riskProfile].alloc : null;
   const profile = riskProfile ? RISK_PROFILES[riskProfile] : null;
-  const liquidAssets = assets.filter(a => !['property','business'].includes(a.classKey));
   const byClass = ASSET_CLASSES.filter(ac => !['property','business'].includes(ac.key)).map((ac) => {
     const v = liquidAssets
       .filter((a) => a.classKey === ac.key)
