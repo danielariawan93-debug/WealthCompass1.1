@@ -88,6 +88,7 @@ function PortfolioScene({
     qty: "",
   });
   const total = assets.reduce((s, a) => s + getIDR(a), 0);
+  const liquidTotal = assets.filter(a => !['property','business'].includes(a.classKey)).reduce((s, a) => s + getIDR(a), 0);
   const byClass = ASSET_CLASSES.map((ac) => {
     const items = assets.filter((a) => a.classKey === ac.key);
     const v = items.reduce((s, a) => s + getIDR(a), 0);
@@ -387,27 +388,21 @@ function PortfolioScene({
                 size={130}
               />
               <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    color: T.muted,
-                    fontSize: 10,
-                    letterSpacing: 1.5,
-                    marginBottom: 4,
-                  }}
-                >
-                  TOTAL PORTOFOLIO
+                <div style={{ color: T.muted, fontSize: 10, letterSpacing: 1.5, marginBottom: 4 }}>
+                  TOTAL NET WORTH
                 </div>
-                <div
-                  style={{
-                    color: T.accent,
-                    fontSize: 20,
-                    fontFamily: "'Playfair Display', Georgia, serif",
-                    fontWeight: "bold",
-                    marginBottom: 10,
-                  }}
-                >
+                <div style={{ color: T.accent, fontSize: 20, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: "bold", marginBottom: 4 }}>
                   {fV(total, dispCur)}
                 </div>
+                {liquidTotal < total && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ color: T.muted, fontSize: 9, letterSpacing: 1, marginBottom: 2 }}>LIQUID NET WORTH</div>
+                    <div style={{ color: T.textSoft, fontSize: 14, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: "bold" }}>
+                      {fV(liquidTotal, dispCur)}
+                    </div>
+                    <div style={{ color: T.muted, fontSize: 9 }}>excl. Properti & Bisnis</div>
+                  </div>
+                )}
                 {byClass
                   .filter((ac) => ac.v > 0)
                   .map((ac) => (
@@ -1258,17 +1253,17 @@ function PortfolioScene({
                   T={T}
                 >
                   {tier?.id === "proplus"
-                    ? "💎 25x/bulan"
+                    ? "💎 20x/bulan"
                     : tier?.id === "pro"
                     ? `⭐ ${pdfRemaining}x / bulan`
                     : `${pdfRemaining}x tersisa`}
                 </Chip>
                 <div style={{ color: T.muted, fontSize: 10, marginTop: 3 }}>
                   {tier?.id === "proplus"
-                    ? "Pro+ — 25x per bulan, reset tiap bulan"
+                    ? "Pro+ — tidak terbatas"
                     : tier?.id === "pro"
-                    ? "Pro — 10x per bulan, reset tiap bulan"
-                    : "Free — 5x seumur hidup"}
+                    ? "Pro — 7x per bulan, reset tiap bulan"
+                    : "Free — 3x seumur hidup"}
                 </div>
               </div>
             </div>
