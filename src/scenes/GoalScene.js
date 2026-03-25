@@ -72,6 +72,7 @@ function GoalScene({
   const setGoals = setGoalsProp || _setGoals;
   const [newGoal, setNewGoal] = useState({ name: "", target: "", years: "" });
   const [activeGoal, setActiveGoal] = useState(null);
+  const [editingGoal, setEditingGoal] = useState(null);
   const [allocInput, setAllocInput] = useState({});
   const totalPortfolio = assets.reduce((s, a) => s + getIDR(a), 0);
   const totalAllocByAsset = {};
@@ -118,6 +119,11 @@ function GoalScene({
     setActiveGoal(null);
     setAllocInput({});
   };
+
+  const saveEdit = (id, field, val) => {
+  setGoals(p => p.map(g => g.id === id ? { ...g, [field]: parseVal(val) } : g));
+};
+  
   const totalAllocated = Object.values(totalAllocByAsset).reduce(
     (s, v) => s + v,
     0
