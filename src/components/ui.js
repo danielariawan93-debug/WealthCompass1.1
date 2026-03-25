@@ -324,48 +324,83 @@ function InfoBtn({ content, T }) {
     </div>
   );
 }
-function LineChart({ data, color, T, height = 110, label = "" }) {
+function LineChart({ data, color, T, height = 110, label = "", series, interactive = false }) {
   if (!data || data.length < 2) return null;
-  const max = Math.max(...data.map((d) => d.y)),
-    min = Math.min(...data.map((d) => d.y)),
-    range = max - min || 1;
-  const W = 300,
-    H = height,
-    pad = 8;
-  const pts = data.map((d, i) => ({
-    x: pad + (i / (data.length - 1)) * (W - pad * 2),
-    y: H - pad - ((d.y - min) / range) * (H - pad * 2),
-  }));
-  const pathD = pts
-    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
-    .join(" ");
-  const areaD = pathD + ` L${pts[pts.length - 1].x},${H} L${pts[0].x},${H} Z`;
+
+  // Multi-series mode: accept series=[{key,color,label}]
+  // Single-series fallback: use legacy color prop with key 'y'
+  const activeSeries = series && series.length > 0
+    ? series
+    : [{ key: 'y', color: color || (T && T.accent) || '#888', label: label }];
+
+  const W = 300, H = height, pad = 8;
+
+  // Compute global min/max across ALL series for a unified Y scale
+  const allValues = activeSeries.flatMap(s => data.map(d => d[s.key] ?? 0));
+  const globalMax = Math.max(...allValues);
+  const globalMin = Math.min(0, Math.min(...allValues));
+  const range = globalMax - globalMin || 1;
+
+  const toY = (val) => H - pad - ((val - globalMin) / range) * (H - pad * 2);
+  const toX = (i) => pad + (i / (data.length - 1)) * (W - pad * 2);
+
+  const [tooltip, setTooltip] = useState(null);
+
+  const handleMouseMove = (e) => {
+    if (!interactive) return;
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const xRel = (e.clientX - rect.left) / rect.width;
+    const idx = Math.round(xRel * (data.length - 1));
+    const clamped = Math.max(0, Math.min(data.length - 1, idx));
+    setTooltip({ idx: clamped, x: toX(clamped), d: data[clamped] });
+  };
+
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
-      style={{ width: "100%", height }}
+      style={{ width: '100%', height, overflow: 'visible' }}
       preserveAspectRatio="none"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setTooltip(null)}
+      onTouchEnd={() => setTooltip(null)}
     >
       <defs>
-        <linearGradient id={`g_${label}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
-        </linearGradient>
+        {activeSeries.map((s, si) => (
+          <linearGradient key={si} id={`g_${s.key}_${si}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={s.color} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={s.color} stopOpacity="0.01" />
+          </linearGradient>
+        ))}
       </defs>
-      <path d={areaD} fill={`url(#g_${label})`} />
-      <path
-        d={pathD}
-        stroke={color}
-        strokeWidth={2}
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {pts.map(
-        (p, i) =>
-          i === pts.length - 1 && (
-            <circle key={i} cx={p.x} cy={p.y} r={3} fill={color} />
-          )
+
+      {activeSeries.map((s, si) => {
+        const pts = data.map((d, i) => ({ x: toX(i), y: toY(d[s.key] ?? 0) }));
+        const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+        const areaD = pathD + ` L${pts[pts.length - 1].x},${H} L${pts[0].x},${H} Z`;
+        // Only fill area for the first (primary) series to avoid visual clutter
+        return (
+          <g key={si}>
+            {si === 0 && <path d={areaD} fill={`url(#g_${s.key}_${si})`} />}
+            <path d={pathD} stroke={s.color} strokeWidth={si === 0 ? 2 : 1.5} fill="none"
+              strokeLinecap="round" strokeLinejoin="round"
+              strokeDasharray={si === 1 ? '5,3' : si === 2 ? '2,3' : 'none'} />
+            <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r={3} fill={s.color} />
+          </g>
+        );
+      })}
+
+      {/* Tooltip crosshair */}
+      {interactive && tooltip && (
+        <g>
+          <line x1={tooltip.x} y1={pad} x2={tooltip.x} y2={H - pad}
+            stroke={T ? T.border : '#555'} strokeWidth={1} strokeDasharray="3,2" />
+          {activeSeries.map((s, si) => {
+            const val = tooltip.d[s.key] ?? 0;
+            const cy = toY(val);
+            return <circle key={si} cx={tooltip.x} cy={cy} r={4} fill={s.color} stroke="#fff" strokeWidth={1.5} />;
+          })}
+        </g>
       )}
     </svg>
   );
