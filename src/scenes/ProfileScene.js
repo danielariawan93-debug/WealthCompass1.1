@@ -464,7 +464,7 @@ function ProfileScene({
             ))}
           </div>
         </div>
-          {health.score > 0 && (
+        {health.score > 0 && (
             <div
               onClick={() => setTab(weakest.tab)}
               style={{ marginTop: 12, padding: '8px 12px', background: T.surface, borderRadius: 9, border: `1px solid ${scoreColor}33`, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
@@ -479,8 +479,7 @@ function ProfileScene({
               </div>
               <span style={{ color: T.muted, fontSize: 14 }}>›</span>
             </div>
-          )}
-        </div>
+        )}
       </Card>
     </div>
   );
