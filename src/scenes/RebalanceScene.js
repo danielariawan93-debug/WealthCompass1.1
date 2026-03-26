@@ -21,12 +21,12 @@ function RebalanceScene({
   const [showRec, setShowRec] = useState(false);
 
   // showAssets: controls asset allocation detail cards (bottom section)
-  // "Selalu tampil" persists this preference in localStorage
+  // Default: false (hidden). Pro can persist "always show" via localStorage.
   const [alwaysShow, setAlwaysShow] = useState(() => {
-    try { return localStorage.getItem(LS_KEY) === '1'; } catch { return false; }
+    try { return isPro && localStorage.getItem(LS_KEY) === '1'; } catch { return false; }
   });
   const [showAssets, setShowAssets] = useState(() => {
-    try { return localStorage.getItem(LS_KEY) === '1'; } catch { return false; }
+    try { return isPro && localStorage.getItem(LS_KEY) === '1'; } catch { return false; }
   });
 
   const toggleAlwaysShow = (e) => {
@@ -149,7 +149,6 @@ function RebalanceScene({
       {needsRebalance && (
         <div
           onClick={() => {
-            if (!isPro) { setShowUpgrade && setShowUpgrade(true); return; }
             setShowAssets(p => !p);
           }}
           style={{
@@ -166,12 +165,12 @@ function RebalanceScene({
         >
           <div>
             <div style={{ color: T.accent, fontWeight: 'bold', fontSize: 13 }}>
-              {'\u2b50'} Lihat Rekomendasi Lengkap
+              {'\u2b50'} {showAssets ? 'Sembunyikan Detail Alokasi' : 'Lihat Rekomendasi Lengkap'}
             </div>
             <div style={{ color: T.textSoft, fontSize: 11, marginTop: 2 }}>
               {isPro
                 ? 'Centang agar detail alokasi per aset selalu tampil saat buka halaman ini'
-                : 'Upgrade Pro untuk tahu persis berapa yang harus dibeli/dijual per aset.'}
+                : showAssets ? 'Klik untuk sembunyikan · Upgrade Pro untuk lihat detail' : 'Klik untuk lihat alokasi · Upgrade Pro untuk detail lengkap'}
             </div>
           </div>
           {/* Always-show checkbox — Pro only */}
@@ -207,9 +206,9 @@ function RebalanceScene({
               </div>
             </label>
           )}
-          {/* Arrow for free */}
+          {/* Arrow for free — rotate when open */}
           {!isPro && (
-            <span style={{ color: T.accent, fontSize: 18, marginLeft: 12 }}>›</span>
+            <span style={{ color: T.accent, fontSize: 18, marginLeft: 12, transition: 'transform 0.2s', display: 'inline-block', transform: showAssets ? 'rotate(90deg)' : 'none' }}>›</span>
           )}
         </div>
       )}
@@ -313,4 +312,3 @@ function RebalanceScene({
 }
 
 export default RebalanceScene;
-                  
