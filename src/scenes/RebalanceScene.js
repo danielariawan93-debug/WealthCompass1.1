@@ -17,11 +17,15 @@ function RebalanceScene({
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
 
-  // Persist "always show" preference
+  // showRec: controls Rekomendasi Tindakan card (top section)
+  const [showRec, setShowRec] = useState(false);
+
+  // showAssets: controls asset allocation detail cards (bottom section)
+  // "Selalu tampil" persists this preference in localStorage
   const [alwaysShow, setAlwaysShow] = useState(() => {
     try { return localStorage.getItem(LS_KEY) === '1'; } catch { return false; }
   });
-  const [showRec, setShowRec] = useState(() => {
+  const [showAssets, setShowAssets] = useState(() => {
     try { return localStorage.getItem(LS_KEY) === '1'; } catch { return false; }
   });
 
@@ -29,7 +33,7 @@ function RebalanceScene({
     e.stopPropagation();
     const next = !alwaysShow;
     setAlwaysShow(next);
-    setShowRec(next);
+    setShowAssets(next);
     try { localStorage.setItem(LS_KEY, next ? '1' : '0'); } catch {}
   };
 
@@ -144,7 +148,10 @@ function RebalanceScene({
       {/* ── "Lihat Rekomendasi Lengkap" compact bar — all tiers, with always-show toggle ── */}
       {needsRebalance && (
         <div
-          onClick={() => !isPro && setShowUpgrade && setShowUpgrade(true)}
+          onClick={() => {
+            if (!isPro) { setShowUpgrade && setShowUpgrade(true); return; }
+            setShowAssets(p => !p);
+          }}
           style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -163,7 +170,7 @@ function RebalanceScene({
             </div>
             <div style={{ color: T.textSoft, fontSize: 11, marginTop: 2 }}>
               {isPro
-                ? 'Centang untuk selalu tampil saat buka halaman ini'
+                ? 'Centang agar detail alokasi per aset selalu tampil saat buka halaman ini'
                 : 'Upgrade Pro untuk tahu persis berapa yang harus dibeli/dijual per aset.'}
             </div>
           </div>
@@ -207,7 +214,8 @@ function RebalanceScene({
         </div>
       )}
 
-      {/* ── Asset Cards — blurred for Free ── */}
+      {/* ── Asset Cards — shown when showAssets (Pro) or always rendered blurred (Free) ── */}
+      {(!isPro || showAssets) && (
       <div style={{ position: 'relative' }}>
 
         {/* Blur overlay — Free only */}
@@ -298,9 +306,11 @@ function RebalanceScene({
           ))}
         </div>
       </div>
+      )}
 
     </div>
   );
 }
 
 export default RebalanceScene;
+                  
