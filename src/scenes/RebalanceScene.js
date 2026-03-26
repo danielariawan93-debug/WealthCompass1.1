@@ -213,8 +213,8 @@ function RebalanceScene({
         </div>
       )}
 
-      {/* ── Asset Cards — shown when showAssets (Pro) or always rendered blurred (Free) ── */}
-      {(!isPro || showAssets) && (
+      {/* ── Asset Cards — shown when showAssets (toggle by compact bar) ── */}
+      {showAssets && (
       <div style={{ position: 'relative' }}>
 
         {/* Blur overlay — Free only */}
@@ -312,3 +312,4 @@ function RebalanceScene({
 }
 
 export default RebalanceScene;
+              
