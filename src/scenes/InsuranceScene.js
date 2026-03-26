@@ -222,6 +222,13 @@ function LifeCalcForm({ inputs, setInputs, autoData, T, fV, dispCur }) {
           </div>
         ))}
         {educItems.length === 0 && <div style={{ color:T.muted, fontSize:11, textAlign:'center', padding:'8px 0' }}>Belum ada data anak</div>}
+        {educItems.length > 0 && (
+          <div style={{ marginTop:6, padding:'8px 12px', background:T.surface, borderRadius:8, border:`1px solid ${T.border}` }}>
+            <div style={{ color:T.muted, fontSize:10, lineHeight:1.6 }}>
+              <b style={{ color:T.textSoft }}>Asumsi perhitungan:</b> Kenaikan biaya pendidikan <b style={{ color:T.orange }}>8% per tahun</b> (rata-rata inflasi pendidikan Indonesia). Biaya yang diinput adalah nilai saat ini - sistem menghitung proyeksi biaya saat anak masuk kuliah menggunakan rumus <i>Future Value</i>.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -849,6 +856,12 @@ function InsuranceScene({
             <Card T={T} style={{ border:`1px solid ${T.accentSoft}` }}>
               <SL T={T}>Hasil & Perbandingan Polis</SL>
               <CalcResult calcType={calcType} result={calcResult} insurances={insurances} T={T} fV={fV} dispCur={dispCur} />
+              {/* Disclaimer */}
+              <div style={{ marginTop:14, padding:'10px 14px', background:T.surface, borderRadius:9, border:`1px solid ${T.border}` }}>
+                <div style={{ color:T.muted, fontSize:10, lineHeight:1.7 }}>
+                  <b style={{ color:T.textSoft }}>⚠ Disclaimer:</b> Hasil kalkulasi ini bersifat <b>estimasi</b> berdasarkan data portofolio dan asumsi umum yang digunakan dalam perencanaan keuangan. Angka aktual dapat berbeda tergantung kondisi kesehatan, profil risiko, produk asuransi yang tersedia, serta kebijakan masing-masing perusahaan asuransi. Untuk perhitungan yang lebih akurat dan rekomendasi produk yang sesuai, disarankan berkonsultasi dengan <b>Perencana Keuangan Bersertifikat (CFP)</b> atau <b>Agen/Pialang Asuransi berlisensi OJK</b>.
+                </div>
+              </div>
             </Card>
           )}
         </>
