@@ -55,6 +55,7 @@ import {
 import { DebtScene } from "./scenes/DebtScene";
 import { RealAssetsScene } from "./scenes/RealAssetsScene";
 import ComingSoonScene from "./scenes/ComingSoonScene";
+import InsuranceScene from "./scenes/InsuranceScene";
 
 // CoinCap API credentials
 const CC_KEY = '29eb9eb7f921e41d70cb469c1ea9f23bddf88694c9c9873064c38c02183a5234';
@@ -116,6 +117,7 @@ function WealthCompassV7() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [assets, setAssets] = useState([]);
   const [activeIncomes, setActiveIncomes] = useState([]);
+  const [insurances, setInsurances] = useState([]);
 
   // ── AUTH HANDLERS (safe to reference state now) ────────────────────────────
   const handleLogin = (userData) => {
@@ -145,6 +147,7 @@ function WealthCompassV7() {
     setTheme(d.theme || "dark");
     setCustomPresetId(d.customPresetId || "midnight");
     setActiveIncomes(d.activeIncomes || []);
+    setInsurances(d.insurances || []);
   };
 
   const handleLogout = () => {
@@ -163,6 +166,7 @@ function WealthCompassV7() {
         theme,
         customPresetId,
         activeIncomes,
+        insurances,
       });
     }
     setAssets([]);
@@ -174,6 +178,7 @@ function WealthCompassV7() {
     setUploadCount(0);
     setProExpiry(null);
     setActiveIncomes([]);
+    setInsurances([]);
     setHideValues(false);
     setTab("profile");
     localStorage.removeItem("wc_session");
@@ -410,6 +415,7 @@ function WealthCompassV7() {
       theme,
       customPresetId,
       activeIncomes,
+      insurances,
     });
   }, [
     assets,
@@ -423,6 +429,7 @@ function WealthCompassV7() {
     dispCur,
     settings,
     activeIncomes,
+    insurances,
   ]);
 
   // ── Firebase session check on mount ────────────────────────────────────────
@@ -848,34 +855,18 @@ function WealthCompassV7() {
               />
             )}
             {tab === "insurance" && (
-              <ComingSoonScene
+              <InsuranceScene
+                assets={assets}
+                debts={debts || []}
+                goals={goals || []}
+                dispCur={dispCur}
                 T={T}
-                title="Asuransi & Proteksi Kekayaan"
-                icon="🛡️"
-                proPlus={false}
-                description="Lacak semua polis asuransi dalam satu tempat — jiwa, kesehatan, properti, dan kendaraan. Pastikan proteksi kekayaan kamu sudah optimal."
-                features={[
-                  {
-                    icon: "📋",
-                    label: "Polis Asuransi Jiwa",
-                    desc: "Input premi, uang pertanggungan, dan masa berlaku polis jiwa & term life",
-                  },
-                  {
-                    icon: "🏥",
-                    label: "Asuransi Kesehatan",
-                    desc: "Lacak BPJS, asuransi swasta, dan limit manfaat per tahun",
-                  },
-                  {
-                    icon: "🏠",
-                    label: "Asuransi Properti & Kendaraan",
-                    desc: "Nilai pertanggungan vs nilai aset aktual",
-                  },
-                  {
-                    icon: "📊",
-                    label: "Coverage Gap Analysis",
-                    desc: "AI analisa apakah proteksi kamu sudah cukup vs net worth",
-                  },
-                ]}
+                hideValues={hideValues}
+                isPro={isPro}
+                isProPlus={isProPlus}
+                setShowUpgrade={setShowUpgrade}
+                insurances={insurances}
+                setInsurances={setInsurances}
               />
             )}
             {tab === "peers" && (
@@ -1080,6 +1071,3 @@ function WealthCompassV7() {
 }
 
 export default WealthCompassV7;
-              
-              
-            
