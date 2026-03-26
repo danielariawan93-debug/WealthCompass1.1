@@ -13,6 +13,7 @@ function DebtIncomeCard({
   hideValues,
   setShowUpgrade,
   monthlyExpense = 0,
+  activeIncomes = [],
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
 
@@ -28,11 +29,7 @@ function DebtIncomeCard({
     .filter((a) => a.income?.amount > 0 && ["property","business"].includes(a.classKey))
     .reduce((s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 12), 0);
 
-  // Read active incomes (gaji, freelance, bisnis aktif) from localStorage
-  const activeIncomes = (() => {
-    try { return JSON.parse(localStorage.getItem("wc_active_incomes") || "[]"); }
-    catch { return []; }
-  })();
+  // activeIncomes passed from App.js (per-user, not global localStorage)
   const activeIncomeMon = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
 
   const passiveIncomeMon = (instrIncomeAnnual + propBizIncomeAnnual) / 12;
@@ -469,6 +466,8 @@ function PassiveIncomeScene({
   dispCur,
   T,
   hideValues = false,
+  activeIncomes: activeIncomesProp = null,
+  setActiveIncomes: setActiveIncomesProp = null,
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
 
@@ -498,13 +497,10 @@ function PassiveIncomeScene({
   });
 
   // ── ACTIVE INCOME (Gaji + Bisnis Aktif) ──────────────────────────────────
-  const [activeIncomes, setActiveIncomes] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("wc_active_incomes") || "[]");
-    } catch {
-      return [];
-    }
-  });
+  // Use prop from App.js (per-user) when available, fallback to local state for standalone use
+  const [_localActive, _setLocalActive] = useState([]);
+  const activeIncomes = activeIncomesProp !== null ? activeIncomesProp : _localActive;
+  const setActiveIncomes = setActiveIncomesProp !== null ? setActiveIncomesProp : _setLocalActive;
   const [showActiveForm, setShowActiveForm] = useState(false);
   const [activeForm, setActiveForm] = useState({ label: "", amount: "", type: "salary" });
 
@@ -525,7 +521,6 @@ function PassiveIncomeScene({
     };
     const updated = [...activeIncomes, entry];
     setActiveIncomes(updated);
-    try { localStorage.setItem("wc_active_incomes", JSON.stringify(updated)); } catch {}
     setActiveForm({ label: "", amount: "", type: "salary" });
     setShowActiveForm(false);
   };
@@ -533,7 +528,6 @@ function PassiveIncomeScene({
   const removeActiveIncome = (id) => {
     const updated = activeIncomes.filter(a => a.id !== id);
     setActiveIncomes(updated);
-    try { localStorage.setItem("wc_active_incomes", JSON.stringify(updated)); } catch {}
   };
 
   const totalActiveMonthly = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
@@ -553,7 +547,7 @@ function PassiveIncomeScene({
   const totalAnnual = incomeAssets.reduce(
     (s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 1),
     0
-  );
+      );
   const totalMonthly = totalAnnual / 12;
   const expense = parseVal(monthlyExpense);
   // Combined cashflow = passive income + active income (gaji, dll)
@@ -1071,7 +1065,7 @@ function PassiveIncomeScene({
                               marginBottom: 4,
                             }}
                           >
-                            Jenis Income
+                           Jenis Income
                           </div>
                           <select
                             value={incomeForm.type}
@@ -1363,6 +1357,8 @@ function FinanceToolsScene({
   dispCur,
   T,
   hideValues = false,
+  activeIncomes = null,
+  setActiveIncomes = null,
 }) {
   const [subTab, setSubTab] = useState("calc");
   return (
@@ -1403,6 +1399,8 @@ function FinanceToolsScene({
           dispCur={dispCur}
           T={T}
           hideValues={hideValues}
+          activeIncomes={activeIncomes}
+          setActiveIncomes={setActiveIncomes}
         />
       )}
     </div>
@@ -1410,3 +1408,4 @@ function FinanceToolsScene({
 }
 
 export { DebtIncomeCard, PassiveIncomeSummary, PassiveIncomeScene, FinanceToolsScene };
+                              
