@@ -62,7 +62,7 @@ const CC_KEY = '29eb9eb7f921e41d70cb469c1ea9f23bddf88694c9c9873064c38c02183a5234
 const CC_HDR = { 'Authorization': `Bearer ${CC_KEY}` };
 
 function WealthCompassV7() {
-  // ── ALL STATE DECLARATIONS FIRST (handlers reference these via closure) ─────
+  // -- ALL STATE DECLARATIONS FIRST (handlers reference these via closure) -----
   const [user, setUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
   const [keepSignIn] = useState(() => localStorage.getItem('wc_keep_signin') !== 'false');
@@ -119,7 +119,7 @@ function WealthCompassV7() {
   const [activeIncomes, setActiveIncomes] = useState([]);
   const [insurances, setInsurances] = useState([]);
 
-  // ── AUTH HANDLERS (safe to reference state now) ────────────────────────────
+  // -- AUTH HANDLERS (safe to reference state now) ----------------------------
   const handleLogin = (userData) => {
     const saved = loadAccountData(userData.email);
     const d = saved || DEFAULT_ACCOUNT_STATE;
@@ -222,7 +222,7 @@ function WealthCompassV7() {
 
 
 
-  // ── Fetch crypto + metals + USD/IDR via CoinCap (60 menit) ───────
+  // -- Fetch crypto + metals + USD/IDR via CoinCap (60 menit) -------
   const fetchCryptoAndMetals = useCallback(async () => {
     setPriceLoading(true);
     const CACHE_KEY = 'wc_cache_crypto';
@@ -295,7 +295,7 @@ function WealthCompassV7() {
     setPriceLoading(false);
   }, []);
 
-  // ── Fetch EUR/CNY/SGD via frankfurter (4 jam) ────────────────────
+  // -- Fetch EUR/CNY/SGD via frankfurter (4 jam) --------------------
   const fetchForex = useCallback(async () => {
     const CACHE_KEY = 'wc_cache_forex';
     const TTL = 4 * 60 * 60 * 1000;
@@ -432,7 +432,7 @@ function WealthCompassV7() {
     insurances,
   ]);
 
-  // ── Firebase session check on mount ────────────────────────────────────────
+  // -- Firebase session check on mount ----------------------------------------
   useEffect(() => {
     let unsub;
     unsub = onAuthStateChanged(auth, (firebaseUser) => {
@@ -456,7 +456,7 @@ function WealthCompassV7() {
     return () => { if (unsub) unsub(); };
   }, []);
 
-  // ── Show login if not authenticated ────────────────────────────────────────
+  // -- Show login if not authenticated ----------------------------------------
   if (authChecking) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.bg }}>
       <div style={{ color: T.muted, fontSize: 13 }}>Memuat...</div>
@@ -902,7 +902,7 @@ function WealthCompassV7() {
                   {
                     icon: "🔒",
                     label: "100% Anonymized",
-                    desc: "Tidak ada data personal yang dibagikan — hanya persentase alokasi",
+                    desc: "Tidak ada data personal yang dibagikan - hanya persentase alokasi",
                   },
                 ]}
               />
