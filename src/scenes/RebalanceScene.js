@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, SL, Chip, Bar, TBtn, InfoBtn } from '../components/ui';
 import { fM, getIDR } from '../utils/helpers';
 import { ASSET_CLASSES, RISK_PROFILES } from '../constants/data';
+
+const LS_KEY = 'wc_rebalance_always_show';
 
 function RebalanceScene({
   assets,
@@ -14,7 +16,22 @@ function RebalanceScene({
   setShowUpgrade,
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
-  const [showRec, setShowRec] = useState(false);
+
+  // Persist "always show" preference
+  const [alwaysShow, setAlwaysShow] = useState(() => {
+    try { return localStorage.getItem(LS_KEY) === '1'; } catch { return false; }
+  });
+  const [showRec, setShowRec] = useState(() => {
+    try { return localStorage.getItem(LS_KEY) === '1'; } catch { return false; }
+  });
+
+  const toggleAlwaysShow = (e) => {
+    e.stopPropagation();
+    const next = !alwaysShow;
+    setAlwaysShow(next);
+    setShowRec(next);
+    try { localStorage.setItem(LS_KEY, next ? '1' : '0'); } catch {}
+  };
 
   const liquidAssets = assets.filter(a => !['property', 'business'].includes(a.classKey));
   const total = liquidAssets.reduce((s, a) => s + getIDR(a), 0);
@@ -45,15 +62,14 @@ function RebalanceScene({
 
   const needsRebalance = byClass.some((c) => Math.abs(c.diff) > 5);
   const profileColor = RISK_PROFILES[riskProfile].color;
-  const itemsNeedingAction = byClass.filter((c) => Math.abs(c.diff) > 5).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
-
-  // For Free: rec card always visible. For Pro: toggleable.
-  const showRecCard = isPro ? showRec : true;
+  const itemsNeedingAction = byClass
+    .filter((c) => Math.abs(c.diff) > 5)
+    .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
 
   return (
     <div>
 
-      {/* ── Status Card ── */}
+      {/* ── Status Card — same for all tiers ── */}
       <Card T={T} glow={needsRebalance ? T.red : T.green} style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <span style={{ fontSize: 28 }}>{needsRebalance ? '⚠️' : '✅'}</span>
@@ -66,12 +82,12 @@ function RebalanceScene({
               {' '} · Toleransi ±5%
             </div>
           </div>
-          {/* Pro only: toggle button */}
-          {isPro && needsRebalance && (
+          {/* Toggle button — same for ALL tiers */}
+          {needsRebalance && (
             <TBtn
               T={T}
               variant={showRec ? 'default' : 'primary'}
-              onClick={() => setShowRec(!showRec)}
+              onClick={() => setShowRec(p => !p)}
               style={{ padding: '9px 14px' }}
             >
               {showRec ? 'Tutup' : 'Rekomendasi →'}
@@ -80,8 +96,8 @@ function RebalanceScene({
         </div>
       </Card>
 
-      {/* ── Recommendation Card — title-only, visible for both tiers ── */}
-      {needsRebalance && showRecCard && (
+      {/* ── Recommendation Detail Card — same structure all tiers ── */}
+      {needsRebalance && showRec && (
         <Card T={T} style={{ marginBottom: 16, borderColor: T.accentSoft }}>
           <SL T={T}>Rekomendasi Tindakan</SL>
           {itemsNeedingAction.map((c) => (
@@ -99,8 +115,23 @@ function RebalanceScene({
               }}
             >
               <span style={{ fontSize: 17 }}>{c.icon}</span>
-              <div style={{ color: c.diff > 0 ? T.green : T.red, fontWeight: 'bold', fontSize: 13 }}>
-                {c.diff > 0 ? '▲ Tambah' : '▼ Kurangi'} {c.label}
+              <div style={{ flex: 1 }}>
+                <div style={{ color: c.diff > 0 ? T.green : T.red, fontWeight: 'bold', fontSize: 13, marginBottom: isPro ? 3 : 0 }}>
+                  {c.diff > 0 ? '▲ Tambah' : '▼ Kurangi'} {c.label}
+                </div>
+                {/* Detail amounts — Pro only */}
+                {isPro && (
+                  <>
+                    <div style={{ color: T.textSoft, fontSize: 12, lineHeight: 1.6 }}>
+                      {c.diff > 0
+                        ? `Beli/top-up ≈ ${fV(Math.abs(c.diffVal), dispCur)} → target ${c.tgtPct}%`
+                        : `Jual/realokasi ≈ ${fV(Math.abs(c.diffVal), dispCur)}`}
+                    </div>
+                    <div style={{ color: T.muted, fontSize: 11, marginTop: 2 }}>
+                      {c.curPct.toFixed(1)}% → {c.tgtPct}%
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -110,10 +141,76 @@ function RebalanceScene({
         </Card>
       )}
 
+      {/* ── "Lihat Rekomendasi Lengkap" compact bar — all tiers, with always-show toggle ── */}
+      {needsRebalance && (
+        <div
+          onClick={() => !isPro && setShowUpgrade && setShowUpgrade(true)}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 16,
+            padding: '12px 16px',
+            borderRadius: 12,
+            background: T.accentDim,
+            border: `1px solid ${T.accentSoft}`,
+            cursor: !isPro ? 'pointer' : 'default',
+          }}
+        >
+          <div>
+            <div style={{ color: T.accent, fontWeight: 'bold', fontSize: 13 }}>
+              {'\u2b50'} Lihat Rekomendasi Lengkap
+            </div>
+            <div style={{ color: T.textSoft, fontSize: 11, marginTop: 2 }}>
+              {isPro
+                ? 'Centang untuk selalu tampil saat buka halaman ini'
+                : 'Upgrade Pro untuk tahu persis berapa yang harus dibeli/dijual per aset.'}
+            </div>
+          </div>
+          {/* Always-show checkbox — Pro only */}
+          {isPro && (
+            <label
+              onClick={e => e.stopPropagation()}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', flexShrink: 0, marginLeft: 12 }}
+            >
+              <span style={{ color: T.muted, fontSize: 10, whiteSpace: 'nowrap' }}>Selalu tampil</span>
+              <div
+                onClick={toggleAlwaysShow}
+                style={{
+                  width: 32,
+                  height: 18,
+                  borderRadius: 9,
+                  background: alwaysShow ? T.accent : T.border,
+                  position: 'relative',
+                  transition: 'background 0.2s',
+                  flexShrink: 0,
+                }}
+              >
+                <div style={{
+                  position: 'absolute',
+                  top: 2,
+                  left: alwaysShow ? 16 : 2,
+                  width: 14,
+                  height: 14,
+                  borderRadius: '50%',
+                  background: '#fff',
+                  transition: 'left 0.2s',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                }} />
+              </div>
+            </label>
+          )}
+          {/* Arrow for free */}
+          {!isPro && (
+            <span style={{ color: T.accent, fontSize: 18, marginLeft: 12 }}>›</span>
+          )}
+        </div>
+      )}
+
       {/* ── Asset Cards — blurred for Free ── */}
       <div style={{ position: 'relative' }}>
 
-        {/* Blur overlay for Free */}
+        {/* Blur overlay — Free only */}
         {!isPro && (
           <div style={{
             position: 'absolute',
@@ -123,8 +220,6 @@ function RebalanceScene({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            borderRadius: 14,
-            background: 'transparent',
           }}>
             <div
               onClick={() => setShowUpgrade && setShowUpgrade(true)}
@@ -160,7 +255,7 @@ function RebalanceScene({
           </div>
         )}
 
-        {/* Asset cards (blurred when free) */}
+        {/* Asset cards */}
         <div style={{ filter: isPro ? 'none' : 'blur(4px)', pointerEvents: isPro ? 'auto' : 'none', userSelect: 'none' }}>
           {byClass.map((c) => (
             <Card
