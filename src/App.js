@@ -115,6 +115,7 @@ function WealthCompassV7() {
   const [priceLoading, setPriceLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [assets, setAssets] = useState([]);
+  const [activeIncomes, setActiveIncomes] = useState([]);
 
   // ── AUTH HANDLERS (safe to reference state now) ────────────────────────────
   const handleLogin = (userData) => {
@@ -143,6 +144,7 @@ function WealthCompassV7() {
     setTab("profile");
     setTheme(d.theme || "dark");
     setCustomPresetId(d.customPresetId || "midnight");
+    setActiveIncomes(d.activeIncomes || []);
   };
 
   const handleLogout = () => {
@@ -160,6 +162,7 @@ function WealthCompassV7() {
         settings,
         theme,
         customPresetId,
+        activeIncomes,
       });
     }
     setAssets([]);
@@ -170,6 +173,7 @@ function WealthCompassV7() {
     setIsProPlus(false);
     setUploadCount(0);
     setProExpiry(null);
+    setActiveIncomes([]);
     setHideValues(false);
     setTab("profile");
     localStorage.removeItem("wc_session");
@@ -358,7 +362,7 @@ function WealthCompassV7() {
 
   const tabProps = { assets, riskProfile, dispCur, livePrices, T, hideValues };
 
-  // Expiry enforcement: runs on mount + every minute
+  // Expiry enforcement
   useEffect(() => {
     const checkExpiry = () => {
       if (!proExpiry) return;
@@ -405,6 +409,7 @@ function WealthCompassV7() {
       settings,
       theme,
       customPresetId,
+      activeIncomes,
     });
   }, [
     assets,
@@ -417,6 +422,7 @@ function WealthCompassV7() {
     proExpiry,
     dispCur,
     settings,
+    activeIncomes,
   ]);
 
   // ── Firebase session check on mount ────────────────────────────────────────
@@ -703,6 +709,7 @@ function WealthCompassV7() {
                   hideValues={hideValues}
                   setShowUpgrade={setShowUpgrade}
                   monthlyExpense={monthlyExpense}
+                  activeIncomes={activeIncomes}
                 />
                 <PortfolioScene
                   {...tabProps}
@@ -743,6 +750,8 @@ function WealthCompassV7() {
                 dispCur={dispCur}
                 T={T}
                 hideValues={hideValues}
+                activeIncomes={activeIncomes}
+                setActiveIncomes={setActiveIncomes}
               />
             )}
             {tab === "calc" && (
@@ -752,6 +761,8 @@ function WealthCompassV7() {
                 dispCur={dispCur}
                 T={T}
                 hideValues={hideValues}
+                activeIncomes={activeIncomes}
+                setActiveIncomes={setActiveIncomes}
               />
             )}
             {tab === "real-assets" &&
@@ -1069,5 +1080,6 @@ function WealthCompassV7() {
 }
 
 export default WealthCompassV7;
+              
               
             
