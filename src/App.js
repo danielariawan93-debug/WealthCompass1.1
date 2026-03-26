@@ -687,6 +687,13 @@ function WealthCompassV7() {
                 settings={settings}
                 setSettings={setSettings}
                 setTab={handleSetTab}
+                debts={debts || []}
+                goals={goals || []}
+                insurances={insurances}
+                isPro={isPro}
+                isProPlus={isProPlus}
+                monthlyExpense={monthlyExpense}
+                activeIncomes={activeIncomes}
               />
             )}
             {tab === "risk" && (
