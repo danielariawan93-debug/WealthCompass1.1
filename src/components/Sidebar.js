@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { id: "finance-tools", label: "Finance Tools", icon: "◉" },
   { id: "goal", label: "Goals", icon: "◇" },
   { id: "ai", label: "AI Advisor", icon: "✦" },
-  { id: "insurance", label: "Asuransi 🔜", icon: "🛡️" },
+  { id: "insurance", label: "Asuransi", icon: "🛡️" },
   {
     id: "peers",
     label: "Peer Benchmark 🔜",
