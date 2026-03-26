@@ -148,6 +148,7 @@ function WealthCompassV7() {
     setCustomPresetId(d.customPresetId || "midnight");
     setActiveIncomes(d.activeIncomes || []);
     setInsurances(d.insurances || []);
+    setMonthlyExpense(d.monthlyExpense || "");
   };
 
   const handleLogout = () => {
@@ -179,6 +180,7 @@ function WealthCompassV7() {
     setProExpiry(null);
     setActiveIncomes([]);
     setInsurances([]);
+    setMonthlyExpense("");
     setHideValues(false);
     setTab("profile");
     localStorage.removeItem("wc_session");
@@ -386,6 +388,7 @@ function WealthCompassV7() {
               isPro: false, isProPlus: false,
               uploadCount, proExpiry: null,
               dispCur, settings, theme, customPresetId,
+              activeIncomes, insurances, monthlyExpense,
             });
           }
         } else if (daysLeft !== proExpiry.daysLeft) {
@@ -416,6 +419,7 @@ function WealthCompassV7() {
       customPresetId,
       activeIncomes,
       insurances,
+      monthlyExpense,
     });
   }, [
     assets,
@@ -430,6 +434,7 @@ function WealthCompassV7() {
     settings,
     activeIncomes,
     insurances,
+    monthlyExpense,
   ]);
 
   // -- Firebase session check on mount ----------------------------------------
@@ -766,6 +771,10 @@ function WealthCompassV7() {
                 hideValues={hideValues}
                 activeIncomes={activeIncomes}
                 setActiveIncomes={setActiveIncomes}
+                isPro={isPro}
+                isProPlus={isProPlus}
+                monthlyExpense={monthlyExpense}
+                setMonthlyExpense={setMonthlyExpense}
               />
             )}
             {tab === "calc" && (
@@ -777,6 +786,10 @@ function WealthCompassV7() {
                 hideValues={hideValues}
                 activeIncomes={activeIncomes}
                 setActiveIncomes={setActiveIncomes}
+                isPro={isPro}
+                isProPlus={isProPlus}
+                monthlyExpense={monthlyExpense}
+                setMonthlyExpense={setMonthlyExpense}
               />
             )}
             {tab === "real-assets" &&
