@@ -10,6 +10,8 @@ function RebalanceScene({
   T,
   setTab,
   hideValues = false,
+  isPro = false,
+  setShowUpgrade,
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
   const [showRec, setShowRec] = useState(false);
@@ -89,14 +91,45 @@ function RebalanceScene({
             <TBtn
               T={T}
               variant={showRec ? "default" : "primary"}
-              onClick={() => setShowRec(!showRec)}
+              onClick={() => {
+                if (!isPro) { setShowUpgrade && setShowUpgrade(true); return; }
+                setShowRec(!showRec);
+              }}
               style={{ padding: "9px 14px" }}
             >
-              {showRec ? "Tutup" : "Rekomendasi →"}
+              {showRec ? "Tutup" : isPro ? "Rekomendasi →" : "⭐ Pro →"}
             </TBtn>
           )}
         </div>
       </Card>
+      {/* Free tier teaser — shown only when not pro and rebalance needed */}
+      {!isPro && needsRebalance && (
+        <div
+          onClick={() => setShowUpgrade && setShowUpgrade(true)}
+          style={{
+            cursor: "pointer",
+            marginBottom: 16,
+            padding: "14px 16px",
+            borderRadius: 12,
+            background: T.accentDim,
+            border: `1px solid ${T.accentSoft}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <div style={{ color: T.accent, fontWeight: "bold", fontSize: 13, marginBottom: 3 }}>
+              ⭐ Lihat Rekomendasi Lengkap
+            </div>
+            <div style={{ color: T.textSoft, fontSize: 11, lineHeight: 1.6 }}>
+              Upgrade Pro untuk tahu persis berapa yang harus dibeli/dijual per aset.
+            </div>
+          </div>
+          <span style={{ color: T.accent, fontSize: 18, marginLeft: 12 }}>›</span>
+        </div>
+      )}
+
       {showRec && needsRebalance && (
         <Card T={T} style={{ marginBottom: 16, borderColor: T.accentSoft }}>
           <SL T={T}>Rekomendasi Tindakan</SL>
