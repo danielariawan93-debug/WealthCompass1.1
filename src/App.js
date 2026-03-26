@@ -181,17 +181,15 @@ function WealthCompassV7() {
     setUser(null);
   };
 
-  const handleUpgrade = (tierChoice = "pro") => {
+  const handleUpgrade = (tierChoice = "pro", durationDays = 30) => {
     setIsPro(true);
     if (tierChoice === "proplus") setIsProPlus(true);
-    const d = new Date();
-    d.setDate(d.getDate() + 2);
+    const expDate = new Date();
+    expDate.setDate(expDate.getDate() + durationDays);
     setProExpiry({
-      daysLeft: 2,
-      dateStr: d.toLocaleDateString("id-ID", {
-        day: "numeric",
-        month: "short",
-      }),
+      expiryDate: expDate.toISOString(),          // source of truth for enforcement
+      daysLeft: durationDays,
+      dateStr: expDate.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
     });
   };
 
@@ -360,6 +358,41 @@ function WealthCompassV7() {
 
   const tabProps = { assets, riskProfile, dispCur, livePrices, T, hideValues };
 
+  // ── Expiry enforcement: runs on mount + every minute ──────────────────────
+  useEffect(() => {
+    const checkExpiry = () => {
+      if (!proExpiry) return;
+      // proExpiry.expiryDate is ISO string set at upgrade time
+      // daysLeft is recalculated live so it cannot be tampered by editing localStorage display value
+      if (proExpiry.expiryDate) {
+        const now = new Date();
+        const expDate = new Date(proExpiry.expiryDate);
+        const msLeft = expDate - now;
+        const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+        if (msLeft <= 0) {
+          // Expired — downgrade to free
+          setIsPro(false);
+          setIsProPlus(false);
+          setProExpiry(null);
+          if (user?.email) {
+            saveAccountData(user.email, {
+              assets, debts, goals, riskProfile,
+              isPro: false, isProPlus: false,
+              uploadCount, proExpiry: null,
+              dispCur, settings, theme, customPresetId,
+            });
+          }
+        } else if (daysLeft !== proExpiry.daysLeft) {
+          // Keep daysLeft in sync with real calendar days
+          setProExpiry(p => ({ ...p, daysLeft }));
+        }
+      }
+    };
+    checkExpiry();
+    const t = setInterval(checkExpiry, 60 * 1000);
+    return () => clearInterval(t);
+  }, [proExpiry, user, assets, debts, goals, riskProfile, uploadCount, dispCur, settings, theme, customPresetId]);
+
   // Auto-save account data whenever key data changes (placed here so all state is initialized)
   useEffect(() => {
     if (!user?.email) return;
@@ -523,515 +556,4 @@ function WealthCompassV7() {
                 </button>
               </div>
               <div
-                style={{
-                  display: "flex",
-                  gap: 5,
-                  justifyContent: "flex-end",
-                  alignItems: "center",
-                  marginTop: 1,
-                }}
-              >
-                {profile && (
-                  <span
-                    style={{
-                      fontSize: 9,
-                      padding: "1px 6px",
-                      borderRadius: 3,
-                      background: profileColor + "1a",
-                      color: profileColor,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {profile.emoji} {profile.label}
-                  </span>
-                )}
-                <span
-                  style={{
-                    fontSize: 9,
-                    padding: "1px 5px",
-                    borderRadius: 3,
-                    background: seg.color + "18",
-                    color: seg.color,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                  title={`Net: ${fMoney(netWorth)} | Gross: ${fMoney(total)}`}
-                >
-                  {seg.icon} {seg.short}
-                  {grossSeg.short !== seg.short && (
-                    <span
-                      style={{
-                        color: seg.color,
-                        fontSize: 8,
-                        marginLeft: 3,
-                      }}
-                    >
-                      (G:{grossSeg.short})
-                    </span>
-                  )}
-                </span>
-              </div>
-            </div>
-            {/* Free/Pro badge */}
-            {isPro ? (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-end",
-                  gap: 2,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 10,
-                    padding: "4px 9px",
-                    borderRadius: 6,
-                    background: T.accentDim,
-                    color: isProPlus ? "#9b7ef8" : T.accent,
-                    fontWeight: "bold",
-                    border: `1px solid ${
-                      isProPlus ? "#9b7ef833" : T.accentSoft
-                    }`,
-                    cursor: "pointer",
-                  }}
-                  onClick={() => setShowUpgrade(true)}
-                >
-                  {isProPlus ? "💎 PRO+" : "⭐ PRO"}
-                </span>
-                {proExpiry && proExpiry.daysLeft <= 3 && (
-                  <span style={{ fontSize: 9, color: T.orange }}>
-                    ⚠ Berakhir{" "}
-                    {proExpiry.daysLeft === 0
-                      ? "hari ini"
-                      : `${proExpiry.daysLeft} hari lagi`}
-                  </span>
-                )}
-                {proExpiry && proExpiry.daysLeft > 3 && (
-                  <span style={{ fontSize: 9, color: T.muted }}>
-                    s/d {proExpiry.dateStr}
-                  </span>
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowUpgrade(true)}
-                style={{
-                  fontSize: 10,
-                  padding: "4px 9px",
-                  borderRadius: 6,
-                  background: T.redDim,
-                  color: T.red,
-                  border: `1px solid ${T.red}33`,
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                }}
-              >
-                FREE · Upgrade
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Content */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "18px 16px 80px" }}>
-          <div style={{ maxWidth: 640, margin: "0 auto" }}>
-            {tab === "profile" && (
-              <ProfileScene
-                {...tabProps}
-                settings={settings}
-                setSettings={setSettings}
-                setTab={handleSetTab}
-              />
-            )}
-            {tab === "risk" && (
-              <RiskScene
-                riskProfile={riskProfile}
-                setRiskProfile={setRiskProfile}
-                T={T}
-                onDone={() => handleSetTab("profile")}
-              />
-            )}
-            {tab === "portfolio" && (
-              <>
-                <PassiveIncomeSummary
-                  assets={assets}
-                  setAssets={setAssets}
-                  dispCur={dispCur}
-                  T={T}
-                  hideValues={hideValues}
-                />
-                {/* Debt vs Passive Income Summary Card */}
-                <DebtIncomeCard
-                  assets={assets}
-                  debts={debts || []}
-                  dispCur={dispCur}
-                  isPro={isPro}
-                  T={T}
-                  hideValues={hideValues}
-                  setShowUpgrade={setShowUpgrade}
-                  monthlyExpense={monthlyExpense}
-                />
-                <PortfolioScene
-                  {...tabProps}
-                  setAssets={setAssets}
-                  priceLoading={priceLoading}
-                  isPro={isPro}
-                  tier={tier}
-                  uploadCount={uploadCount}
-                  setUploadCount={setUploadCount}
-                />
-              </>
-            )}
-            {tab === "rebalance" && (
-              <RebalanceScene
-                {...tabProps}
-                setTab={handleSetTab}
-                hideValues={hideValues}
-              />
-            )}
-            {tab === "networth" && (
-              <NetWorthTrackerScene
-                assets={assets}
-                debts={debts}
-                dispCur={dispCur}
-                isPro={isPro}
-                isProPlus={isProPlus}
-                tier={tier}
-                T={T}
-                hideValues={hideValues}
-              />
-            )}
-            {tab === "finance-tools" && (
-              <FinanceToolsScene
-                assets={assets}
-                setAssets={setAssets}
-                dispCur={dispCur}
-                T={T}
-                hideValues={hideValues}
-              />
-            )}
-            {tab === "calc" && (
-              <FinanceToolsScene
-                assets={assets}
-                setAssets={setAssets}
-                dispCur={dispCur}
-                T={T}
-                hideValues={hideValues}
-              />
-            )}
-            {tab === "real-assets" &&
-              (isPro ? (
-                <RealAssetsScene
-                  assets={assets}
-                  setAssets={setAssets}
-                  debts={debts}
-                  setDebts={setDebts}
-                  dispCur={dispCur}
-                  T={T}
-                  hideValues={hideValues}
-                />
-              ) : (
-                <div style={{ textAlign: "center", padding: "60px 24px" }}>
-                  <div style={{ fontSize: 40, marginBottom: 12 }}>🏡</div>
-                  <div
-                    style={{
-                      color: T.accent,
-                      fontSize: 16,
-                      fontWeight: "bold",
-                      marginBottom: 8,
-                    }}
-                  >
-                    Fitur Pro
-                  </div>
-                  <div
-                    style={{
-                      color: T.textSoft,
-                      fontSize: 13,
-                      lineHeight: 1.7,
-                      marginBottom: 20,
-                    }}
-                  >
-                    Modul Properti & Bisnis hanya tersedia untuk pengguna Pro
-                    dan Pro+.
-                  </div>
-                  <button
-                    onClick={() => setShowUpgrade(true)}
-                    style={{
-                      padding: "11px 24px",
-                      borderRadius: 10,
-                      border: "none",
-                      background: T.accent,
-                      color: "#000",
-                      cursor: "pointer",
-                      fontWeight: "bold",
-                      fontSize: 13,
-                    }}
-                  >
-                    Upgrade Pro →
-                  </button>
-                </div>
-              ))}
-            {tab === "goal" && (
-              <GoalScene
-                assets={assets}
-                goals={goals}
-                setGoals={setGoals}
-                dispCur={dispCur}
-                T={T}
-                tier={tier}
-                hideValues={hideValues}
-              />
-            )}
-            {tab === "debt" && (
-              <DebtScene
-                hideValues={hideValues}
-                debts={debts}
-                setDebts={setDebts}
-                dispCur={dispCur}
-                tier={tier}
-                T={T}
-              />
-            )}
-            {tab === "ai" && (
-              <AIScene
-                {...tabProps}
-                debts={debts}
-                tier={tier}
-                aiTokensUsed={aiTokensUsed}
-                setAiTokensUsed={setAiTokensUsed}
-              />
-            )}
-            {tab === "insurance" && (
-              <ComingSoonScene
-                T={T}
-                title="Asuransi & Proteksi Kekayaan"
-                icon="🛡️"
-                proPlus={false}
-                description="Lacak semua polis asuransi dalam satu tempat — jiwa, kesehatan, properti, dan kendaraan. Pastikan proteksi kekayaan kamu sudah optimal."
-                features={[
-                  {
-                    icon: "📋",
-                    label: "Polis Asuransi Jiwa",
-                    desc: "Input premi, uang pertanggungan, dan masa berlaku polis jiwa & term life",
-                  },
-                  {
-                    icon: "🏥",
-                    label: "Asuransi Kesehatan",
-                    desc: "Lacak BPJS, asuransi swasta, dan limit manfaat per tahun",
-                  },
-                  {
-                    icon: "🏠",
-                    label: "Asuransi Properti & Kendaraan",
-                    desc: "Nilai pertanggungan vs nilai aset aktual",
-                  },
-                  {
-                    icon: "📊",
-                    label: "Coverage Gap Analysis",
-                    desc: "AI analisa apakah proteksi kamu sudah cukup vs net worth",
-                  },
-                ]}
-              />
-            )}
-            {tab === "peers" && (
-              <ComingSoonScene
-                T={T}
-                title="Portfolio vs Peers"
-                icon="👥"
-                proPlus={true}
-                description="Bandingkan alokasi portofolio kamu dengan investor lain di segmen wealth yang sama. Anonymized & aggregated untuk privasi."
-                features={[
-                  {
-                    icon: "📊",
-                    label: "Benchmark Alokasi Aset",
-                    desc: "Lihat alokasi rata-rata peer di segment Mass, Affluent, HNW",
-                  },
-                  {
-                    icon: "📈",
-                    label: "Return Comparison",
-                    desc: "Performa portofolio kamu vs median peer (anonymized)",
-                  },
-                  {
-                    icon: "🎯",
-                    label: "Gap Analysis",
-                    desc: "Instrumen apa yang dimiliki peer tapi belum kamu punya",
-                  },
-                  {
-                    icon: "🔒",
-                    label: "100% Anonymized",
-                    desc: "Tidak ada data personal yang dibagikan — hanya persentase alokasi",
-                  },
-                ]}
-              />
-            )}
-            {tab === "community" && (
-              <ComingSoonScene
-                T={T}
-                title="Komunitas WealthCompass"
-                icon="🤝"
-                proPlus={true}
-                description="Jalin relasi dengan sesama investor. Diskusi strategi, share insight, dan tumbuh bersama komunitas wealth-conscious Indonesia."
-                features={[
-                  {
-                    icon: "💬",
-                    label: "Forum Diskusi",
-                    desc: "Thread per topik: saham, properti, kripto, bisnis, perencanaan pensiun",
-                  },
-                  {
-                    icon: "🎓",
-                    label: "Wealth Masterclass",
-                    desc: "Sesi eksklusif dari praktisi wealth management Indonesia",
-                  },
-                  {
-                    icon: "🤝",
-                    label: "Networking HNW+",
-                    desc: "Connect dengan investor level Affluent ke atas (verified)",
-                  },
-                  {
-                    icon: "📰",
-                    label: "Market Insights",
-                    desc: "Analisa mingguan dari AI + kurator konten finansial pilihan",
-                  },
-                ]}
-              />
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Settings popup */}
-      <SettingsPopup
-        show={showSettings}
-        onClose={() => setShowSettings(false)}
-        settings={settings}
-        setSettings={setSettings}
-        theme={theme}
-        setTheme={handleSetTheme}
-        dispCur={dispCur}
-        setDispCur={setDispCur}
-        isPro={isPro}
-        setIsPro={setIsPro}
-        setShowUpgrade={setShowUpgrade}
-        T={T}
-        onLogout={handleLogout}
-        fontScale={fontScale}
-        setFontScale={setFontScale}
-        customPresetId={customPresetId}
-        setCustomPresetId={setCustomPresetId}
-      />
-
-      {/* Floating zoom control */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 80,
-          right: 16,
-          zIndex: 200,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        <div
-          style={{
-            background: T.card,
-            border: `1px solid ${T.border}`,
-            borderRadius: 24,
-            boxShadow: `0 2px 12px ${T.shadow}`,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            overflow: "hidden",
-          }}
-        >
-          <button
-            onClick={() =>
-              setFontScale((s) =>
-                Math.min(1.4, parseFloat((s + 0.05).toFixed(2)))
-              )
-            }
-            style={{
-              width: 32,
-              height: 28,
-              border: "none",
-              borderBottom: `1px solid ${T.border}`,
-              background: "none",
-              color: T.text,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: "bold",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            A+
-          </button>
-          <div
-            style={{
-              fontSize: 8,
-              color: T.muted,
-              padding: "2px 0",
-              lineHeight: 1,
-            }}
-          >
-            {Math.round(fontScale * 100)}%
-          </div>
-          <button
-            onClick={() =>
-              setFontScale((s) =>
-                Math.max(0.8, parseFloat((s - 0.05).toFixed(2)))
-              )
-            }
-            style={{
-              width: 32,
-              height: 28,
-              border: "none",
-              borderTop: `1px solid ${T.border}`,
-              background: "none",
-              color: T.text,
-              cursor: "pointer",
-              fontSize: 12,
-              fontWeight: "bold",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            A-
-          </button>
-          {fontScale !== 1.0 && (
-            <button
-              onClick={() => setFontScale(1.0)}
-              style={{
-                width: 32,
-                height: 18,
-                border: "none",
-                borderTop: `1px solid ${T.border}`,
-                background: T.accentDim,
-                color: T.accent,
-                cursor: "pointer",
-                fontSize: 7,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              1:1
-            </button>
-          )}
-        </div>
-      </div>
-      {/* Upgrade panel */}
-      <UpgradePanel
-        show={showUpgrade}
-        onClose={() => setShowUpgrade(false)}
-        onUpgrade={handleUpgrade}
-        T={T}
-      />
-    </div>
-  );
-}
-
-export default WealthCompassV7;
+                style
