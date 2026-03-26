@@ -12,6 +12,13 @@ function ProfileScene({
   setSettings,
   hideValues = false,
   T,
+  debts = [],
+  goals = [],
+  insurances = [],
+  isPro = false,
+  isProPlus = false,
+  monthlyExpense = '',
+  activeIncomes = [],
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
   const [editingName, setEditingName] = useState(false);
@@ -33,6 +40,42 @@ function ProfileScene({
   });
   const scoreColor =
     health.score >= 75 ? T.green : health.score >= 50 ? T.orange : T.red;
+
+  // --- Financial Snapshot calculations ---
+  const totalDebt      = debts.reduce((s, d) => s + parseVal(d.outstanding), 0);
+  const netWorth       = total - totalDebt;
+  const passiveMonthly = assets
+    .filter(a => a.income?.amount > 0)
+    .reduce((s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 12) / 12, 0);
+  const activeMonthly  = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
+  const totalInflow    = passiveMonthly + activeMonthly;
+  const expense        = parseVal(monthlyExpense);
+  const surplus        = totalInflow - expense;
+  const coveragePct    = expense > 0 ? Math.min(999, (passiveMonthly / expense) * 100) : 0;
+
+  const goalsTotal    = goals.length;
+  const goalsOnTrack  = goals.filter(g => {
+    const allocated = assets
+      .filter(a => a.goalId === g.id)
+      .reduce((s, a) => s + getIDR(a), 0);
+    return g.target > 0 && allocated >= g.target * 0.5;
+  }).length;
+
+  const activeInsurances = insurances.length;
+  const expiredIns = insurances.filter(i => i.endDate && new Date(i.endDate) < new Date()).length;
+  const expiringSoon = insurances.filter(i => {
+    if (!i.endDate) return false;
+    const d = new Date(i.endDate) - new Date();
+    return d > 0 && d < 30 * 24 * 60 * 60 * 1000;
+  }).length;
+
+  // Health score: weakest dimension recommendation
+  const metrics = [
+    { key: 'diversification', val: health.diversification, label: 'Diversifikasi', action: 'Tambah kelas aset baru di Portofolio', tab: 'portfolio' },
+    { key: 'liquidity', val: health.liquidity, label: 'Likuiditas', action: 'Tingkatkan alokasi Dana Tunai & Setara', tab: 'portfolio' },
+    { key: 'alignment', val: health.alignment, label: 'Kesesuaian', action: 'Jalankan Rebalancing portofolio', tab: 'rebalance' },
+  ];
+  const weakest = [...metrics].sort((a, b) => a.val - b.val)[0];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -190,6 +233,99 @@ function ProfileScene({
         )}
       </Card>
 
+      {/* Financial Snapshot */}
+      <Card T={T}>
+        <SL T={T}>Financial Snapshot</SL>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+
+          {/* Net Worth - open all tiers */}
+          <div
+            onClick={() => setTab('networth')}
+            style={{ padding: '12px 13px', background: T.surface, borderRadius: 11, border: `1px solid ${netWorth >= 0 ? T.green + '44' : T.red + '44'}`, cursor: 'pointer' }}
+          >
+            <div style={{ color: T.muted, fontSize: 9, letterSpacing: 1.2, marginBottom: 4 }}>NET WORTH</div>
+            <div style={{ color: netWorth >= 0 ? T.green : T.red, fontSize: 15, fontWeight: 'bold', fontFamily: "'Playfair Display',serif", marginBottom: 2 }}>
+              {fV(netWorth, dispCur)}
+            </div>
+            <div style={{ color: T.muted, fontSize: 9 }}>
+              {totalDebt > 0 ? `Hutang: ${fV(totalDebt, dispCur)}` : 'Bebas hutang'}
+            </div>
+          </div>
+
+          {/* Arus Kas - Free: hanya surplus/minus | Pro+: full */}
+          <div
+            onClick={() => setTab('finance-tools')}
+            style={{ padding: '12px 13px', background: T.surface, borderRadius: 11, border: `1px solid ${surplus >= 0 ? T.blue + '44' : T.orange + '44'}`, cursor: 'pointer' }}
+          >
+            <div style={{ color: T.muted, fontSize: 9, letterSpacing: 1.2, marginBottom: 4 }}>ARUS KAS/BLN</div>
+            {expense > 0 || totalInflow > 0 ? (
+              <>
+                <div style={{ color: surplus >= 0 ? T.blue : T.orange, fontSize: 15, fontWeight: 'bold', fontFamily: "'Playfair Display',serif", marginBottom: 2 }}>
+                  {surplus >= 0 ? '+' : ''}{fV(surplus, dispCur)}
+                </div>
+                <div style={{ color: T.muted, fontSize: 9 }}>
+                  {isPro
+                    ? `Passive ${fV(passiveMonthly, dispCur)} · Aktif ${fV(activeMonthly, dispCur)}`
+                    : surplus >= 0 ? 'Surplus' : 'Defisit'}
+                </div>
+              </>
+            ) : (
+              <div style={{ color: T.muted, fontSize: 11 }}>Belum diisi</div>
+            )}
+          </div>
+
+          {/* Goals - open all tiers */}
+          <div
+            onClick={() => setTab('goal')}
+            style={{ padding: '12px 13px', background: T.surface, borderRadius: 11, border: `1px solid ${T.border}`, cursor: 'pointer' }}
+          >
+            <div style={{ color: T.muted, fontSize: 9, letterSpacing: 1.2, marginBottom: 4 }}>GOALS</div>
+            {goalsTotal > 0 ? (
+              <>
+                <div style={{ color: T.accent, fontSize: 15, fontWeight: 'bold', fontFamily: "'Playfair Display',serif", marginBottom: 2 }}>
+                  {goalsOnTrack}/{goalsTotal}
+                </div>
+                <div style={{ color: T.muted, fontSize: 9 }}>on-track (≥50% tercapai)</div>
+              </>
+            ) : (
+              <div style={{ color: T.muted, fontSize: 11 }}>Belum ada goal</div>
+            )}
+          </div>
+
+          {/* Proteksi - hidden for Free */}
+          {isPro ? (
+            <div
+              onClick={() => setTab('insurance')}
+              style={{ padding: '12px 13px', background: T.surface, borderRadius: 11, border: `1px solid ${expiredIns > 0 ? T.red + '44' : expiringSoon > 0 ? T.orange + '44' : T.border}`, cursor: 'pointer' }}
+            >
+              <div style={{ color: T.muted, fontSize: 9, letterSpacing: 1.2, marginBottom: 4 }}>PROTEKSI</div>
+              {activeInsurances > 0 ? (
+                <>
+                  <div style={{ color: expiredIns > 0 ? T.red : T.green, fontSize: 15, fontWeight: 'bold', fontFamily: "'Playfair Display',serif", marginBottom: 2 }}>
+                    {activeInsurances} polis
+                  </div>
+                  <div style={{ color: expiredIns > 0 ? T.red : expiringSoon > 0 ? T.orange : T.muted, fontSize: 9 }}>
+                    {expiredIns > 0 ? `${expiredIns} kadaluarsa` : expiringSoon > 0 ? `${expiringSoon} segera habis` : 'Semua aktif'}
+                  </div>
+                </>
+              ) : (
+                <div style={{ color: T.muted, fontSize: 11 }}>Belum ada polis</div>
+              )}
+            </div>
+          ) : (
+            <div
+              onClick={() => setTab('insurance')}
+              style={{ padding: '12px 13px', background: T.accentDim, borderRadius: 11, border: `1px solid ${T.accentSoft}`, cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
+            >
+              <div style={{ color: T.muted, fontSize: 9, letterSpacing: 1.2, marginBottom: 4 }}>PROTEKSI</div>
+              <div style={{ color: T.accent, fontSize: 11, fontWeight: 'bold' }}>⭐ Pro</div>
+              <div style={{ color: T.muted, fontSize: 9 }}>Tracker asuransi</div>
+            </div>
+          )}
+
+        </div>
+      </Card>
+
       {/* Donut + breakdown */}
       <Card T={T}>
         <SL T={T}>Rekap Portofolio</SL>
@@ -327,6 +463,23 @@ function ProfileScene({
               </div>
             ))}
           </div>
+        </div>
+          {health.score > 0 && (
+            <div
+              onClick={() => setTab(weakest.tab)}
+              style={{ marginTop: 12, padding: '8px 12px', background: T.surface, borderRadius: 9, border: `1px solid ${scoreColor}33`, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
+              <div>
+                <div style={{ color: scoreColor, fontSize: 10, fontWeight: 'bold', marginBottom: 1 }}>
+                  {health.score >= 75 ? 'Portofolio dalam kondisi baik' : health.score >= 50 ? 'Perlu perhatian' : 'Perlu perbaikan segera'}
+                </div>
+                <div style={{ color: T.muted, fontSize: 10 }}>
+                  {weakest.label} paling rendah - {weakest.action}
+                </div>
+              </div>
+              <span style={{ color: T.muted, fontSize: 14 }}>›</span>
+            </div>
+          )}
         </div>
       </Card>
     </div>
