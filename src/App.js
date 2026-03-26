@@ -187,7 +187,7 @@ function WealthCompassV7() {
     const expDate = new Date();
     expDate.setDate(expDate.getDate() + durationDays);
     setProExpiry({
-      expiryDate: expDate.toISOString(),          // source of truth for enforcement
+      expiryDate: expDate.toISOString(),
       daysLeft: durationDays,
       dateStr: expDate.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
     });
@@ -358,19 +358,16 @@ function WealthCompassV7() {
 
   const tabProps = { assets, riskProfile, dispCur, livePrices, T, hideValues };
 
-  // ── Expiry enforcement: runs on mount + every minute ──────────────────────
+  // Expiry enforcement: runs on mount + every minute
   useEffect(() => {
     const checkExpiry = () => {
       if (!proExpiry) return;
-      // proExpiry.expiryDate is ISO string set at upgrade time
-      // daysLeft is recalculated live so it cannot be tampered by editing localStorage display value
       if (proExpiry.expiryDate) {
         const now = new Date();
         const expDate = new Date(proExpiry.expiryDate);
         const msLeft = expDate - now;
         const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
         if (msLeft <= 0) {
-          // Expired — downgrade to free
           setIsPro(false);
           setIsProPlus(false);
           setProExpiry(null);
@@ -383,7 +380,6 @@ function WealthCompassV7() {
             });
           }
         } else if (daysLeft !== proExpiry.daysLeft) {
-          // Keep daysLeft in sync with real calendar days
           setProExpiry(p => ({ ...p, daysLeft }));
         }
       }
@@ -556,4 +552,15 @@ function WealthCompassV7() {
                 </button>
               </div>
               <div
-                style
+                style={{
+                  display: "flex",
+                  gap: 5,
+                  justifyContent: "flex-end",
+                  alignItems: "center",
+                  marginTop: 1,
+                }}
+              >
+                {profile && (
+                  <span
+                    style={{
+                      fontSize: 9,
