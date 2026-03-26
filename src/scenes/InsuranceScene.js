@@ -1,0 +1,556 @@
+import React, { useState, useMemo } from 'react';
+import { Card, SL, Chip, Bar, TBtn, TInput, TSelect, InfoBtn } from '../components/ui';
+import { fMoney, fM, parseVal, getIDR, FREQ_MULT } from '../utils/helpers';
+
+// --- CONSTANTS ----------------------------------------------------------------
+const INSURANCE_TYPES = [
+  { key: 'life',    label: 'Jiwa',              icon: '🫀', color: '#f26b6b', desc: 'Term life / whole life / unit link' },
+  { key: 'health',  label: 'Kesehatan',         icon: '🏥', color: '#3ecf8e', desc: 'BPJS, asuransi swasta, rawat inap' },
+  { key: 'vehicle', label: 'Kendaraan',         icon: '🚗', color: '#f59e0b', desc: 'All risk / TLO motor & mobil' },
+  { key: 'property',label: 'Properti',          icon: '🏠', color: '#5b9cf6', desc: 'Rumah, ruko, kebakaran' },
+  { key: 'credit',  label: 'Jiwa Kredit',       icon: '💳', color: '#9b7ef8', desc: 'KPR, KTA, kredit kendaraan' },
+  { key: 'travel',  label: 'Perjalanan',        icon: '✈️', color: '#34d399', desc: 'Perjalanan domestik & internasional' },
+];
+
+const FREQ_LABELS = { monthly: 'bulan', quarterly: 'kwartal', semiannual: 'smstr', annual: 'tahun' };
+
+const PRO_LIMIT = 5; // max polis for Pro tier
+
+const EMPTY_FORM = {
+  name: '', type: 'life', company: '',
+  premium: '', premiumFreq: 'annual',
+  coverage: '', startDate: '', endDate: '',
+  notes: '',
+};
+
+// --- LIFE INSURANCE NEED CALCULATOR ------------------------------------------
+// DIME method: Debt + Income (10x) + Mortgage + Education
+function calcLifeNeed({ totalDebt, annualIncome, totalAssets, dependents }) {
+  const debtNeed     = totalDebt;
+  const incomeNeed   = annualIncome * 10;
+  const educNeed     = dependents * 150000000; // Rp150jt est. per tanggungan
+  const existing     = totalAssets * 0.3;       // 30% aset likuid bisa cover
+  const gross        = debtNeed + incomeNeed + educNeed;
+  const net          = Math.max(0, gross - existing);
+  return { debtNeed, incomeNeed, educNeed, existing, gross, net };
+};
+
+// --- MAIN COMPONENT ----------------------------------------------------------
+function InsuranceScene({
+  assets = [],
+  debts = [],
+  goals = [],
+  dispCur,
+  T,
+  hideValues = false,
+  isPro = false,
+  isProPlus = false,
+  setShowUpgrade,
+  insurances = [],
+  setInsurances,
+}) {
+  const fV = (v, c) => fM(v, c, hideValues);
+
+  const [subTab, setSubTab] = useState('tracker');
+  const [showForm, setShowForm]   = useState(false);
+  const [editId, setEditId]       = useState(null);
+  const [form, setForm]           = useState(EMPTY_FORM);
+
+  // -- Calculator manual inputs --
+  const [calcInputs, setCalcInputs] = useState({
+    monthlyIncome: '',
+    dependents: '2',
+    extraDebt: '',
+  });
+
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const setC = (k, v) => setCalcInputs(p => ({ ...p, [k]: v }));
+
+  // -- Derived from existing data --
+  const totalAssets  = useMemo(() => assets.reduce((s, a) => s + getIDR(a), 0), [assets]);
+  const totalDebt    = useMemo(() => debts.reduce((s, d) => s + parseVal(d.outstanding), 0), [debts]);
+  const passiveAnnual = useMemo(() =>
+    assets.filter(a => a.income?.amount > 0)
+      .reduce((s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 12), 0)
+  , [assets]);
+
+  // -- DIME calculation --
+  const annualIncome = parseVal(calcInputs.monthlyIncome) * 12 || passiveAnnual;
+  const dependents   = parseInt(calcInputs.dependents) || 0;
+  const extraDebt    = parseVal(calcInputs.extraDebt);
+  const lifeNeed     = calcLifeNeed({
+    totalDebt: totalDebt + extraDebt,
+    annualIncome,
+    totalAssets,
+    dependents,
+  });
+
+  // -- Existing life coverage --
+  const lifeInsurances = insurances.filter(i => i.type === 'life');
+  const totalLifeCoverage = lifeInsurances.reduce((s, i) => s + parseVal(i.coverage), 0);
+  const coverageGap = Math.max(0, lifeNeed.net - totalLifeCoverage);
+  const coveragePct = lifeNeed.net > 0 ? Math.min(100, (totalLifeCoverage / lifeNeed.net) * 100) : 100;
+
+  // -- Annual premium total --
+  const totalAnnualPremium = insurances.reduce((s, ins) => {
+    const mult = FREQ_MULT[ins.premiumFreq] || 1;
+    return s + parseVal(ins.premium) * mult;
+  }, 0);
+
+  // -- Limit check --
+  const atLimit = !isProPlus && isPro && insurances.length >= PRO_LIMIT;
+  const canAdd  = isPro && !atLimit;
+
+  // -- CRUD --
+  const openNew = () => {
+    if (!canAdd) return;
+    setEditId(null);
+    setForm(EMPTY_FORM);
+    setShowForm(true);
+  };
+
+  const openEdit = (ins) => {
+    setEditId(ins.id);
+    setForm({ ...ins });
+    setShowForm(true);
+  };
+
+  const savePolis = () => {
+    if (!form.name.trim()) return;
+    if (editId) {
+      setInsurances(p => p.map(i => i.id === editId ? { ...form, id: editId } : i));
+    } else {
+      setInsurances(p => [...p, { ...form, id: Date.now().toString() }]);
+    }
+    setShowForm(false);
+    setEditId(null);
+    setForm(EMPTY_FORM);
+  };
+
+  const deletePolis = (id) => setInsurances(p => p.filter(i => i.id !== id));
+
+  // --- NOT PRO - upgrade gate -----------------------------------------------
+  if (!isPro) {
+    return (
+      <div style={{ padding: '16px 0' }}>
+        <div style={{ textAlign: 'center', padding: '40px 24px', background: T.card, borderRadius: 16, border: `1px solid ${T.border}`, marginBottom: 16 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🛡️</div>
+          <div style={{ color: T.accent, fontSize: 17, fontWeight: 'bold', fontFamily: "'Playfair Display',Georgia,serif", marginBottom: 8 }}>
+            Asuransi & Proteksi Kekayaan
+          </div>
+          <div style={{ color: T.textSoft, fontSize: 13, lineHeight: 1.7, marginBottom: 20, maxWidth: 300, margin: '0 auto 20px' }}>
+            Lacak polis, hitung kebutuhan uang pertanggungan jiwa, dan analisa coverage gap.
+          </div>
+          <TBtn T={T} variant="primary" onClick={() => setShowUpgrade && setShowUpgrade(true)} style={{ padding: '11px 28px' }}>
+            ⭐ Upgrade Pro untuk Akses
+          </TBtn>
+        </div>
+        {/* Preview feature list */}
+        {[
+          { icon: '📋', label: 'Tracker 6 jenis polis', desc: 'Jiwa, Kesehatan, Kendaraan, Properti, Jiwa Kredit, Perjalanan' },
+          { icon: '🧮', label: 'Kalkulator Uang Pertanggungan', desc: 'Metode DIME otomatis dari data aset & hutang kamu' },
+          { icon: '📊', label: 'Coverage Gap Analysis', desc: 'Seberapa cukup proteksi kamu vs kebutuhan sebenarnya' },
+          { icon: '🤖', label: 'Rekomendasi AI (Pro+)', desc: 'Analisa mendalam dan saran optimasi premi oleh AI' },
+        ].map((f, i) => (
+          <div key={i} style={{ display: 'flex', gap: 12, padding: '12px 16px', background: T.card, borderRadius: 12, border: `1px solid ${T.border}`, marginBottom: 8, opacity: 0.7 }}>
+            <span style={{ fontSize: 20 }}>{f.icon}</span>
+            <div>
+              <div style={{ color: T.text, fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{f.label}</div>
+              <div style={{ color: T.muted, fontSize: 11 }}>{f.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // --- PRO/PRO+ - full scene ------------------------------------------------
+  return (
+    <div style={{ paddingBottom: 40 }}>
+
+      {/* Sub-tab bar */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {[['tracker', '📋 Polis Saya'], ['calculator', '🧮 Kalkulator'], ...(isProPlus ? [['ai', '🤖 Analisa AI']] : [])].map(([id, label]) => (
+          <button key={id} onClick={() => setSubTab(id)} style={{
+            flex: 1, padding: '9px 0', borderRadius: 9, border: `1px solid ${subTab === id ? T.accent : T.border}`,
+            background: subTab === id ? T.accentDim : T.surface, color: subTab === id ? T.accent : T.muted,
+            cursor: 'pointer', fontSize: 12, fontWeight: subTab === id ? 'bold' : 'normal',
+          }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* == TAB: TRACKER ====================================================== */}
+      {subTab === 'tracker' && (
+        <>
+          {/* Summary strip */}
+          <Card T={T} style={{ marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: insurances.length > 0 ? 14 : 0 }}>
+              <div style={{ padding: '10px 12px', background: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                <div style={{ color: T.muted, fontSize: 10, marginBottom: 3 }}>Total Polis</div>
+                <div style={{ color: T.accent, fontSize: 16, fontWeight: 'bold' }}>
+                  {insurances.length}{isProPlus ? '' : `/${PRO_LIMIT}`}
+                </div>
+                {!isProPlus && <div style={{ color: T.muted, fontSize: 9 }}>slot terpakai</div>}
+              </div>
+              <div style={{ padding: '10px 12px', background: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                <div style={{ color: T.muted, fontSize: 10, marginBottom: 3 }}>Total Premi/Thn</div>
+                <div style={{ color: T.text, fontSize: 14, fontWeight: 'bold' }}>{fV(totalAnnualPremium, dispCur)}</div>
+                {totalAnnualPremium > 0 && totalAssets > 0 &&
+                  <div style={{ color: T.muted, fontSize: 9 }}>{((totalAnnualPremium / totalAssets) * 100).toFixed(1)}% dari aset</div>
+                }
+              </div>
+            </div>
+
+            {/* Pro limit bar */}
+            {!isProPlus && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.muted, marginBottom: 4 }}>
+                  <span>Slot polis terpakai</span>
+                  <span style={{ color: atLimit ? T.red : T.accent }}>{insurances.length}/{PRO_LIMIT}</span>
+                </div>
+                <Bar pct={(insurances.length / PRO_LIMIT) * 100} color={atLimit ? T.red : T.accent} h={5} T={T} />
+                {atLimit && (
+                  <div style={{ marginTop: 8, padding: '8px 12px', background: T.redDim, borderRadius: 8, fontSize: 11, color: T.red }}>
+                    Batas Pro tercapai · <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setShowUpgrade && setShowUpgrade(true)}>Upgrade Pro+ untuk unlimited</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+
+          {/* Polis list */}
+          {insurances.length === 0 && !showForm && (
+            <div style={{ textAlign: 'center', padding: '32px 20px', background: T.card, borderRadius: 14, border: `1px dashed ${T.border}`, marginBottom: 16 }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>🛡️</div>
+              <div style={{ color: T.textSoft, fontSize: 13, marginBottom: 16 }}>Belum ada polis tersimpan.<br />Tambahkan polis pertama kamu.</div>
+              <TBtn T={T} variant="primary" onClick={openNew}>+ Tambah Polis</TBtn>
+            </div>
+          )}
+
+          {insurances.map(ins => {
+            const type = INSURANCE_TYPES.find(t => t.key === ins.type) || INSURANCE_TYPES[0];
+            const annualPrem = parseVal(ins.premium) * (FREQ_MULT[ins.premiumFreq] || 1);
+            const isExpired = ins.endDate && new Date(ins.endDate) < new Date();
+            const expiringSoon = ins.endDate && !isExpired && (new Date(ins.endDate) - new Date()) < 30 * 24 * 60 * 60 * 1000;
+            return (
+              <Card key={ins.id} T={T} style={{ padding: '14px 16px', marginBottom: 10 }}
+                glow={isExpired ? T.red : expiringSoon ? T.orange : undefined}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <span style={{ fontSize: 22, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))' }}>{type.icon}</span>
+                    <div>
+                      <div style={{ color: T.text, fontSize: 13, fontWeight: 600 }}>{ins.name || type.label}</div>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
+                        <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: type.color + '22', color: type.color, fontWeight: 700 }}>{type.label}</span>
+                        {ins.company && <span style={{ color: T.muted, fontSize: 10 }}>{ins.company}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    {isExpired
+                      ? <span style={{ fontSize: 10, color: T.red, fontWeight: 'bold' }}>⚠ Kadaluarsa</span>
+                      : expiringSoon
+                      ? <span style={{ fontSize: 10, color: T.orange, fontWeight: 'bold' }}>⚠ Segera habis</span>
+                      : ins.endDate
+                      ? <span style={{ fontSize: 10, color: T.muted }}>s/d {new Date(ins.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      : null
+                    }
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                  <div style={{ padding: '8px 10px', background: T.surface, borderRadius: 8 }}>
+                    <div style={{ color: T.muted, fontSize: 9, marginBottom: 2 }}>Premi / {FREQ_LABELS[ins.premiumFreq] || 'tahun'}</div>
+                    <div style={{ color: T.text, fontSize: 12, fontWeight: 600 }}>{fV(parseVal(ins.premium), dispCur)}</div>
+                    {ins.premiumFreq !== 'annual' && <div style={{ color: T.muted, fontSize: 9 }}>≈ {fV(annualPrem, dispCur)}/thn</div>}
+                  </div>
+                  {parseVal(ins.coverage) > 0 && (
+                    <div style={{ padding: '8px 10px', background: T.surface, borderRadius: 8 }}>
+                      <div style={{ color: T.muted, fontSize: 9, marginBottom: 2 }}>Uang Pertanggungan</div>
+                      <div style={{ color: type.color, fontSize: 12, fontWeight: 600 }}>{fV(parseVal(ins.coverage), dispCur)}</div>
+                    </div>
+                  )}
+                </div>
+                {ins.notes && <div style={{ color: T.muted, fontSize: 11, marginBottom: 10, fontStyle: 'italic' }}>{ins.notes}</div>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <TBtn T={T} variant="ghost" onClick={() => openEdit(ins)} style={{ flex: 1, padding: '7px 0', fontSize: 11 }}>✎ Edit</TBtn>
+                  <TBtn T={T} variant="danger" onClick={() => deletePolis(ins.id)} style={{ padding: '7px 14px', fontSize: 11 }}>✕</TBtn>
+                </div>
+              </Card>
+            );
+          })}
+
+          {/* Add button */}
+          {!showForm && insurances.length > 0 && canAdd && (
+            <button onClick={openNew} style={{
+              width: '100%', padding: '12px', borderRadius: 10, border: `1px dashed ${T.accentSoft}`,
+              background: T.accentDim, color: T.accent, cursor: 'pointer', fontSize: 12, fontWeight: 'bold',
+            }}>
+              + Tambah Polis
+            </button>
+          )}
+
+          {/* Form */}
+          {showForm && (
+            <Card T={T} style={{ border: `1px solid ${T.accentSoft}`, marginBottom: 16 }}>
+              <SL T={T}>{editId ? 'Edit Polis' : 'Tambah Polis Baru'}</SL>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Nama Polis / Produk</div>
+                  <TInput T={T} value={form.name} onChange={e => setF('name', e.target.value)} placeholder="Contoh: Prudential PRUlink" />
+                </div>
+                <div>
+                  <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Jenis</div>
+                  <TSelect T={T} value={form.type} onChange={e => setF('type', e.target.value)} style={{ width: '100%' }}>
+                    {INSURANCE_TYPES.map(t => <option key={t.key} value={t.key}>{t.icon} {t.label}</option>)}
+                  </TSelect>
+                </div>
+                <div>
+                  <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Perusahaan</div>
+                  <TInput T={T} value={form.company} onChange={e => setF('company', e.target.value)} placeholder="Prudential, AIA, dll" />
+                </div>
+                <div>
+                  <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Premi (IDR)</div>
+                  <TInput T={T} value={form.premium} onChange={e => setF('premium', e.target.value)} placeholder="5000000" />
+                </div>
+                <div>
+                  <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Frekuensi</div>
+                  <TSelect T={T} value={form.premiumFreq} onChange={e => setF('premiumFreq', e.target.value)} style={{ width: '100%' }}>
+                    <option value="monthly">Bulanan</option>
+                    <option value="quarterly">Per Kwartal</option>
+                    <option value="semiannual">Per Semester</option>
+                    <option value="annual">Tahunan</option>
+                  </TSelect>
+                </div>
+                <div>
+                  <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Uang Pertanggungan (IDR)</div>
+                  <TInput T={T} value={form.coverage} onChange={e => setF('coverage', e.target.value)} placeholder="500000000" />
+                </div>
+                <div>
+                  <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Mulai Berlaku</div>
+                  <input type="date" value={form.startDate} onChange={e => setF('startDate', e.target.value)}
+                    style={{ width: '100%', background: T.inputBg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 9, padding: '10px 12px', fontSize: 13, outline: 'none' }} />
+                </div>
+                <div>
+                  <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Jatuh Tempo</div>
+                  <input type="date" value={form.endDate} onChange={e => setF('endDate', e.target.value)}
+                    style={{ width: '100%', background: T.inputBg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 9, padding: '10px 12px', fontSize: 13, outline: 'none' }} />
+                </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Catatan (opsional)</div>
+                  <TInput T={T} value={form.notes} onChange={e => setF('notes', e.target.value)} placeholder="No polis, beneficiary, dll" />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <TBtn T={T} variant="primary" onClick={savePolis} style={{ flex: 1 }}>
+                  {editId ? '✓ Simpan Perubahan' : '+ Simpan Polis'}
+                </TBtn>
+                <TBtn T={T} variant="default" onClick={() => { setShowForm(false); setEditId(null); }} style={{ padding: '10px 16px' }}>
+                  Batal
+                </TBtn>
+              </div>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* == TAB: CALCULATOR =================================================== */}
+      {subTab === 'calculator' && (
+        <>
+          <Card T={T} style={{ marginBottom: 16 }}>
+            <SL T={T}>Kalkulator Kebutuhan Jiwa (Metode DIME)</SL>
+            <div style={{ color: T.textSoft, fontSize: 12, marginBottom: 16, lineHeight: 1.6 }}>
+              Data aset & hutang diambil otomatis dari portofolio kamu. Lengkapi input manual di bawah.
+            </div>
+
+            {/* Auto-filled from portfolio */}
+            <div style={{ padding: '12px 14px', background: T.surface, borderRadius: 10, border: `1px solid ${T.border}`, marginBottom: 14 }}>
+              <div style={{ color: T.accent, fontSize: 10, letterSpacing: 1.5, marginBottom: 10 }}>DATA DARI PORTOFOLIO</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {[
+                  { label: 'Total Aset', val: fV(totalAssets, dispCur), color: T.green },
+                  { label: 'Total Hutang', val: fV(totalDebt, dispCur), color: totalDebt > 0 ? T.red : T.muted },
+                  { label: 'Passive Income/Thn', val: fV(passiveAnnual, dispCur), color: T.blue },
+                ].map(item => (
+                  <div key={item.label} style={{ padding: '8px 10px', background: T.card, borderRadius: 8 }}>
+                    <div style={{ color: T.muted, fontSize: 9, marginBottom: 2 }}>{item.label}</div>
+                    <div style={{ color: item.color, fontSize: 12, fontWeight: 600 }}>{item.val}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Manual inputs */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+              <div>
+                <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>
+                  Pendapatan Aktif/Bulan (IDR)
+                  <span style={{ color: T.muted, fontSize: 9 }}> - jika belum ada di portofolio</span>
+                </div>
+                <TInput T={T} value={calcInputs.monthlyIncome} onChange={e => setC('monthlyIncome', e.target.value)} placeholder="15000000" />
+                {annualIncome > 0 && <div style={{ color: T.muted, fontSize: 9, marginTop: 3 }}>≈ {fV(annualIncome, dispCur)}/thn</div>}
+              </div>
+              <div>
+                <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>Jumlah Tanggungan</div>
+                <TInput T={T} value={calcInputs.dependents} onChange={e => setC('dependents', e.target.value)} placeholder="2" />
+                <div style={{ color: T.muted, fontSize: 9, marginTop: 3 }}>Anak, pasangan, orang tua</div>
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>
+                  Hutang Tambahan di Luar Portofolio (IDR)
+                </div>
+                <TInput T={T} value={calcInputs.extraDebt} onChange={e => setC('extraDebt', e.target.value)} placeholder="0" />
+              </div>
+            </div>
+
+            {/* DIME breakdown */}
+            <SL T={T}>Hasil Perhitungan</SL>
+            {[
+              { label: 'D - Pelunasan Hutang', val: lifeNeed.debtNeed, color: T.red, desc: 'Total hutang yang harus dilunasi' },
+              { label: 'I - Pengganti Pendapatan (10 thn)', val: lifeNeed.incomeNeed, color: T.orange, desc: '10x pendapatan tahunan' },
+              { label: 'E - Biaya Pendidikan Tanggungan', val: lifeNeed.educNeed, color: T.blue, desc: `Rp150Jt x ${dependents} tanggungan` },
+              { label: 'Dikurangi: Aset Likuid (30%)', val: -lifeNeed.existing, color: T.green, desc: '30% aset yang bisa digunakan langsung' },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: T.surface, borderRadius: 8, marginBottom: 6 }}>
+                <div>
+                  <div style={{ color: T.text, fontSize: 12, fontWeight: 500 }}>{item.label}</div>
+                  <div style={{ color: T.muted, fontSize: 10 }}>{item.desc}</div>
+                </div>
+                <div style={{ color: item.color, fontSize: 13, fontWeight: 'bold', flexShrink: 0, marginLeft: 12 }}>
+                  {item.val < 0 ? '-' : '+'}{fV(Math.abs(item.val), dispCur)}
+                </div>
+              </div>
+            ))}
+
+            {/* Total need */}
+            <div style={{ padding: '14px 16px', background: lifeNeed.net > totalLifeCoverage ? T.redDim : T.greenDim, borderRadius: 10, border: `1px solid ${lifeNeed.net > totalLifeCoverage ? T.red : T.green}33`, marginTop: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div>
+                  <div style={{ color: T.text, fontWeight: 'bold', fontSize: 13 }}>Kebutuhan UP Jiwa Bersih</div>
+                  <div style={{ color: T.muted, fontSize: 10 }}>Estimasi berdasarkan metode DIME</div>
+                </div>
+                <div style={{ color: T.accent, fontSize: 16, fontWeight: 'bold', fontFamily: "'Playfair Display',serif" }}>
+                  {fV(lifeNeed.net, dispCur)}
+                </div>
+              </div>
+
+              {/* Coverage meter */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: T.muted, marginBottom: 4 }}>
+                  <span>Coverage saat ini: {fV(totalLifeCoverage, dispCur)}</span>
+                  <span style={{ color: coveragePct >= 80 ? T.green : T.red, fontWeight: 'bold' }}>{coveragePct.toFixed(0)}%</span>
+                </div>
+                <Bar pct={coveragePct} color={coveragePct >= 80 ? T.green : coveragePct >= 50 ? T.orange : T.red} h={8} T={T} />
+                <div style={{ marginTop: 8, fontSize: 12 }}>
+                  {coverageGap > 0
+                    ? <span style={{ color: T.red }}>⚠ Kekurangan UP: <b>{fV(coverageGap, dispCur)}</b> - pertimbangkan tambah polis jiwa</span>
+                    : <span style={{ color: T.green }}>✓ Coverage jiwa sudah mencukupi estimasi kebutuhan</span>
+                  }
+                </div>
+              </div>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {/* == TAB: AI ANALYSIS (Pro+ only) ===================================== */}
+      {subTab === 'ai' && isProPlus && (
+        <InsuranceAITab
+          T={T} dispCur={dispCur} fV={fV}
+          insurances={insurances}
+          totalAssets={totalAssets} totalDebt={totalDebt}
+          annualIncome={annualIncome} dependents={dependents}
+          lifeNeed={lifeNeed} coverageGap={coverageGap}
+          totalAnnualPremium={totalAnnualPremium}
+        />
+      )}
+
+    </div>
+  );
+}
+
+// --- AI ANALYSIS SUB-COMPONENT (Pro+ only) -----------------------------------
+function InsuranceAITab({ T, dispCur, fV, insurances, totalAssets, totalDebt, annualIncome, dependents, lifeNeed, coverageGap, totalAnnualPremium }) {
+  const [analysis, setAnalysis] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [done, setDone]         = useState(false);
+
+  const runAnalysis = async () => {
+    setLoading(true);
+    setAnalysis('');
+    setDone(false);
+
+    const context = `
+Data keuangan user:
+- Total aset: Rp${(totalAssets/1e6).toFixed(1)} juta
+- Total hutang: Rp${(totalDebt/1e6).toFixed(1)} juta
+- Pendapatan tahunan: Rp${(annualIncome/1e6).toFixed(1)} juta
+- Jumlah tanggungan: ${dependents} orang
+- Kebutuhan UP jiwa (DIME): Rp${(lifeNeed.net/1e6).toFixed(1)} juta
+- Gap coverage jiwa: Rp${(coverageGap/1e6).toFixed(1)} juta
+- Total premi per tahun: Rp${(totalAnnualPremium/1e6).toFixed(1)} juta
+- Rasio premi/aset: ${totalAssets > 0 ? ((totalAnnualPremium/totalAssets)*100).toFixed(2) : 0}%
+- Polis aktif: ${insurances.length} polis (${insurances.map(i => i.type).join(', ') || 'kosong'})
+`;
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: `Kamu adalah konsultan keuangan independen Indonesia yang ahli di perencanaan proteksi asuransi. 
+Berikan analisa singkat dan rekomendasi yang actionable dalam Bahasa Indonesia. 
+Format dengan section: 1) Status Proteksi, 2) Risiko Utama, 3) Rekomendasi Prioritas (max 3 poin).
+Gunakan angka konkret. Hindari jargon teknis berlebihan. Maksimal 300 kata.`,
+          messages: [{ role: 'user', content: `Analisa proteksi asuransi saya:\n${context}` }],
+        }),
+      });
+      const data = await res.json();
+      const text = data.content?.filter(b => b.type === 'text').map(b => b.text).join('') || 'Tidak ada respons.';
+      setAnalysis(text);
+      setDone(true);
+    } catch (e) {
+      setAnalysis('Gagal terhubung ke AI. Periksa koneksi internet.');
+      setDone(true);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <Card T={T}>
+      <SL T={T}>Analisa AI - Proteksi Kekayaan</SL>
+      <div style={{ color: T.textSoft, fontSize: 12, lineHeight: 1.7, marginBottom: 16 }}>
+        AI akan menganalisa keseluruhan profil proteksi kamu berdasarkan data portofolio dan polis yang tersimpan, lalu memberikan rekomendasi prioritas.
+      </div>
+
+      {!done && !loading && (
+        <TBtn T={T} variant="primary" onClick={runAnalysis} style={{ width: '100%', padding: '12px 0' }}>
+          🤖 Jalankan Analisa AI
+        </TBtn>
+      )}
+
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '24px 0', color: T.muted, fontSize: 13 }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
+          Menganalisa profil proteksi...
+        </div>
+      )}
+
+      {done && analysis && (
+        <>
+          <div style={{ padding: '16px', background: T.surface, borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 13, color: T.text, lineHeight: 1.8, whiteSpace: 'pre-wrap', marginBottom: 12 }}>
+            {analysis}
+          </div>
+          <TBtn T={T} variant="default" onClick={() => { setDone(false); setAnalysis(''); }} style={{ width: '100%', fontSize: 12 }}>
+            ↺ Analisa Ulang
+          </TBtn>
+        </>
+      )}
+    </Card>
+  );
+}
+
+export default InsuranceScene;
