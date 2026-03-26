@@ -49,8 +49,10 @@ function ProfileScene({
     .reduce((s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 12) / 12, 0);
   const activeMonthly  = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
   const totalInflow    = passiveMonthly + activeMonthly;
+  const totalDebtMon   = debts.reduce((s, d) => s + parseVal(d.monthlyPayment), 0);
   const expense        = parseVal(monthlyExpense);
-  const surplus        = totalInflow - expense;
+  const totalOutflow   = totalDebtMon + expense;
+  const surplus        = totalInflow - totalOutflow;
   const coveragePct    = expense > 0 ? Math.min(999, (passiveMonthly / expense) * 100) : 0;
 
   const goalsTotal    = goals.length;
@@ -265,7 +267,7 @@ function ProfileScene({
                 </div>
                 <div style={{ color: T.muted, fontSize: 9 }}>
                   {isPro
-                    ? `Passive ${fV(passiveMonthly, dispCur)} · Aktif ${fV(activeMonthly, dispCur)}`
+                    ? `Masuk ${fV(totalInflow, dispCur)} · Keluar ${fV(totalOutflow, dispCur)}`
                     : surplus >= 0 ? 'Surplus' : 'Defisit'}
                 </div>
               </>

@@ -66,7 +66,7 @@ function DebtIncomeCard({
         border: `1px solid ${T.border}`,
       }}
     >
-      {/* ── Collapsible header ── */}
+      {/* -- Collapsible header -- */}
       <div
         role="button"
         onClick={toggleCollapse}
@@ -109,7 +109,7 @@ function DebtIncomeCard({
 
       {!collapsed && (
         <>
-      {/* FREE section — always visible: Aset vs Hutang */}
+      {/* FREE section - always visible: Aset vs Hutang */}
       <div style={{ padding: "14px 16px", background: T.card }}>
         <div
           style={{
@@ -193,7 +193,7 @@ function DebtIncomeCard({
         </div>
       </div>
 
-      {/* PRO section — Hutang/bln vs Passive Income/bln */}
+      {/* PRO section - Hutang/bln vs Passive Income/bln */}
       {isPro ? (
         <div
           style={{
@@ -224,7 +224,7 @@ function DebtIncomeCard({
               <div style={{ padding: "10px 12px", background: T.redDim, borderRadius: 10, border: `1px solid ${T.red}22` }}>
                 <div style={{ color: T.muted, fontSize: 10, marginBottom: 3 }}>🏠 Biaya Bulanan</div>
                 <div style={{ color: T.red, fontSize: 13, fontWeight: "bold" }}>
-                  {biayaBulanan > 0 ? fV(biayaBulanan, dispCur) : <span style={{ color: T.muted, fontSize: 11 }}>—</span>}
+                  {biayaBulanan > 0 ? fV(biayaBulanan, dispCur) : <span style={{ color: T.muted, fontSize: 11 }}>-</span>}
                 </div>
                 {biayaBulanan === 0 && <div style={{ color: T.muted, fontSize: 9 }}>Isi di Passive Income</div>}
               </div>
@@ -243,7 +243,7 @@ function DebtIncomeCard({
               <div style={{ padding: "10px 12px", background: T.greenDim, borderRadius: 10, border: `1px solid ${T.green}22` }}>
                 <div style={{ color: T.muted, fontSize: 10, marginBottom: 3 }}>🏡 Properti & Bisnis</div>
                 <div style={{ color: T.green, fontSize: 13, fontWeight: "bold" }}>
-                  {propBizIncomeMon > 0 ? fV(propBizIncomeMon, dispCur) : <span style={{ color: T.muted, fontSize: 11 }}>—</span>}
+                  {propBizIncomeMon > 0 ? fV(propBizIncomeMon, dispCur) : <span style={{ color: T.muted, fontSize: 11 }}>-</span>}
                 </div>
                 <div style={{ color: T.muted, fontSize: 9 }}>sewa + profit usaha</div>
               </div>
@@ -259,7 +259,7 @@ function DebtIncomeCard({
                 </div>
               </div>
               <div style={{ color: T.green, fontSize: 13, fontWeight: "bold" }}>
-                {activeIncomeMon > 0 ? fV(activeIncomeMon, dispCur) : <span style={{ color: T.muted, fontSize: 11 }}>—</span>}
+                {activeIncomeMon > 0 ? fV(activeIncomeMon, dispCur) : <span style={{ color: T.muted, fontSize: 11 }}>-</span>}
               </div>
             </div>
           </div>
@@ -310,7 +310,7 @@ function DebtIncomeCard({
   );
 }
 
-// ─── PASSIVE INCOME TRACKER (stub for Goals integration) ────────────────────
+// --- PASSIVE INCOME TRACKER (stub for Goals integration) --------------------
 // Passive income is tracked per-asset via `income` field: {type, amount, frequency}
 // type: 'dividend' | 'coupon' | 'deposit_interest' | 'rental'
 // This appears as a summary card in the Portfolio scene
@@ -338,7 +338,7 @@ function PassiveIncomeSummary({
 
   return (
     <Card T={T} glow={T.green} style={{ marginBottom: 16 }}>
-      {/* Header — always visible */}
+      {/* Header - always visible */}
       <div
         role="button"
         onClick={() => setExpanded((p) => !p)}
@@ -459,7 +459,7 @@ function PassiveIncomeSummary({
   );
 }
 
-// ─── FINANCE TOOLS SCENE (Kalkulator + Passive Income sub-tabs) ──────────────
+// --- FINANCE TOOLS SCENE (Kalkulator + Passive Income sub-tabs) --------------
 function PassiveIncomeScene({
   assets,
   setAssets,
@@ -496,7 +496,7 @@ function PassiveIncomeScene({
     }
   });
 
-  // ── ACTIVE INCOME (Gaji + Bisnis Aktif) ──────────────────────────────────
+  // -- ACTIVE INCOME (Gaji + Bisnis Aktif) ----------------------------------
   // Use prop from App.js (per-user) when available, fallback to local state for standalone use
   const [_localActive, _setLocalActive] = useState([]);
   const activeIncomes = activeIncomesProp !== null ? activeIncomesProp : _localActive;
@@ -531,7 +531,7 @@ function PassiveIncomeScene({
   };
 
   const totalActiveMonthly = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
-  // ────────────────────────────────────────────────────────────────────────────
+  // ----------------------------------------------------------------------------
 
   const [editIncomeId, setEditIncomeId] = useState(null);
   // Fix 3b: inputMode per-form ('nominal'|'pct')
@@ -646,7 +646,7 @@ function PassiveIncomeScene({
               val:
                 totalIDR > 0
                   ? ((totalAnnual / totalIDR) * 100).toFixed(2) + "%"
-                  : "—",
+                  : "-",
               color: T.blue,
             },
             {
@@ -755,7 +755,7 @@ function PassiveIncomeScene({
               {/* Show passive-only coverage as secondary info */}
               {totalActiveMonthly > 0 && (
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.muted, marginTop: 5 }}>
-                  <span>— dari passive income saja</span>
+                  <span>- dari passive income saja</span>
                   <span style={{ color: passiveCoverage >= 100 ? T.green : T.textSoft }}>
                     {passiveCoverage.toFixed(1)}%
                   </span>
@@ -790,7 +790,7 @@ function PassiveIncomeScene({
         </div>
       </Card>
 
-      {/* ── ACTIVE INCOME CARD ─────────────────────────────────────────────── */}
+      {/* -- ACTIVE INCOME CARD ----------------------------------------------- */}
       <Card T={T} style={{ marginBottom: 16 }}>
         <SL T={T}>Active Income</SL>
         <div style={{ color: T.textSoft, fontSize: 12, marginBottom: 14, lineHeight: 1.6 }}>
@@ -1133,7 +1133,7 @@ function PassiveIncomeScene({
                         </div>
                       </div>
 
-                      {/* Fix 3b: Input mode toggle (nominal vs %) — only for interest/coupon/dividend */}
+                      {/* Fix 3b: Input mode toggle (nominal vs %) - only for interest/coupon/dividend */}
                       {currentType?.usePct && (
                         <div
                           style={{ display: "flex", gap: 6, marginBottom: 10 }}
