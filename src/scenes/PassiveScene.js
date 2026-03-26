@@ -468,6 +468,10 @@ function PassiveIncomeScene({
   hideValues = false,
   activeIncomes: activeIncomesProp = null,
   setActiveIncomes: setActiveIncomesProp = null,
+  monthlyExpense: monthlyExpenseProp = undefined,
+  setMonthlyExpense: setMonthlyExpenseProp = null,
+  isPro = false,
+  isProPlus = false,
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
 
@@ -488,13 +492,10 @@ function PassiveIncomeScene({
     { value: "other", label: "Lainnya", usePct: false },
   ];
 
-  const [monthlyExpense, setMonthlyExpense] = useState(() => {
-    try {
-      return localStorage.getItem("wc_monthly_expense") || "";
-    } catch {
-      return "";
-    }
-  });
+  // monthlyExpense from App.js prop (per-user) when available
+  const [_localExpense, _setLocalExpense] = useState("");
+  const monthlyExpense = monthlyExpenseProp !== undefined ? monthlyExpenseProp : _localExpense;
+  const setMonthlyExpense = setMonthlyExpenseProp || _setLocalExpense;
 
   // -- ACTIVE INCOME (Gaji + Bisnis Aktif) ----------------------------------
   // Use prop from App.js (per-user) when available, fallback to local state for standalone use
@@ -531,7 +532,12 @@ function PassiveIncomeScene({
   };
 
   const totalActiveMonthly = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
+  const activeIncomeLimit = isProPlus ? 20 : isPro ? 5 : 1;
+  const activeAtLimit = activeIncomes.length >= activeIncomeLimit;
   // ----------------------------------------------------------------------------
+
+  const [collapsedGroups, setCollapsedGroups] = useState({});
+  const toggleGroup = (key) => setCollapsedGroups(p => ({ ...p, [key]: !p[key] }));
 
   const [editIncomeId, setEditIncomeId] = useState(null);
   // Fix 3b: inputMode per-form ('nominal'|'pct')
@@ -708,9 +714,6 @@ function PassiveIncomeScene({
               value={monthlyExpense}
               onChange={(e) => {
                 setMonthlyExpense(e.target.value);
-                try {
-                  localStorage.setItem("wc_monthly_expense", e.target.value);
-                } catch {}
               }}
               placeholder="Contoh: 15000000"
               style={{
@@ -842,11 +845,26 @@ function PassiveIncomeScene({
 
         {/* Add form toggle */}
         {!showActiveForm ? (
-          <button onClick={() => setShowActiveForm(true)}
-            style={{ width: "100%", padding: "10px 0", borderRadius: 9, border: `1px dashed ${T.accentSoft}`,
-                background: T.accentDim, color: T.accent, cursor: "pointer", fontSize: 12, fontWeight: "bold" }}>
-            + Tambah Active Income
-          </button>
+          <>
+            {activeAtLimit ? (
+              <div style={{ padding: "10px 14px", background: T.redDim, borderRadius: 9, border: `1px solid ${T.red}33`, textAlign: "center" }}>
+                <div style={{ color: T.red, fontSize: 12, fontWeight: "bold", marginBottom: 2 }}>
+                  Batas {activeIncomeLimit} active income untuk tier {isProPlus ? "Pro+" : isPro ? "Pro" : "Free"} tercapai
+                </div>
+                {!isProPlus && (
+                  <div style={{ color: T.muted, fontSize: 11 }}>
+                    {isPro ? "Upgrade Pro+ untuk hingga 20 active income" : "Upgrade Pro untuk hingga 5 active income"}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button onClick={() => setShowActiveForm(true)}
+                style={{ width: "100%", padding: "10px 0", borderRadius: 9, border: `1px dashed ${T.accentSoft}`,
+                    background: T.accentDim, color: T.accent, cursor: "pointer", fontSize: 12, fontWeight: "bold" }}>
+                + Tambah Active Income
+              </button>
+            )}
+          </>
         ) : (
           <div style={{ padding: "14px", background: T.surface, borderRadius: 10,
               border: `1px solid ${T.accentSoft}` }}>
@@ -920,37 +938,37 @@ function PassiveIncomeScene({
 
         {groupedAssets.map((group) => (
           <div key={group.key} style={{ marginBottom: 18 }}>
-            {/* Category header */}
+            {/* Category header - collapsible, default closed */}
             <div
+              role="button"
+              onClick={() => toggleGroup(group.key)}
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 7,
-                marginBottom: 8,
+                marginBottom: collapsedGroups[group.key] === false ? 8 : 0,
                 padding: "6px 10px",
                 background: T.surface,
                 borderRadius: 8,
+                cursor: "pointer",
               }}
             >
               <span style={{ fontSize: 14 }}>{group.icon}</span>
-              <span
-                style={{
-                  color: group.riskColor,
-                  fontSize: 12,
-                  fontWeight: "bold",
-                }}
-              >
+              <span style={{ color: group.riskColor, fontSize: 12, fontWeight: "bold" }}>
                 {group.label}
               </span>
-              <span
-                style={{ color: T.muted, fontSize: 11, marginLeft: "auto" }}
-              >
+              <span style={{ color: T.muted, fontSize: 11, marginLeft: "auto" }}>
                 {group.items.filter((a) => a.income?.amount > 0).length}/
                 {group.items.length} aktif
               </span>
+              <span style={{
+                color: T.muted, fontSize: 11, marginLeft: 4,
+                transition: "transform 0.2s", display: "inline-block",
+                transform: collapsedGroups[group.key] === false ? "rotate(180deg)" : "none",
+              }}>&#9662;</span>
             </div>
 
-            {group.items.map((a) => {
+            {collapsedGroups[group.key] === false && group.items.map((a) => {
               const isEditing = editIncomeId === a.id;
               const hasIncome = a.income && a.income.amount > 0;
               const assetIDR = getIDR(a);
@@ -1359,6 +1377,10 @@ function FinanceToolsScene({
   hideValues = false,
   activeIncomes = null,
   setActiveIncomes = null,
+  isPro = false,
+  isProPlus = false,
+  monthlyExpense = undefined,
+  setMonthlyExpense = null,
 }) {
   const [subTab, setSubTab] = useState("calc");
   return (
@@ -1401,6 +1423,10 @@ function FinanceToolsScene({
           hideValues={hideValues}
           activeIncomes={activeIncomes}
           setActiveIncomes={setActiveIncomes}
+          isPro={isPro}
+          isProPlus={isProPlus}
+          monthlyExpense={monthlyExpense}
+          setMonthlyExpense={setMonthlyExpense}
         />
       )}
     </div>
