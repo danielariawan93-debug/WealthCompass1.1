@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, SL, Chip, Bar, TBtn, TInput, TSelect, InfoBtn } from '../components/ui';
 import { fMoney, fM, parseVal, getIDR, FREQ_MULT } from '../utils/helpers';
 
-// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+// --- CONSTANTS ----------------------------------------------------------------
 const INSURANCE_TYPES = [
   { key: 'life',    label: 'Jiwa',              icon: '🫀', color: '#f26b6b', desc: 'Term life / whole life / unit link' },
   { key: 'health',  label: 'Kesehatan',         icon: '🏥', color: '#3ecf8e', desc: 'BPJS, asuransi swasta, rawat inap' },
@@ -23,7 +23,7 @@ const EMPTY_FORM = {
   notes: '',
 };
 
-// ─── LIFE INSURANCE NEED CALCULATOR ──────────────────────────────────────────
+// --- LIFE INSURANCE NEED CALCULATOR ------------------------------------------
 // DIME method: Debt + Income (10x) + Mortgage + Education
 function calcLifeNeed({ totalDebt, annualIncome, totalAssets, dependents }) {
   const debtNeed     = totalDebt;
@@ -35,7 +35,7 @@ function calcLifeNeed({ totalDebt, annualIncome, totalAssets, dependents }) {
   return { debtNeed, incomeNeed, educNeed, existing, gross, net };
 };
 
-// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
+// --- MAIN COMPONENT ----------------------------------------------------------
 function InsuranceScene({
   assets = [],
   debts = [],
@@ -56,7 +56,7 @@ function InsuranceScene({
   const [editId, setEditId]       = useState(null);
   const [form, setForm]           = useState(EMPTY_FORM);
 
-  // ── Calculator manual inputs ──
+  // -- Calculator manual inputs --
   const [calcInputs, setCalcInputs] = useState({
     monthlyIncome: '',
     dependents: '2',
@@ -66,7 +66,7 @@ function InsuranceScene({
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const setC = (k, v) => setCalcInputs(p => ({ ...p, [k]: v }));
 
-  // ── Derived from existing data ──
+  // -- Derived from existing data --
   const totalAssets  = useMemo(() => assets.reduce((s, a) => s + getIDR(a), 0), [assets]);
   const totalDebt    = useMemo(() => debts.reduce((s, d) => s + parseVal(d.outstanding), 0), [debts]);
   const passiveAnnual = useMemo(() =>
@@ -74,7 +74,7 @@ function InsuranceScene({
       .reduce((s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 12), 0)
   , [assets]);
 
-  // ── DIME calculation ──
+  // -- DIME calculation --
   const annualIncome = parseVal(calcInputs.monthlyIncome) * 12 || passiveAnnual;
   const dependents   = parseInt(calcInputs.dependents) || 0;
   const extraDebt    = parseVal(calcInputs.extraDebt);
@@ -85,23 +85,23 @@ function InsuranceScene({
     dependents,
   });
 
-  // ── Existing life coverage ──
+  // -- Existing life coverage --
   const lifeInsurances = insurances.filter(i => i.type === 'life');
   const totalLifeCoverage = lifeInsurances.reduce((s, i) => s + parseVal(i.coverage), 0);
   const coverageGap = Math.max(0, lifeNeed.net - totalLifeCoverage);
   const coveragePct = lifeNeed.net > 0 ? Math.min(100, (totalLifeCoverage / lifeNeed.net) * 100) : 100;
 
-  // ── Annual premium total ──
+  // -- Annual premium total --
   const totalAnnualPremium = insurances.reduce((s, ins) => {
     const mult = FREQ_MULT[ins.premiumFreq] || 1;
     return s + parseVal(ins.premium) * mult;
   }, 0);
 
-  // ── Limit check ──
+  // -- Limit check --
   const atLimit = !isProPlus && isPro && insurances.length >= PRO_LIMIT;
   const canAdd  = isPro && !atLimit;
 
-  // ── CRUD ──
+  // -- CRUD --
   const openNew = () => {
     if (!canAdd) return;
     setEditId(null);
@@ -129,7 +129,7 @@ function InsuranceScene({
 
   const deletePolis = (id) => setInsurances(p => p.filter(i => i.id !== id));
 
-  // ─── NOT PRO — upgrade gate ───────────────────────────────────────────────
+  // --- NOT PRO - upgrade gate -----------------------------------------------
   if (!isPro) {
     return (
       <div style={{ padding: '16px 0' }}>
@@ -164,7 +164,7 @@ function InsuranceScene({
     );
   }
 
-  // ─── PRO/PRO+ — full scene ────────────────────────────────────────────────
+  // --- PRO/PRO+ - full scene ------------------------------------------------
   return (
     <div style={{ paddingBottom: 40 }}>
 
@@ -181,7 +181,7 @@ function InsuranceScene({
         ))}
       </div>
 
-      {/* ══ TAB: TRACKER ══════════════════════════════════════════════════════ */}
+      {/* == TAB: TRACKER ====================================================== */}
       {subTab === 'tracker' && (
         <>
           {/* Summary strip */}
@@ -355,7 +355,7 @@ function InsuranceScene({
         </>
       )}
 
-      {/* ══ TAB: CALCULATOR ═══════════════════════════════════════════════════ */}
+      {/* == TAB: CALCULATOR =================================================== */}
       {subTab === 'calculator' && (
         <>
           <Card T={T} style={{ marginBottom: 16 }}>
@@ -386,7 +386,7 @@ function InsuranceScene({
               <div>
                 <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>
                   Pendapatan Aktif/Bulan (IDR)
-                  <span style={{ color: T.muted, fontSize: 9 }}> — jika belum ada di portofolio</span>
+                  <span style={{ color: T.muted, fontSize: 9 }}> - jika belum ada di portofolio</span>
                 </div>
                 <TInput T={T} value={calcInputs.monthlyIncome} onChange={e => setC('monthlyIncome', e.target.value)} placeholder="15000000" />
                 {annualIncome > 0 && <div style={{ color: T.muted, fontSize: 9, marginTop: 3 }}>≈ {fV(annualIncome, dispCur)}/thn</div>}
@@ -407,9 +407,9 @@ function InsuranceScene({
             {/* DIME breakdown */}
             <SL T={T}>Hasil Perhitungan</SL>
             {[
-              { label: 'D — Pelunasan Hutang', val: lifeNeed.debtNeed, color: T.red, desc: 'Total hutang yang harus dilunasi' },
-              { label: 'I — Pengganti Pendapatan (10 thn)', val: lifeNeed.incomeNeed, color: T.orange, desc: '10x pendapatan tahunan' },
-              { label: 'E — Biaya Pendidikan Tanggungan', val: lifeNeed.educNeed, color: T.blue, desc: `Rp150Jt x ${dependents} tanggungan` },
+              { label: 'D - Pelunasan Hutang', val: lifeNeed.debtNeed, color: T.red, desc: 'Total hutang yang harus dilunasi' },
+              { label: 'I - Pengganti Pendapatan (10 thn)', val: lifeNeed.incomeNeed, color: T.orange, desc: '10x pendapatan tahunan' },
+              { label: 'E - Biaya Pendidikan Tanggungan', val: lifeNeed.educNeed, color: T.blue, desc: `Rp150Jt x ${dependents} tanggungan` },
               { label: 'Dikurangi: Aset Likuid (30%)', val: -lifeNeed.existing, color: T.green, desc: '30% aset yang bisa digunakan langsung' },
             ].map((item, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: T.surface, borderRadius: 8, marginBottom: 6 }}>
@@ -444,7 +444,7 @@ function InsuranceScene({
                 <Bar pct={coveragePct} color={coveragePct >= 80 ? T.green : coveragePct >= 50 ? T.orange : T.red} h={8} T={T} />
                 <div style={{ marginTop: 8, fontSize: 12 }}>
                   {coverageGap > 0
-                    ? <span style={{ color: T.red }}>⚠ Kekurangan UP: <b>{fV(coverageGap, dispCur)}</b> — pertimbangkan tambah polis jiwa</span>
+                    ? <span style={{ color: T.red }}>⚠ Kekurangan UP: <b>{fV(coverageGap, dispCur)}</b> - pertimbangkan tambah polis jiwa</span>
                     : <span style={{ color: T.green }}>✓ Coverage jiwa sudah mencukupi estimasi kebutuhan</span>
                   }
                 </div>
@@ -454,7 +454,7 @@ function InsuranceScene({
         </>
       )}
 
-      {/* ══ TAB: AI ANALYSIS (Pro+ only) ═════════════════════════════════════ */}
+      {/* == TAB: AI ANALYSIS (Pro+ only) ===================================== */}
       {subTab === 'ai' && isProPlus && (
         <InsuranceAITab
           T={T} dispCur={dispCur} fV={fV}
@@ -470,7 +470,7 @@ function InsuranceScene({
   );
 }
 
-// ─── AI ANALYSIS SUB-COMPONENT (Pro+ only) ───────────────────────────────────
+// --- AI ANALYSIS SUB-COMPONENT (Pro+ only) -----------------------------------
 function InsuranceAITab({ T, dispCur, fV, insurances, totalAssets, totalDebt, annualIncome, dependents, lifeNeed, coverageGap, totalAnnualPremium }) {
   const [analysis, setAnalysis] = useState('');
   const [loading, setLoading]   = useState(false);
@@ -521,7 +521,7 @@ Gunakan angka konkret. Hindari jargon teknis berlebihan. Maksimal 300 kata.`,
 
   return (
     <Card T={T}>
-      <SL T={T}>Analisa AI — Proteksi Kekayaan</SL>
+      <SL T={T}>Analisa AI - Proteksi Kekayaan</SL>
       <div style={{ color: T.textSoft, fontSize: 12, lineHeight: 1.7, marginBottom: 16 }}>
         AI akan menganalisa keseluruhan profil proteksi kamu berdasarkan data portofolio dan polis yang tersimpan, lalu memberikan rekomendasi prioritas.
       </div>
