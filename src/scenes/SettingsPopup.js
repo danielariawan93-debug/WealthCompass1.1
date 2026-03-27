@@ -645,6 +645,10 @@ function SettingsPopup({
             Keluar dari Akun
           </button>
         )}
+        </div>
+        </div>
+        </div>
+        </div>
       </div>
     </>
   );
