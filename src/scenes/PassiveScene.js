@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import CalcScene from './CalcScene';
 import { Card, SL, Chip, Bar, TInput, TSelect, TBtn, Donut, InfoBtn, LineChart } from '../components/ui';
 import { fMoney, fM, parseVal, getIDR, FREQ_MULT, LS, LS2, getWealthSegment } from '../utils/helpers';
-import { ASSET_CLASSES, RATES, CURRENCIES } from '../constants/data';
+import { ASSET_CLASSES, RATES, CURRENCIES, INCOME_TYPES } from '../constants/data';
 
 function DebtIncomeCard({
   assets,
@@ -511,14 +511,7 @@ function PassiveIncomeScene({
     annual: "thn",
   };
 
-  const INCOME_TYPES = [
-    { value: "deposit_interest", label: "Bunga Bank",          icon: "🏦", usePct: true  },
-    { value: "coupon",           label: "Kupon Obligasi/Setara",icon: "📜", usePct: true  },
-    { value: "dividend",         label: "Dividen Saham/Setara", icon: "📈", usePct: true  },
-    { value: "rental",           label: "Sewa Properti",        icon: "🏠", usePct: false },
-    { value: "business",         label: "Usaha/Bisnis",         icon: "🏪", usePct: false },
-    { value: "other",            label: "Lainnya",              icon: "💰", usePct: false },
-  ];
+  // INCOME_TYPES imported from data.js
 
   // monthlyExpense from App.js prop (per-user) when available
   const [_localExpense, _setLocalExpense] = useState("");
