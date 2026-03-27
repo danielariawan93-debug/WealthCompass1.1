@@ -26,8 +26,6 @@ import {
   LS,
   LS2,
   getWealthSegment,
-  toIDR,
-  fromIDR,
 } from "../utils/helpers";
 import {
   ASSET_CLASSES,
@@ -36,6 +34,8 @@ import {
   PRECIOUS_METALS,
   CRYPTO_COINS,
   CURRENCIES,
+  toIDR,
+  fromIDR,
 } from "../constants/data";
 import {
   TIERS,
@@ -58,6 +58,7 @@ function PortfolioScene({
   setUploadCount,
   hideValues = false,
   T,
+  setTab = null,
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
   const canAdd =
@@ -849,7 +850,15 @@ function PortfolioScene({
                               </div>
                               <div style={{ display: "flex", gap: 5 }}>
                                 <button
-                                  onClick={() => startEdit(asset)}
+                                  onClick={() => {
+                                    if (isPro && setTab && asset.classKey === "property") {
+                                      setTab("real-assets");
+                                    } else if (isPro && setTab && asset.classKey === "business") {
+                                      setTab("real-assets");
+                                    } else {
+                                      startEdit(asset);
+                                    }
+                                  }}
                                   style={{
                                     background: T.surface,
                                     color: T.textSoft,

@@ -27,7 +27,8 @@ function DebtIncomeCard({
     .filter((a) => a.income?.amount > 0 && !["property","business"].includes(a.classKey))
     .reduce((s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 12), 0);
   const propBizIncomeAnnual = assets
-    .filter((a) => a.income?.amount > 0 && ["property","business"].includes(a.classKey))
+    .filter((a) => a.income?.amount > 0 && ["property","business"].includes(a.classKey)
+      && a.incomeType !== "active")
     .reduce((s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 12), 0);
 
   // activeIncomes passed from App.js (per-user, not global localStorage)
@@ -344,7 +345,8 @@ function PassiveIncomeSummary({
   const fV = (v, c) => fM(v, c, hideValues);
   const [expanded, setExpanded] = useState(false);
 
-  const incomeAssets = assets.filter((a) => a.income && a.income.amount > 0);
+  // Exclude bisnis aktif - those are counted in ActiveIncomeSummary
+  const incomeAssets = assets.filter((a) => a.income && a.income.amount > 0 && a.incomeType !== "active");
   const totalAnnual = incomeAssets.reduce(
     (s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 1),
     0
@@ -416,6 +418,15 @@ function PassiveIncomeSummary({
           {incomeAssets.map((a) => {
             const annualAmt =
               a.income.amount * (FREQ_MULT[a.income.frequency] || 1);
+            const rowIcon = a.classKey === "business" ? "🏪"
+              : a.classKey === "property" ? "🏠"
+              : a.classKey === "crypto" ? "₿"
+              : a.classKey === "equity" ? "📈"
+              : a.classKey === "bond" ? "📜"
+              : a.classKey === "mixed" ? "🏅"
+              : a.classKey === "cash" ? "🏦"
+              : a.classKey === "fixedincome_plus" ? "📊"
+              : "💰";
             return (
               <div
                 key={a.id}
@@ -427,16 +438,13 @@ function PassiveIncomeSummary({
                   borderBottom: `1px solid ${T.border}`,
                 }}
               >
-                <div>
-                  <div style={{ color: T.text, fontSize: 12 }}>{a.name}</div>
-                  <div
-                    style={{
-                      color: T.muted,
-                      fontSize: 10,
-                      textTransform: "capitalize",
-                    }}
-                  >
-                    {a.income.type.replace("_", " ")} · {a.income.frequency}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 16 }}>{rowIcon}</span>
+                  <div>
+                    <div style={{ color: T.text, fontSize: 12 }}>{a.name}</div>
+                    <div style={{ color: T.muted, fontSize: 10, textTransform: "capitalize" }}>
+                      {a.income.type.replace("_", " ")} · {a.income.frequency}
+                    </div>
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
@@ -504,12 +512,12 @@ function PassiveIncomeScene({
   };
 
   const INCOME_TYPES = [
-    { value: "deposit_interest", label: "Bunga Bank", usePct: true },
-    { value: "coupon", label: "Kupon Obligasi/Setara", usePct: true },
-    { value: "dividend", label: "Dividen Saham/Setara", usePct: true },
-    { value: "rental", label: "Sewa Properti", usePct: false },
-    { value: "business", label: "Usaha/Bisnis", usePct: false },
-    { value: "other", label: "Lainnya", usePct: false },
+    { value: "deposit_interest", label: "Bunga Bank",          icon: "🏦", usePct: true  },
+    { value: "coupon",           label: "Kupon Obligasi/Setara",icon: "📜", usePct: true  },
+    { value: "dividend",         label: "Dividen Saham/Setara", icon: "📈", usePct: true  },
+    { value: "rental",           label: "Sewa Properti",        icon: "🏠", usePct: false },
+    { value: "business",         label: "Usaha/Bisnis",         icon: "🏪", usePct: false },
+    { value: "other",            label: "Lainnya",              icon: "💰", usePct: false },
   ];
 
   // monthlyExpense from App.js prop (per-user) when available
@@ -538,7 +546,8 @@ function PassiveIncomeScene({
     type: "dividend",
   });
 
-  const incomeAssets = assets.filter((a) => a.income && a.income.amount > 0);
+  // Exclude bisnis aktif dari passive - dicatat di Active Income
+  const incomeAssets = assets.filter((a) => a.income && a.income.amount > 0 && a.incomeType !== "active");
   const totalAnnual = incomeAssets.reduce(
     (s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 1),
     0
@@ -878,7 +887,11 @@ function PassiveIncomeScene({
                       marginBottom: isEditing ? 12 : 0,
                     }}
                   >
-                    <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 18, flexShrink: 0 }}>
+                        {incType?.icon || "💰"}
+                      </span>
+                      <div>
                       <div
                         style={{ color: T.text, fontSize: 12, fontWeight: 500 }}
                       >
@@ -906,6 +919,7 @@ function PassiveIncomeScene({
                           Belum ada income
                         </div>
                       )}
+                      </div>
                     </div>
                     <button
                       onClick={() =>
