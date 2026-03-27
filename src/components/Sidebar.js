@@ -1,34 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 const NAV_ITEMS = [
-  { id: "profile", label: "Profil", icon: "◎" },
-  { id: "portfolio", label: "Portofolio", icon: "◈" },
-  { id: "risk", label: "Profil Risiko", icon: "◈", hidden: true },
-  { id: "networth", label: "Net Worth", icon: "📊" },
-  { id: "debt", label: "Hutang", icon: "💸" },
-  { id: "rebalance", label: "Rebalance", icon: "⇌" },
-  {
-    id: "real-assets",
-    label: "Properti & Bisnis",
-    icon: "🏡",
-    moduleKey: "realAssets",
-  },
-  { id: "finance-tools", label: "Finance Tools", icon: "◉" },
-  { id: "goal", label: "Goals", icon: "◇" },
-  { id: "ai", label: "AI Advisor", icon: "✦" },
-  { id: "insurance", label: "Asuransi", icon: "🛡️" },
-  {
-    id: "peers",
-    label: "Peer Benchmark 🔜",
-    icon: "👥",
-    moduleKey: "comingSoon",
-  },
-  {
-    id: "community",
-    label: "Komunitas 🔜",
-    icon: "🤝",
-    moduleKey: "comingSoon",
-  },
+  { id: "profile",       label: "Profil",            icon: "👤", color: "#3ecf8e" },
+  { id: "portfolio",     label: "Portofolio",         icon: "💼", color: "#5b9cf6" },
+  { id: "risk",          label: "Profil Risiko",      icon: "🧭", color: "#9b7ef8", hidden: true },
+  { id: "rebalance",     label: "Rebalance",          icon: "⚖️", color: "#f59e0b" },
+  { id: "goal",          label: "Goals",              icon: "🎯", color: "#f26b6b" },
+  { id: "finance-tools", label: "Finance Tools",      icon: "📊", color: "#34d399" },
+  { id: "debt",          label: "Hutang",             icon: "💳", color: "#f87239" },
+  { id: "networth",      label: "Net Worth",          icon: "📈", color: "#9b7ef8" },
+  { id: "real-assets",   label: "Properti & Bisnis",  icon: "🏡", color: "#d4a843", proOnly: true },
+  { id: "insurance",     label: "Asuransi",           icon: "🛡️", color: "#5b9cf6", proOnly: true },
+  { id: "peers",         label: "Peer Benchmark",     icon: "👥", color: "#3ecf8e", moduleKey: "comingSoon" },
+  { id: "community",     label: "Komunitas",          icon: "🤝", color: "#f59e0b", moduleKey: "comingSoon" },
 ];
 
 function Sidebar({
@@ -104,11 +88,11 @@ function Sidebar({
         {NAV_ITEMS.filter(
           (n) =>
             !n.hidden &&
-            (!n.moduleKey ||
-              modules[n.moduleKey] ||
-              n.moduleKey === "comingSoon")
+            (!n.proOnly || isPro) &&
+            (!n.moduleKey || n.moduleKey === "comingSoon")
         ).map((n) => {
           const active = tab === n.id;
+          const itemColor = n.color || T.accent;
           return (
             <button
               key={n.id}
@@ -121,10 +105,10 @@ function Sidebar({
                 gap: 12,
                 padding: sideOpen ? "11px 16px" : "11px 0",
                 justifyContent: sideOpen ? "flex-start" : "center",
-                background: active ? T.accentDim : "none",
+                background: active ? itemColor + "18" : "none",
                 border: "none",
-                borderLeft: `3px solid ${active ? T.accent : "transparent"}`,
-                color: active ? T.accent : T.muted,
+                borderLeft: `3px solid ${active ? itemColor : "transparent"}`,
+                color: active ? itemColor : T.muted,
                 cursor: "pointer",
                 transition: "all 0.15s",
                 whiteSpace: "nowrap",
@@ -147,8 +131,30 @@ function Sidebar({
         })}
       </div>
 
-      {/* Settings button */}
+      {/* Bottom: AI Advisor + Settings */}
       <div style={{ borderTop: `1px solid ${T.border}`, padding: "8px 0" }}>
+        <button
+          onClick={() => setTab("ai")}
+          title="AI Advisor"
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: sideOpen ? "10px 16px" : "10px 0",
+            justifyContent: sideOpen ? "flex-start" : "center",
+            background: tab === "ai" ? "#9b7ef818" : "none",
+            border: "none",
+            borderLeft: `3px solid ${tab === "ai" ? "#9b7ef8" : "transparent"}`,
+            color: tab === "ai" ? "#9b7ef8" : T.muted,
+            cursor: "pointer",
+            transition: "all 0.15s",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <span style={{ fontSize: 14, flexShrink: 0 }}>✦</span>
+          {sideOpen && <span style={{ fontSize: 12 }}>AI Advisor</span>}
+        </button>
         <button
           onClick={() => setTab("settings")}
           title="Settings"
