@@ -1,24 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import { Card, SL, Chip, Bar, TBtn, TInput, TSelect } from '../components/ui';
-import { fM, parseVal, getIDR, FREQ_MULT } from '../utils/helpers';
+import { fM, parseVal, getIDR, FREQ_MULT, fv, calcLife, calcHealthInsurance, calcPropertyInsurance, calcVehicleInsurance, calcEducationInsurance, calcCreditInsurance } from '../utils/helpers';
+import { INSURANCE_TYPES, LIQUID_ASSET_KEYS, FREQ_LABELS, INSURANCE_PRO_LIMIT } from '../constants/data';
 
 // =========================================================
 // CONSTANTS
 // =========================================================
-const INSURANCE_TYPES = [
-  { key: 'life',     label: 'Jiwa',         icon: 'fav', color: '#f26b6b' },
-  { key: 'health',   label: 'Kesehatan',    icon: 'hos', color: '#3ecf8e' },
-  { key: 'property', label: 'Properti',     icon: 'hou', color: '#5b9cf6' },
-  { key: 'vehicle',  label: 'Kendaraan',    icon: 'car', color: '#f59e0b' },
-  { key: 'credit',   label: 'Jiwa Kredit',  icon: 'crd', color: '#9b7ef8' },
-  { key: 'travel',   label: 'Perjalanan',   icon: 'fly', color: '#34d399' },
-];
+// INSURANCE_TYPES imported from data.js
 const TYPE_EMOJI = { life:'fav', health:'hos', property:'hou', vehicle:'car', credit:'crd', travel:'fly' };
 const TYPE_ICON  = { life:'X', health:'X', property:'X', vehicle:'X', credit:'X', travel:'X' };
 const ITYPE_EMOJI = { life:'❤️', health:'🏥', property:'🏠', vehicle:'🚗', credit:'💳', travel:'✈️' };
 
-const FREQ_LABELS = { monthly:'bln', quarterly:'kwartal', semiannual:'smstr', annual:'thn' };
-const PRO_LIMIT   = 5;
+// FREQ_LABELS imported from data.js
+const PRO_LIMIT = INSURANCE_PRO_LIMIT;
 
 const EMPTY_FORM = {
   name:'', type:'life', company:'',
@@ -27,68 +21,20 @@ const EMPTY_FORM = {
 };
 
 // Liquid asset classes only (truly cashable)
-const LIQUID_KEYS = ['cash', 'bond', 'fixedincome_plus'];
+const LIQUID_KEYS = LIQUID_ASSET_KEYS;
 
 // =========================================================
 // CALCULATION ENGINES (from reference + improvements)
 // =========================================================
 
-// Future value helper
-const fv = (pv, rate, years) => pv * Math.pow(1 + rate, years);
+// fv imported from helpers.js
 
-// 1. JIWA - Income Replacement + Debt + Legacy - Liquid Assets
-function calcLife({ annualIncome, yearsToCover, totalDebt, legacyTarget, liquidAssets, educItems }) {
-  const incomeNeed  = annualIncome * yearsToCover;
-  const debtNeed    = totalDebt;
-  const legacyNeed  = legacyTarget;
-  const educNeed    = educItems.reduce((s, e) => {
-    const yrs = Math.max(0, 18 - e.childAge);
-    const futureCostPerYear = fv(e.annualCost, 0.08, yrs);
-    return s + futureCostPerYear * 4;
-  }, 0);
-  const existing    = liquidAssets;
-  const gross       = incomeNeed + debtNeed + legacyNeed + educNeed;
-  const net         = Math.max(0, gross - existing);
-  return { incomeNeed, debtNeed, legacyNeed, educNeed, existing, gross, net };
-}
-
-// 2. KESEHATAN - gap antara kebutuhan dan coverage yang ada
-function calcHealth({ roomRatePerDay, daysPerYear, annualCoverageExisting }) {
-  const annualNeed = roomRatePerDay * daysPerYear;
-  const gap        = Math.max(0, annualNeed - annualCoverageExisting);
-  return { annualNeed, gap };
-}
-
-// 3. PROPERTI - nilai bangunan saja (tanah tidak ikut)
-function calcProperty({ buildingValue }) {
-  return { need: buildingValue };
-}
-
-// 4. KENDARAAN - berdasarkan nilai + jenis coverage
-function calcVehicle({ vehicleValue, coverageType }) {
-  // all risk ~3.5% premium, TLO ~0.8%
-  const rate    = coverageType === 'allrisk' ? 0.035 : 0.008;
-  const premium = vehicleValue * rate;
-  return { need: vehicleValue, estimatedPremium: premium };
-}
-
-// 5. PENDIDIKAN - future cost S1 dari usia anak sekarang
-function calcEducation({ childAge, annualCostNow, targetLevel }) {
-  const yearsLeft = Math.max(0, 18 - childAge);
-  const futureCostPerYear = fv(annualCostNow, 0.08, yearsLeft);
-  const years = targetLevel === 's2' ? 6 : targetLevel === 'd3' ? 3 : 4;
-  const totalFund = futureCostPerYear * years;
-  // Monthly saving needed (simple, no return assumption)
-  const monthsLeft     = yearsLeft * 12;
-  const monthlySaving  = monthsLeft > 0 ? totalFund / monthsLeft : totalFund;
-  return { futureCostPerYear, totalFund, monthlySaving, yearsLeft };
-}
-
-// 6. JIWA KREDIT - otomatis dari outstanding KPR/KTA
-function calcCredit({ totalMortgage, totalInstallment }) {
-  return { need: totalMortgage + totalInstallment };
-}
-
+// calcLife imported from helpers.js
+// calcHealthInsurance imported from helpers.js
+// calcPropertyInsurance imported from helpers.js
+// calcVehicleInsurance imported from helpers.js
+// calcEducationInsurance imported from helpers.js
+// calcCreditInsurance imported from helpers.js
 // =========================================================
 // DROPDOWN COMPONENT
 // =========================================================
@@ -626,15 +572,15 @@ function InsuranceScene({
       const annualInc = parseVal(inc.annualIncome)*12 || passiveAnnual;
       result = calcLife({ annualIncome:annualInc, yearsToCover:inc.yearsToCover, totalDebt:totalDebt, legacyTarget:parseVal(inc.legacyTarget), liquidAssets, educItems:(inc.educItems||[]).map(e=>({childAge:parseInt(e.childAge)||0,annualCost:parseVal(e.annualCost)})) });
     } else if(calcType==='health') {
-      result = calcHealth({ roomRatePerDay:inc.roomRatePerDay, daysPerYear:inc.daysPerYear, annualCoverageExisting:parseVal(inc.annualCoverageExisting) });
+      result = calcHealthInsurance({ roomRatePerDay:inc.roomRatePerDay, daysPerYear:inc.daysPerYear, annualCoverageExisting:parseVal(inc.annualCoverageExisting) });
     } else if(calcType==='property') {
-      result = calcProperty({ buildingValue:parseVal(inc.buildingValue) });
+      result = calcPropertyInsurance({ buildingValue:parseVal(inc.buildingValue) });
     } else if(calcType==='vehicle') {
-      result = calcVehicle({ vehicleValue:parseVal(inc.vehicleValue), coverageType:inc.coverageType });
+      result = calcVehicleInsurance({ vehicleValue:parseVal(inc.vehicleValue), coverageType:inc.coverageType });
     } else if(calcType==='education') {
-      result = calcEducation({ childAge:parseInt(inc.childAge)||0, annualCostNow:parseVal(inc.annualCostNow), targetLevel:inc.targetLevel });
+      result = calcEducationInsurance({ childAge:parseInt(inc.childAge)||0, annualCostNow:parseVal(inc.annualCostNow), targetLevel:inc.targetLevel });
     } else if(calcType==='credit') {
-      result = calcCredit({ totalMortgage, totalInstallment });
+      result = calcCreditInsurance({ totalMortgage, totalInstallment });
     } else if(calcType==='travel') {
       result = { estimatedPremium:inc.estimatedPremium||800000, trips:inc.tripsPerYear, travelers:inc.travelers };
     }

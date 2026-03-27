@@ -26,34 +26,17 @@ import {
   LS,
   LS2,
   getWealthSegment,
+  calcValuationOperational,
+  calcValuationInvestor,
 } from "../utils/helpers";
+import {
+  ASSET_CLASSES,
+  DEBT_TYPES,
+  BUSINESS_TYPES,
+  SECTOR_MULTIPLES,
+} from "../constants/data";
 
-const BUSINESS_TYPES = [
-  {
-    value: "kos",
-    label: "Kos / Penginapan / Sejenis",
-    icon: "🏠",
-    multiplier: 1.5,
-  },
-  { value: "fnb", label: "F&B / Kuliner", icon: "🍽️", multiplier: 1.1 },
-  { value: "retail", label: "Toko / Retail", icon: "🛍️", multiplier: 1.0 },
-  { value: "jasa", label: "Jasa / Servis", icon: "🔧", multiplier: 1.2 },
-  { value: "online", label: "Bisnis Online", icon: "💻", multiplier: 1.3 },
-  {
-    value: "pt_cv_owner",
-    label: "Pemilik Perusahaan",
-    icon: "🏢",
-    multiplier: 1.35,
-  },
-  {
-    value: "investor_pt_cv",
-    label: "Penanaman Modal PT / CV",
-    icon: "📈",
-    multiplier: 1.2,
-  },
-  { value: "lainnya", label: "Lainnya", icon: "📦", multiplier: 1.0 },
-];
-
+// BUSINESS_TYPES imported from data.js
 function PropertyForm({ onSave, onCancel, T, editData }) {
   const thisYear = new Date().getFullYear();
   const [f, setF] = useState(
@@ -535,43 +518,9 @@ function PropertyForm({ onSave, onCancel, T, editData }) {
 // VALUATION ENGINE
 // =========================================================
 
-const SECTOR_MULTIPLES = {
-  kos:          { low: 3,   mid: 4,   high: 5,   label: "Kos/Penginapan" },
-  fnb:          { low: 1,   mid: 1.5, high: 2,   label: "F&B/Kuliner" },
-  retail:       { low: 1,   mid: 1.5, high: 2.5, label: "Retail/Toko" },
-  jasa:         { low: 1.5, mid: 2.5, high: 3,   label: "Jasa/Servis" },
-  online:       { low: 2,   mid: 3,   high: 5,   label: "Bisnis Online" },
-  pt_cv_owner:  { low: 1.5, mid: 2,   high: 3,   label: "Pemilik PT/CV" },
-  investor_pt_cv:{ low: 5,  mid: 8,  high: 15,   label: "Penanaman Modal" },
-  lainnya:      { low: 1,   mid: 2,   high: 3,   label: "Lainnya" },
-};
-
-function calcValuationOperational(netProfitMonthly, ownershipPct, bizType) {
-  const mult = SECTOR_MULTIPLES[bizType] || SECTOR_MULTIPLES.lainnya;
-  const annualProfit = netProfitMonthly * 12;
-  const ownership = ownershipPct / 100;
-  return {
-    annualProfit,
-    low:  annualProfit * mult.low  * ownership,
-    mid:  annualProfit * mult.mid  * ownership,
-    high: annualProfit * mult.high * ownership,
-    multLow: mult.low, multMid: mult.mid, multHigh: mult.high,
-  };
-}
-
-function calcValuationInvestor({ monthlyProfit, ownershipPct, investmentAmount, sector }) {
-  const ownership = ownershipPct / 100;
-  const annualProfit = monthlyProfit * 12;
-  const mult = SECTOR_MULTIPLES[sector] || SECTOR_MULTIPLES.investor_pt_cv;
-  const valPT = { low: annualProfit * mult.low, mid: annualProfit * mult.mid, high: annualProfit * mult.high };
-  const equity = { low: valPT.low * ownership, mid: valPT.mid * ownership, high: valPT.high * ownership };
-  const entryValuation = investmentAmount / ownership;
-  const growth = { low: valPT.low / entryValuation, mid: valPT.mid / entryValuation, high: valPT.high / entryValuation };
-  const netMargin = monthlyProfit > 0 ? (monthlyProfit / monthlyProfit) : 0;
-  const paybackMonths = (monthlyProfit * ownership) > 0 ? investmentAmount / (monthlyProfit * ownership) : 0;
-  return { annualProfit, valPT, equity, entryValuation, growth, paybackMonths, ownership };
-}
-
+// SECTOR_MULTIPLES imported from data.js
+// calcValuationOperational imported from helpers.js
+// calcValuationInvestor imported from helpers.js
 // =========================================================
 // INFO TOOLTIP
 // =========================================================

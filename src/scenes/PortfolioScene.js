@@ -26,6 +26,8 @@ import {
   LS,
   LS2,
   getWealthSegment,
+  toIDR,
+  fromIDR,
 } from "../utils/helpers";
 import {
   ASSET_CLASSES,
@@ -34,8 +36,6 @@ import {
   PRECIOUS_METALS,
   CRYPTO_COINS,
   CURRENCIES,
-  toIDR,
-  fromIDR,
 } from "../constants/data";
 import {
   TIERS,

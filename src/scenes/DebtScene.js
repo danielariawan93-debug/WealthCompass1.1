@@ -1,58 +1,21 @@
 import React, { useState, useMemo } from 'react';
 import { Card, SL, Bar, TInput, TSelect, TBtn, InfoBtn } from '../components/ui';
-import { fM, parseVal } from '../utils/helpers';
+import { fM, parseVal, calcMonthlyPayment, calcOutstandingFromPayment, monthsRemaining } from '../utils/helpers';
+import { KONSUMTIF, PRODUKTIF, DEBT_DEFAULT_RATES, ALL_DEBT_TYPES } from '../constants/data';
 
 // ============================================================
 // DEBT DEFINITIONS
 // ============================================================
-const KONSUMTIF = [
-  { key:'kpr',       label:'KPR / KPA',            icon:'🏠', rate:9.5,  mode:'amortizing', info:'Kredit Pemilikan Rumah atau Apartemen untuk tempat tinggal pribadi.' },
-  { key:'kkb',       label:'KKB Kendaraan Pribadi', icon:'🚗', rate:10.0, mode:'amortizing', info:'Kredit kendaraan bermotor untuk penggunaan pribadi.' },
-  { key:'motor',     label:'Kredit Motor',          icon:'🛵', rate:10.0, mode:'amortizing', info:'Cicilan sepeda motor untuk penggunaan pribadi.' },
-  { key:'cc',        label:'Kartu Kredit',          icon:'💳', rate:27.0, mode:'revolving',  info:'Tagihan kartu kredit. Input tagihan yang belum lunas (bukan limit).' },
-  { key:'paylater',  label:'PayLater / BNPL',       icon:'📱', rate:24.0, mode:'revolving',  info:'GoPay Later, OVO PayLater, Shopee PayLater, Akulaku, dll.' },
-  { key:'kta',       label:'KTA / Pinjaman Pribadi',icon:'💰', rate:18.0, mode:'amortizing', info:'Kredit tanpa agunan atau pinjaman personal dari bank maupun fintech.' },
-  { key:'p2p',       label:'Pinjaman P2P / Online', icon:'📲', rate:24.0, mode:'amortizing', info:'Pinjaman dari platform fintech lending seperti Kredivo, Cicil, dll.' },
-  { key:'keluarga',  label:'Hutang ke Keluarga/Tmn', icon:'🤝', rate:0,   mode:'amortizing', info:'Pinjaman informal tanpa bunga atau bunga kesepakatan.' },
-];
-
-const PRODUKTIF = [
-  { key:'kur',       label:'KUR (Kredit Usaha Rakyat)', icon:'🏛️', rate:6.0,  mode:'amortizing', info:'Program pemerintah berbunga rendah untuk UMKM. Maks Rp500jt.' },
-  { key:'kmk',       label:'Kredit Modal Kerja',        icon:'⚙️', rate:10.5, mode:'amortizing', info:'Pinjaman untuk modal operasional bisnis, biasanya jangka pendek.' },
-  { key:'krek',      label:'Rekening Koran / PRK',      icon:'🔄', rate:10.5, mode:'revolving',  info:'Fasilitas kredit revolving. Bayar bunga saja, pokok bisa naik-turun sesuai kebutuhan bisnis.' },
-  { key:'ki',        label:'Kredit Investasi',          icon:'📈', rate:10.0, mode:'amortizing', info:'Pinjaman untuk pembelian aset produktif jangka panjang (mesin, kendaraan niaga, dll).' },
-  { key:'kkb_niaga', label:'KKB Kendaraan Niaga',       icon:'🚚', rate:9.0,  mode:'amortizing', info:'Kredit kendaraan operasional bisnis: truk, minibus, pick-up, dll.' },
-  { key:'kpr_invest',label:'KPR Properti Investasi',    icon:'🏢', rate:9.5,  mode:'amortizing', info:'KPR untuk properti yang disewakan atau dijadikan aset investasi.' },
-  { key:'margin',    label:'Margin Trading / Efek',     icon:'📊', rate:12.0, mode:'revolving',  info:'Fasilitas margin dari sekuritas untuk pembelian saham/efek.' },
-];
-
-const DEFAULT_RATE = { kpr:9.5, kkb:10, motor:10, cc:27, paylater:24, kta:18, p2p:24, keluarga:0, kur:6, kmk:10.5, krek:10.5, ki:10, kkb_niaga:9, kpr_invest:9.5, margin:12 };
+// KONSUMTIF imported from data.js
+// PRODUKTIF imported from data.js
+const DEFAULT_RATE = DEBT_DEFAULT_RATES;
 
 // ============================================================
 // CALCULATION HELPERS
 // ============================================================
-function calcMonthlyPayment(outstanding, annualRate, tenorMonths) {
-  if (annualRate <= 0) return outstanding / Math.max(tenorMonths, 1);
-  const r = annualRate / 100 / 12;
-  const n = tenorMonths;
-  return outstanding * (r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1);
-}
-
-function calcOutstandingFromPayment(monthlyPayment, annualRate, remainingMonths) {
-  if (annualRate <= 0) return monthlyPayment * remainingMonths;
-  const r = annualRate / 100 / 12;
-  const n = remainingMonths;
-  if (r === 0) return monthlyPayment * n;
-  return monthlyPayment * (1 - Math.pow(1+r, -n)) / r;
-}
-
-function monthsRemaining(endYearMonth) {
-  if (!endYearMonth) return 0;
-  const [y, m] = endYearMonth.split('-').map(Number);
-  const now = new Date();
-  return Math.max(0, (y - now.getFullYear()) * 12 + (m - now.getMonth() - 1));
-}
-
+// calcMonthlyPayment imported from helpers.js
+// calcOutstandingFromPayment imported from helpers.js
+// monthsRemaining imported from helpers.js
 // ============================================================
 // DEBT FORM
 // ============================================================
@@ -367,7 +330,7 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
   const totalKons = konsumtif.reduce((s,d) => s + parseVal(d.outstanding), 0);
   const totalProd = produktif.reduce((s,d) => s + parseVal(d.outstanding), 0);
 
-  const allTypes  = [...KONSUMTIF, ...PRODUKTIF];
+  const allTypes  = ALL_DEBT_TYPES;
 
   const saveDebt = (data) => {
     if (editDebt) {
