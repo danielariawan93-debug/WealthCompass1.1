@@ -1,21 +1,58 @@
 import React, { useState, useMemo } from 'react';
 import { Card, SL, Bar, TInput, TSelect, TBtn, InfoBtn } from '../components/ui';
-import { fM, parseVal, calcMonthlyPayment, calcOutstandingFromPayment, monthsRemaining } from '../utils/helpers';
-import { KONSUMTIF, PRODUKTIF, DEBT_DEFAULT_RATES, ALL_DEBT_TYPES } from '../constants/data';
+import { fM, parseVal } from '../utils/helpers';
 
 // ============================================================
 // DEBT DEFINITIONS
 // ============================================================
-// KONSUMTIF imported from data.js
-// PRODUKTIF imported from data.js
-const DEFAULT_RATE = DEBT_DEFAULT_RATES;
+const KONSUMTIF = [
+  { key:'kpr',       label:'KPR / KPA',            icon:'🏠', rate:9.5,  mode:'amortizing', info:'Kredit Pemilikan Rumah atau Apartemen untuk tempat tinggal pribadi.' },
+  { key:'kkb',       label:'KKB Kendaraan Pribadi', icon:'🚗', rate:10.0, mode:'amortizing', info:'Kredit kendaraan bermotor untuk penggunaan pribadi.' },
+  { key:'motor',     label:'Kredit Motor',          icon:'🛵', rate:10.0, mode:'amortizing', info:'Cicilan sepeda motor untuk penggunaan pribadi.' },
+  { key:'cc',        label:'Kartu Kredit',          icon:'💳', rate:27.0, mode:'revolving',  info:'Tagihan kartu kredit. Input tagihan yang belum lunas (bukan limit).' },
+  { key:'paylater',  label:'PayLater / BNPL',       icon:'📱', rate:24.0, mode:'revolving',  info:'GoPay Later, OVO PayLater, Shopee PayLater, Akulaku, dll.' },
+  { key:'kta',       label:'KTA / Pinjaman Pribadi',icon:'💰', rate:18.0, mode:'amortizing', info:'Kredit tanpa agunan atau pinjaman personal dari bank maupun fintech.' },
+  { key:'p2p',       label:'Pinjaman P2P / Online', icon:'📲', rate:24.0, mode:'amortizing', info:'Pinjaman dari platform fintech lending seperti Kredivo, Cicil, dll.' },
+  { key:'keluarga',  label:'Hutang ke Keluarga/Tmn', icon:'🤝', rate:0,   mode:'amortizing', info:'Pinjaman informal tanpa bunga atau bunga kesepakatan.' },
+];
+
+const PRODUKTIF = [
+  { key:'kur',       label:'KUR (Kredit Usaha Rakyat)', icon:'🏛️', rate:6.0,  mode:'amortizing', info:'Program pemerintah berbunga rendah untuk UMKM. Maks Rp500jt.' },
+  { key:'kmk',       label:'Kredit Modal Kerja',        icon:'⚙️', rate:10.5, mode:'amortizing', info:'Pinjaman untuk modal operasional bisnis, biasanya jangka pendek.' },
+  { key:'krek',      label:'Rekening Koran / PRK',      icon:'🔄', rate:10.5, mode:'revolving',  info:'Fasilitas kredit revolving. Bayar bunga saja, pokok bisa naik-turun sesuai kebutuhan bisnis.' },
+  { key:'ki',        label:'Kredit Investasi',          icon:'📈', rate:10.0, mode:'amortizing', info:'Pinjaman untuk pembelian aset produktif jangka panjang (mesin, kendaraan niaga, dll).' },
+  { key:'kkb_niaga', label:'KKB Kendaraan Niaga',       icon:'🚚', rate:9.0,  mode:'amortizing', info:'Kredit kendaraan operasional bisnis: truk, minibus, pick-up, dll.' },
+  { key:'kpr_invest',label:'KPR Properti Investasi',    icon:'🏢', rate:9.5,  mode:'amortizing', info:'KPR untuk properti yang disewakan atau dijadikan aset investasi.' },
+  { key:'margin',    label:'Margin Trading / Efek',     icon:'📊', rate:12.0, mode:'revolving',  info:'Fasilitas margin dari sekuritas untuk pembelian saham/efek.' },
+];
+
+const DEFAULT_RATE = { kpr:9.5, kkb:10, motor:10, cc:27, paylater:24, kta:18, p2p:24, keluarga:0, kur:6, kmk:10.5, krek:10.5, ki:10, kkb_niaga:9, kpr_invest:9.5, margin:12 };
 
 // ============================================================
 // CALCULATION HELPERS
 // ============================================================
-// calcMonthlyPayment imported from helpers.js
-// calcOutstandingFromPayment imported from helpers.js
-// monthsRemaining imported from helpers.js
+function calcMonthlyPayment(outstanding, annualRate, tenorMonths) {
+  if (annualRate <= 0) return outstanding / Math.max(tenorMonths, 1);
+  const r = annualRate / 100 / 12;
+  const n = tenorMonths;
+  return outstanding * (r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1);
+}
+
+function calcOutstandingFromPayment(monthlyPayment, annualRate, remainingMonths) {
+  if (annualRate <= 0) return monthlyPayment * remainingMonths;
+  const r = annualRate / 100 / 12;
+  const n = remainingMonths;
+  if (r === 0) return monthlyPayment * n;
+  return monthlyPayment * (1 - Math.pow(1+r, -n)) / r;
+}
+
+function monthsRemaining(endYearMonth) {
+  if (!endYearMonth) return 0;
+  const [y, m] = endYearMonth.split('-').map(Number);
+  const now = new Date();
+  return Math.max(0, (y - now.getFullYear()) * 12 + (m - now.getMonth() - 1));
+}
+
 // ============================================================
 // DEBT FORM
 // ============================================================
@@ -111,7 +148,7 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
           {[['konsumtif','🛒 Konsumtif'],['produktif','🏭 Produktif']].map(([v,l]) => (
-            <button key={v} onClick={()=>{setFF('category',v); setFF('key', v==='konsumtif'?'kpr':'kur');}}
+            <button key={v} onClick={()=>{setFF('category',v); setFF('key', v==='konsumtif'?'kpr':'kur'); setFF('inputMode','A'); setFF('outstanding',''); setFF('monthlyPayment',''); setFF('endYearMonth','');}}
               style={{ padding:'10px 12px', borderRadius:9, cursor:'pointer', fontSize:12, fontWeight:'bold', border:`1px solid ${f.category===v?T.accent:T.border}`, background:f.category===v?T.accentDim:T.surface, color:f.category===v?T.accent:T.muted }}>
               {l}
             </button>
@@ -124,7 +161,7 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
         <div style={{ color:T.muted, fontSize:10, marginBottom:6 }}>Jenis Hutang</div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
           {typeList.map(t => (
-            <button key={t.key} onClick={()=>{setFF('key',t.key); setFF('interestRate','');}}
+            <button key={t.key} onClick={()=>{setFF('key',t.key); setFF('interestRate',''); setFF('outstanding',''); setFF('monthlyPayment',''); setFF('endYearMonth',''); setFF('plafon','');}}
               style={{ padding:'9px 10px', borderRadius:9, cursor:'pointer', textAlign:'left', fontSize:11, display:'flex', gap:6, alignItems:'center', border:`1px solid ${f.key===t.key?T.accent:T.border}`, background:f.key===t.key?T.accentDim:T.surface, color:f.key===t.key?T.accent:T.muted }}>
               <span>{t.icon}</span>
               <div>
@@ -330,7 +367,7 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
   const totalKons = konsumtif.reduce((s,d) => s + parseVal(d.outstanding), 0);
   const totalProd = produktif.reduce((s,d) => s + parseVal(d.outstanding), 0);
 
-  const allTypes  = ALL_DEBT_TYPES;
+  const allTypes  = [...KONSUMTIF, ...PRODUKTIF];
 
   const saveDebt = (data) => {
     if (editDebt) {
@@ -398,12 +435,27 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
         )}
       </Card>
 
-      {/* Add button */}
-      {mode === 'list' && (
-        <button onClick={()=>{setEditDebt(null);setMode('add');}} style={{ width:'100%', marginBottom:16, padding:'12px 0', borderRadius:10, border:`1px dashed ${T.accentSoft}`, background:T.accentDim, color:T.accent, cursor:'pointer', fontSize:13, fontWeight:'bold' }}>
-          + Tambah Hutang
-        </button>
-      )}
+      {/* Debt limit enforcement */}
+      {mode === 'list' && (() => {
+        const maxDebts = isProPlus ? Infinity : isPro ? 15 : 5;
+        const atLimit = debts.length >= maxDebts;
+        return atLimit ? (
+          <div style={{ marginBottom:16, padding:'12px 14px', background:T.redDim, borderRadius:10, border:`1px solid ${T.red}33`, textAlign:'center' }}>
+            <div style={{ color:T.red, fontSize:12, fontWeight:'bold', marginBottom:2 }}>
+              Batas {maxDebts} hutang untuk tier {isProPlus?'Pro+':isPro?'Pro':'Free'} tercapai
+            </div>
+            {!isProPlus && (
+              <div style={{ color:T.muted, fontSize:11 }}>
+                {isPro ? 'Upgrade Pro+ untuk hutang unlimited' : 'Upgrade Pro untuk hingga 15 hutang'}
+              </div>
+            )}
+          </div>
+        ) : (
+          <button onClick={()=>{setEditDebt(null);setMode('add');}} style={{ width:'100%', marginBottom:16, padding:'12px 0', borderRadius:10, border:`1px dashed ${T.accentSoft}`, background:T.accentDim, color:T.accent, cursor:'pointer', fontSize:13, fontWeight:'bold' }}>
+            + Tambah Hutang
+          </button>
+        );
+      })()}
 
       {/* Form */}
       {(mode === 'add' || mode === 'edit') && (
