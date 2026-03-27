@@ -49,6 +49,7 @@ import NetWorthTrackerScene from "./scenes/NetWorthScene";
 import {
   DebtIncomeCard,
   PassiveIncomeSummary,
+  ActiveIncomeSummary,
   PassiveIncomeScene,
   FinanceToolsScene,
 } from "./scenes/PassiveScene";
@@ -718,6 +719,13 @@ function WealthCompassV7() {
                   T={T}
                   hideValues={hideValues}
                 />
+                <ActiveIncomeSummary
+                  activeIncomes={activeIncomes}
+                  dispCur={dispCur}
+                  T={T}
+                  hideValues={hideValues}
+                  setTab={handleSetTab}
+                />
                 {/* Debt vs Passive Income Summary Card */}
                 <DebtIncomeCard
                   assets={assets}
@@ -802,6 +810,8 @@ function WealthCompassV7() {
                   dispCur={dispCur}
                   T={T}
                   hideValues={hideValues}
+                  activeIncomes={activeIncomes}
+                  setActiveIncomes={setActiveIncomes}
                 />
               ) : (
                 <div style={{ textAlign: "center", padding: "60px 24px" }}>
