@@ -447,34 +447,6 @@ function SettingsPopup({
               Alert saat deviasi {">"} 10%
             </div>
           </div>
-          <div
-            onClick={() =>
-              setSettings((p) => ({ ...p, notifications: !p.notifications }))
-            }
-            style={{
-              width: 42,
-              height: 22,
-              borderRadius: 11,
-              background: settings.notifications ? T.accent : T.border,
-              cursor: "pointer",
-              position: "relative",
-              transition: "background 0.2s",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                top: 3,
-                left: settings.notifications ? 23 : 3,
-                width: 16,
-                height: 16,
-                borderRadius: "50%",
-                background: "#fff",
-                transition: "left 0.2s",
-              }}
-            />
-          </div>
-        </div>
 
         {/* Font & Zoom settings */}
         <div style={{ marginBottom: 14 }}>
@@ -645,10 +617,6 @@ function SettingsPopup({
             Keluar dari Akun
           </button>
         )}
-        </div>
-        </div>
-        </div>
-        </div>
       </div>
     </>
   );
