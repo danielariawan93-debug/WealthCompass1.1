@@ -11,6 +11,7 @@ function NetWorthTrackerScene({
   tier,
   T,
   hideValues = false,
+  userEmail = "",
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
   const totalAssets = assets.reduce((s, a) => s + getIDR(a), 0);
@@ -27,9 +28,10 @@ function NetWorthTrackerScene({
       ? 99999
       : tier.netWorthDays
     : 30;
+  const snapKey = userEmail ? "wc_snapshots_" + btoa(userEmail).replace(/=/g,"") : "wc_snapshots";
   const [snapshots, setSnapshots] = useState(() => {
     try {
-      const saved = localStorage.getItem("wc_snapshots");
+      const saved = localStorage.getItem(snapKey);
       if (saved) return JSON.parse(saved);
     } catch {}
     return [];
@@ -54,16 +56,19 @@ function NetWorthTrackerScene({
     return false;
   };
 
-  // Auto-snapshot today if not yet done
+  // Auto-snapshot: taken once per day at 23:59 or later
   useEffect(() => {
-    const today = new Date().toDateString();
+    const now = new Date();
+    const today = now.toDateString();
     const lastSnap = snapshots[snapshots.length - 1];
     const lastDate = lastSnap ? new Date(lastSnap.ts).toDateString() : null;
-    if (lastDate !== today) {
+    // Only snapshot if: new day AND time is 23:00 or later
+    const isLateEnough = now.getHours() >= 23;
+    if (lastDate !== today && isLateEnough) {
       const newSnaps = [...snapshots, { ts: Date.now(), val: currentTotal }];
       setSnapshots(newSnaps);
       try {
-        localStorage.setItem("wc_snapshots", JSON.stringify(newSnaps));
+        localStorage.setItem(snapKey, JSON.stringify(newSnaps));
       } catch {}
       {
         snapshots.length > 0 && (

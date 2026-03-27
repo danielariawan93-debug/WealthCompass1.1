@@ -1308,13 +1308,15 @@ function FinanceToolsScene({
 
 
 // -- ACTIVE INCOME SUMMARY (collapsible bar for Portfolio tab) -----------------
-function ActiveIncomeSummary({ activeIncomes = [], dispCur, T, hideValues = false, setTab }) {
+function ActiveIncomeSummary({ activeIncomes = [], monthlyFixedIncome = "", dispCur, T, hideValues = false, setTab }) {
   const fV = (v, c) => fM(v, c, hideValues);
   const [expanded, setExpanded] = useState(false);
-  const totalMonthly = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
+  const fixedAmt = parseVal(monthlyFixedIncome);
+  const bizMonthly = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
+  const totalMonthly = bizMonthly + fixedAmt;
   const ACTIVE_ICONS = { salary:'💼', freelance:'🖥️', biz_active:'🏪', other:'💰' };
 
-  if (activeIncomes.length === 0) return null;
+  if (totalMonthly === 0) return null;
 
   return (
     <Card T={T} glow={T.orange || T.accent} style={{ marginBottom: 16 }}>
@@ -1327,7 +1329,7 @@ function ActiveIncomeSummary({ activeIncomes = [], dispCur, T, hideValues = fals
               <span style={{ color: T.muted, fontSize: 11, fontWeight:'normal' }}>/bln</span>
             </div>
             <div style={{ color: T.muted, fontSize: 10 }}>
-              Active Income · {activeIncomes.length} sumber
+              Active Income · {activeIncomes.length + (fixedAmt > 0 ? 1 : 0)} sumber
             </div>
           </div>
         </div>
@@ -1336,6 +1338,18 @@ function ActiveIncomeSummary({ activeIncomes = [], dispCur, T, hideValues = fals
 
       {expanded && (
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
+          {fixedAmt > 0 && (
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 8, padding:'8px 10px', background: T.surface, borderRadius: 9 }}>
+              <div style={{ display:'flex', gap: 8, alignItems:'center' }}>
+                <span style={{ fontSize: 16 }}>💼</span>
+                <div>
+                  <div style={{ color: T.text, fontSize: 12, fontWeight: 500 }}>Penghasilan Tetap</div>
+                  <div style={{ color: T.muted, fontSize: 10 }}>Gaji / pendapatan rutin bulanan</div>
+                </div>
+              </div>
+              <div style={{ color: T.orange || T.accent, fontSize: 13, fontWeight:'bold' }}>+{fV(fixedAmt, dispCur)}/bln</div>
+            </div>
+          )}
           {activeIncomes.map((entry, i) => (
             <div key={entry.id || i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 8, padding:'8px 10px', background: T.surface, borderRadius: 9 }}>
               <div style={{ display:'flex', gap: 8, alignItems:'center' }}>
