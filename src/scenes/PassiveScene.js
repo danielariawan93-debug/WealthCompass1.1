@@ -14,6 +14,7 @@ function DebtIncomeCard({
   setShowUpgrade,
   monthlyExpense = 0,
   activeIncomes = [],
+  monthlyFixedIncome = "",
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
 
@@ -31,6 +32,7 @@ function DebtIncomeCard({
 
   // activeIncomes passed from App.js (per-user, not global localStorage)
   const activeIncomeMon = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
+  const fixedIncomeMon  = parseVal(monthlyFixedIncome);
 
   const passiveIncomeMon = (instrIncomeAnnual + propBizIncomeAnnual) / 12;
   const instrIncomeMon   = instrIncomeAnnual / 12;
@@ -40,7 +42,7 @@ function DebtIncomeCard({
 
   // Total outflow vs inflow (passive + active)
   const totalOutflow = totalDebtMon + biayaBulanan;
-  const totalInflow  = passiveIncomeMon + activeIncomeMon;
+  const totalInflow  = passiveIncomeMon + activeIncomeMon + fixedIncomeMon;
   const surplus      = totalInflow - totalOutflow;
 
   const [collapsed, setCollapsed] = useState(() => {
@@ -248,20 +250,37 @@ function DebtIncomeCard({
                 <div style={{ color: T.muted, fontSize: 9 }}>sewa + profit usaha</div>
               </div>
             </div>
-            {/* Active Income row */}
-            <div style={{ marginTop: 8, padding: "10px 12px", background: T.greenDim, borderRadius: 10, border: `1px solid ${T.green}22`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ color: T.muted, fontSize: 10, marginBottom: 2 }}>💼 Active Income</div>
-                <div style={{ color: T.muted, fontSize: 9 }}>
-                  {activeIncomes.length > 0
-                    ? activeIncomes.map(a => a.label).join(" · ")
-                    : "Gaji / Freelance / Bisnis Aktif"}
+            {/* Income rows: Penghasilan Tetap + Bisnis Aktif */}
+            {(fixedIncomeMon > 0 || activeIncomeMon > 0) ? (
+              <div style={{ marginTop: 8, padding: "10px 12px", background: T.greenDim, borderRadius: 10, border: `1px solid ${T.green}22` }}>
+                {fixedIncomeMon > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: activeIncomeMon > 0 ? 6 : 0 }}>
+                    <div>
+                      <div style={{ color: T.muted, fontSize: 10, marginBottom: 2 }}>💼 Penghasilan Tetap</div>
+                      <div style={{ color: T.muted, fontSize: 9 }}>Gaji / pendapatan rutin bulanan</div>
+                    </div>
+                    <div style={{ color: T.green, fontSize: 13, fontWeight: "bold" }}>{fV(fixedIncomeMon, dispCur)}</div>
+                  </div>
+                )}
+                {activeIncomeMon > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ color: T.muted, fontSize: 10, marginBottom: 2 }}>🏪 Bisnis Aktif</div>
+                      <div style={{ color: T.muted, fontSize: 9 }}>{activeIncomes.length > 0 ? activeIncomes.map(a => a.label).join(" · ") : "Dari Real Assets"}</div>
+                    </div>
+                    <div style={{ color: T.green, fontSize: 13, fontWeight: "bold" }}>{fV(activeIncomeMon, dispCur)}</div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ marginTop: 8, padding: "10px 12px", background: T.greenDim, borderRadius: 10, border: `1px solid ${T.green}22`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ color: T.muted, fontSize: 10, marginBottom: 2 }}>💼 Penghasilan Aktif</div>
+                  <div style={{ color: T.muted, fontSize: 9 }}>Isi di kalkulator Financial Freedom</div>
                 </div>
+                <span style={{ color: T.muted, fontSize: 11 }}>-</span>
               </div>
-              <div style={{ color: T.green, fontSize: 13, fontWeight: "bold" }}>
-                {activeIncomeMon > 0 ? fV(activeIncomeMon, dispCur) : <span style={{ color: T.muted, fontSize: 11 }}>-</span>}
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Surplus / Defisit */}
@@ -469,6 +488,8 @@ function PassiveIncomeScene({
   activeIncomes: activeIncomesProp = null,
   monthlyExpense: monthlyExpenseProp = undefined,
   setMonthlyExpense: setMonthlyExpenseProp = null,
+  monthlyFixedIncome: monthlyFixedIncomeProp = undefined,
+  setMonthlyFixedIncome: setMonthlyFixedIncomeProp = null,
   isPro = false,
   isProPlus = false,
 }) {
@@ -495,7 +516,9 @@ function PassiveIncomeScene({
   const [_localExpense, _setLocalExpense] = useState("");
   const monthlyExpense = monthlyExpenseProp !== undefined ? monthlyExpenseProp : _localExpense;
   const setMonthlyExpense = setMonthlyExpenseProp || _setLocalExpense;
-  const [monthlyFixedIncome, setMonthlyFixedIncome] = useState("");
+  const [_localFixed, _setLocalFixed] = useState("");
+  const monthlyFixedIncome = monthlyFixedIncomeProp !== undefined ? monthlyFixedIncomeProp : _localFixed;
+  const setMonthlyFixedIncome = setMonthlyFixedIncomeProp || _setLocalFixed;
 
   // -- ACTIVE INCOME (from Real Assets bisnis only) --------------------------
   const activeIncomes = activeIncomesProp !== null ? activeIncomesProp : [];
@@ -675,8 +698,9 @@ function PassiveIncomeScene({
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: expense > 0 ? 12 : 0 }}>
             <div>
-              <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>
+              <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
                 Pengeluaran Bulanan (IDR)
+                <InfoTip T={T} text={"Total kebutuhan dan keinginan sehari-hari, termasuk makan, transportasi, gaya hidup, dan tagihan rutin. Tidak termasuk cicilan hutang atau pinjaman yang sudah tercatat di modul Hutang."} />
               </div>
               <input
                 value={monthlyExpense}
@@ -686,8 +710,9 @@ function PassiveIncomeScene({
               />
             </div>
             <div>
-              <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>
+              <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
                 Penghasilan Tetap/Bulan (IDR)
+                <InfoTip T={T} text={"Gaji, tunjangan, atau pendapatan aktif lainnya yang diterima secara rutin setiap bulan. Digunakan untuk menghitung posisi arus kas dan ketercapaian Financial Freedom."} />
               </div>
               <input
                 value={monthlyFixedIncome}
@@ -1226,6 +1251,8 @@ function FinanceToolsScene({
   isProPlus = false,
   monthlyExpense = undefined,
   setMonthlyExpense = null,
+  monthlyFixedIncome = undefined,
+  setMonthlyFixedIncome = null,
 }) {
   const [subTab, setSubTab] = useState("calc");
   return (
@@ -1271,6 +1298,8 @@ function FinanceToolsScene({
           isProPlus={isProPlus}
           monthlyExpense={monthlyExpense}
           setMonthlyExpense={setMonthlyExpense}
+          monthlyFixedIncome={monthlyFixedIncome}
+          setMonthlyFixedIncome={setMonthlyFixedIncome}
         />
       )}
     </div>
