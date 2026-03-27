@@ -747,6 +747,7 @@ function WealthCompassV7() {
                   tier={tier}
                   uploadCount={uploadCount}
                   setUploadCount={setUploadCount}
+                  setTab={handleSetTab}
                 />
               </>
             )}
