@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import CalcScene from './CalcScene';
 import { Card, SL, Chip, Bar, TInput, TSelect, TBtn, Donut, InfoBtn, LineChart } from '../components/ui';
 import { fMoney, fM, parseVal, getIDR, FREQ_MULT, LS, LS2, getWealthSegment } from '../utils/helpers';
-import { ASSET_CLASSES, RATES, CURRENCIES, INCOME_TYPES } from '../constants/data';
+import { ASSET_CLASSES, RATES, CURRENCIES } from '../constants/data';
 
 function DebtIncomeCard({
   assets,
@@ -28,7 +28,8 @@ function DebtIncomeCard({
     .reduce((s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 12), 0);
   const propBizIncomeAnnual = assets
     .filter((a) => a.income?.amount > 0 && ["property","business"].includes(a.classKey)
-      && a.incomeType !== "active")
+      // Exclude bisnis aktif yang sudah masuk ke activeIncomes (sync dari RealAssets)
+      && !(a.classKey === "business" && a.incomeType === "active"))
     .reduce((s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 12), 0);
 
   // activeIncomes passed from App.js (per-user, not global localStorage)
@@ -92,8 +93,13 @@ function DebtIncomeCard({
             <div style={{ color: surplusColor, fontSize: 11 }}>
               {surplus >= 0 ? "✓ Surplus " : "⚠ Defisit "}
               {fV(Math.abs(surplus), dispCur)}/bln
-              {activeIncomeMon > 0 && (
-                <span style={{ color: T.muted }}> · incl. active income</span>
+              {(activeIncomeMon > 0 || fixedIncomeMon > 0) && (
+                <span style={{ color: T.muted }}>
+                  {" · incl."}
+                  {fixedIncomeMon > 0 ? " penghasilan tetap" : ""}
+                  {activeIncomeMon > 0 && fixedIncomeMon > 0 ? " +" : ""}
+                  {activeIncomeMon > 0 ? " bisnis aktif" : ""}
+                </span>
               )}
             </div>
           </div>
@@ -345,8 +351,11 @@ function PassiveIncomeSummary({
   const fV = (v, c) => fM(v, c, hideValues);
   const [expanded, setExpanded] = useState(false);
 
-  // Exclude bisnis aktif - those are counted in ActiveIncomeSummary
-  const incomeAssets = assets.filter((a) => a.income && a.income.amount > 0 && a.incomeType !== "active");
+  // Exclude bisnis aktif dari passive income (sudah masuk activeIncomes)
+  const incomeAssets = assets.filter((a) =>
+    a.income && a.income.amount > 0 &&
+    !(a.classKey === "business" && a.incomeType === "active")
+  );
   const totalAnnual = incomeAssets.reduce(
     (s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 1),
     0
@@ -418,15 +427,6 @@ function PassiveIncomeSummary({
           {incomeAssets.map((a) => {
             const annualAmt =
               a.income.amount * (FREQ_MULT[a.income.frequency] || 1);
-            const rowIcon = a.classKey === "business" ? "🏪"
-              : a.classKey === "property" ? "🏠"
-              : a.classKey === "crypto" ? "₿"
-              : a.classKey === "equity" ? "📈"
-              : a.classKey === "bond" ? "📜"
-              : a.classKey === "mixed" ? "🏅"
-              : a.classKey === "cash" ? "🏦"
-              : a.classKey === "fixedincome_plus" ? "📊"
-              : "💰";
             return (
               <div
                 key={a.id}
@@ -438,13 +438,16 @@ function PassiveIncomeSummary({
                   borderBottom: `1px solid ${T.border}`,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 16 }}>{rowIcon}</span>
-                  <div>
-                    <div style={{ color: T.text, fontSize: 12 }}>{a.name}</div>
-                    <div style={{ color: T.muted, fontSize: 10, textTransform: "capitalize" }}>
-                      {a.income.type.replace("_", " ")} · {a.income.frequency}
-                    </div>
+                <div>
+                  <div style={{ color: T.text, fontSize: 12 }}>{a.name}</div>
+                  <div
+                    style={{
+                      color: T.muted,
+                      fontSize: 10,
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {a.income.type.replace("_", " ")} · {a.income.frequency}
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
@@ -511,7 +514,14 @@ function PassiveIncomeScene({
     annual: "thn",
   };
 
-  // INCOME_TYPES imported from data.js
+  const INCOME_TYPES = [
+    { value: "deposit_interest", label: "Bunga Bank", usePct: true },
+    { value: "coupon", label: "Kupon Obligasi/Setara", usePct: true },
+    { value: "dividend", label: "Dividen Saham/Setara", usePct: true },
+    { value: "rental", label: "Sewa Properti", usePct: false },
+    { value: "business", label: "Usaha/Bisnis", usePct: false },
+    { value: "other", label: "Lainnya", usePct: false },
+  ];
 
   // monthlyExpense from App.js prop (per-user) when available
   const [_localExpense, _setLocalExpense] = useState("");
@@ -539,12 +549,15 @@ function PassiveIncomeScene({
     type: "dividend",
   });
 
-  // Exclude bisnis aktif dari passive - dicatat di Active Income
-  const incomeAssets = assets.filter((a) => a.income && a.income.amount > 0 && a.incomeType !== "active");
+  // Exclude bisnis aktif dari passive income (sudah masuk activeIncomes)
+  const incomeAssets = assets.filter((a) =>
+    a.income && a.income.amount > 0 &&
+    !(a.classKey === "business" && a.incomeType === "active")
+  );
   const totalAnnual = incomeAssets.reduce(
     (s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 1),
     0
-      );
+  );
   const totalMonthly = totalAnnual / 12;
   const expense = parseVal(monthlyExpense);
   // Combined cashflow = passive income + active income (gaji, dll)
@@ -880,11 +893,7 @@ function PassiveIncomeScene({
                       marginBottom: isEditing ? 12 : 0,
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 18, flexShrink: 0 }}>
-                        {incType?.icon || "💰"}
-                      </span>
-                      <div>
+                    <div>
                       <div
                         style={{ color: T.text, fontSize: 12, fontWeight: 500 }}
                       >
@@ -912,7 +921,6 @@ function PassiveIncomeScene({
                           Belum ada income
                         </div>
                       )}
-                      </div>
                     </div>
                     <button
                       onClick={() =>
