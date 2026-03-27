@@ -94,13 +94,7 @@ function WealthCompassV7() {
   const [showSettings, setShowSettings] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [hideValues, setHideValues] = useState(false);
-  const [monthlyExpense, setMonthlyExpense] = useState(() => {
-    try {
-      return localStorage.getItem("wc_monthly_expense") || "";
-    } catch {
-      return "";
-    }
-  });
+  const [monthlyExpense, setMonthlyExpense] = useState("");
   const [monthlyFixedIncome, setMonthlyFixedIncome] = useState("");
   const [fontScale, setFontScale] = useState(1.0);
   const [settings, setSettings] = useState({
@@ -726,6 +720,7 @@ function WealthCompassV7() {
                 />
                 <ActiveIncomeSummary
                   activeIncomes={activeIncomes}
+                  monthlyFixedIncome={monthlyFixedIncome}
                   dispCur={dispCur}
                   T={T}
                   hideValues={hideValues}
@@ -774,6 +769,7 @@ function WealthCompassV7() {
                 tier={tier}
                 T={T}
                 hideValues={hideValues}
+                userEmail={user?.email || ""}
               />
             )}
             {tab === "finance-tools" && (
@@ -881,9 +877,12 @@ function WealthCompassV7() {
                 hideValues={hideValues}
                 debts={debts}
                 setDebts={setDebts}
+                assets={assets}
                 dispCur={dispCur}
                 tier={tier}
                 T={T}
+                isPro={isPro}
+                isProPlus={isProPlus}
               />
             )}
             {tab === "ai" && (
