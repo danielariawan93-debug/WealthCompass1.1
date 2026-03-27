@@ -67,8 +67,10 @@ function PortfolioScene({
   const pdfAllowed = tier ? canUploadPDF(tier, uploadCount) : uploadCount < 3;
   const [subTab, setSubTab] = useState("list"); // list | add | upload
   const [collapsedClasses, setCollapsedClasses] = useState({});
+  // Default: all asset detail sections hidden (true = collapsed)
+  const isCollapsed = (key) => collapsedClasses[key] !== false;
   const toggleClass = (key) =>
-    setCollapsedClasses((p) => ({ ...p, [key]: !p[key] }));
+    setCollapsedClasses((p) => ({ ...p, [key]: p[key] === false ? true : false }));
   const [form, setForm] = useState({
     classKey: "cash",
     name: "",
@@ -449,7 +451,7 @@ function PortfolioScene({
           {byClass
             .filter((ac) => ac.items.length > 0)
             .map((ac) => {
-              const isCollapsed = collapsedClasses[ac.key];
+              const isCollapsedSection = isCollapsed(ac.key);
               return (
                 <div key={ac.key} style={{ marginBottom: 12 }}>
                   {/* Collapsible header */}
@@ -459,7 +461,7 @@ function PortfolioScene({
                       display: "flex",
                       alignItems: "center",
                       gap: 8,
-                      marginBottom: isCollapsed ? 0 : 8,
+                      marginBottom: isCollapsedSection ? 0 : 8,
                       cursor: "pointer",
                       padding: "8px 12px",
                       background: T.surface,
@@ -514,7 +516,7 @@ function PortfolioScene({
                         fontSize: 14,
                         marginLeft: 6,
                         transition: "transform 0.2s",
-                        transform: isCollapsed
+                        transform: isCollapsedSection
                           ? "rotate(-90deg)"
                           : "rotate(0deg)",
                         display: "inline-block",
@@ -524,7 +526,7 @@ function PortfolioScene({
                     </span>
                   </div>
                   {/* Items - shown only when expanded */}
-                  {!isCollapsed &&
+                  {!isCollapsedSection &&
                     ac.items.map((asset) => {
                       const idrV = getIDR(asset);
                       const isLive = asset.coinId;

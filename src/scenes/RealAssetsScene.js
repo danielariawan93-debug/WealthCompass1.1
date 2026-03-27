@@ -648,7 +648,9 @@ function BusinessForm({ onSave, onCancel, T, editData, hideValues = false, prope
   } else {
     if (netProfit > 0) {
       valResult = calcValuationOperational(netProfit, ownership, f.type);
-      const buildingVal = isKos && f.buildingLinked ? (f.linkedPropertyId ? 0 : parseVal(f.buildingValue)) : 0;
+      const buildingVal = isKos
+        ? (f.buildingLinked && f.linkedPropertyId ? 0 : (!f.buildingLinked ? parseVal(f.buildingValue) : 0))
+        : 0;
       valueForNetWorth = valResult.mid + buildingVal;
       incomeMonthly = netProfit * (ownership / 100);
     }
@@ -661,7 +663,7 @@ function BusinessForm({ onSave, onCancel, T, editData, hideValues = false, prope
     const linkedProp = isKos && f.buildingLinked && f.linkedPropertyId
       ? properties.find(p => p.id === f.linkedPropertyId)
       : null;
-    const newPropertyData = isKos && f.buildingLinked && !f.linkedPropertyId && parseVal(f.buildingValue) > 0
+    const newPropertyData = isKos && !f.buildingLinked && parseVal(f.buildingValue) > 0
       ? {
           name: f.name + " - Bangunan",
           classKey: "property",
@@ -1032,6 +1034,7 @@ function RealAssetsScene({
   hideValues = false,
   activeIncomes = [],
   setActiveIncomes = null,
+  setTab = null,
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
   const [mode, setMode] = useState("list"); // list | add-property | add-business | edit
@@ -1685,6 +1688,7 @@ function RealAssetsScene({
                     onClick={() => {
                       setEditAsset(a);
                       setMode("edit-business");
+                      window.scrollTo({ top: 0, behavior: "smooth" });
                     }}
                     style={{
                       flex: 1,
