@@ -1,842 +1,581 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Card, SL, Chip, Bar, TInput, TSelect, TBtn, Donut, InfoBtn, LineChart } from '../components/ui';
-import { fMoney, fM, parseVal, getIDR, FREQ_MULT, LS, LS2, getWealthSegment } from '../utils/helpers';
-import { ASSET_CLASSES, RISK_PROFILES, RISK_QUESTIONS, PRECIOUS_METALS, CRYPTO_COINS, DEBT_TYPES } from '../constants/data';
-import { TIERS, getAIUsage, addAIUsage, canUploadPDF, pdfUploadsRemaining, addPDFUsage } from '../constants/tiers';
+import React, { useState, useMemo } from 'react';
+import { Card, SL, Bar, TInput, TSelect, TBtn, InfoBtn } from '../components/ui';
+import { fM, parseVal } from '../utils/helpers';
 
-function DebtScene({ debts, setDebts, dispCur, tier, T, hideValues = false }) {
-  const [mode, setMode] = useState("list");
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({
-    name: "",
-    type: "kpr",
-    outstanding: "",
-    monthlyPayment: "",
-    interestRate: "",
-    startDate: "",
-    endDate: "",
-    notes: "",
+// ============================================================
+// DEBT DEFINITIONS
+// ============================================================
+const KONSUMTIF = [
+  { key:'kpr',       label:'KPR / KPA',            icon:'🏠', rate:9.5,  mode:'amortizing', info:'Kredit Pemilikan Rumah atau Apartemen untuk tempat tinggal pribadi.' },
+  { key:'kkb',       label:'KKB Kendaraan Pribadi', icon:'🚗', rate:10.0, mode:'amortizing', info:'Kredit kendaraan bermotor untuk penggunaan pribadi.' },
+  { key:'motor',     label:'Kredit Motor',          icon:'🛵', rate:10.0, mode:'amortizing', info:'Cicilan sepeda motor untuk penggunaan pribadi.' },
+  { key:'cc',        label:'Kartu Kredit',          icon:'💳', rate:27.0, mode:'revolving',  info:'Tagihan kartu kredit. Input tagihan yang belum lunas (bukan limit).' },
+  { key:'paylater',  label:'PayLater / BNPL',       icon:'📱', rate:24.0, mode:'revolving',  info:'GoPay Later, OVO PayLater, Shopee PayLater, Akulaku, dll.' },
+  { key:'kta',       label:'KTA / Pinjaman Pribadi',icon:'💰', rate:18.0, mode:'amortizing', info:'Kredit tanpa agunan atau pinjaman personal dari bank maupun fintech.' },
+  { key:'p2p',       label:'Pinjaman P2P / Online', icon:'📲', rate:24.0, mode:'amortizing', info:'Pinjaman dari platform fintech lending seperti Kredivo, Cicil, dll.' },
+  { key:'keluarga',  label:'Hutang ke Keluarga/Tmn', icon:'🤝', rate:0,   mode:'amortizing', info:'Pinjaman informal tanpa bunga atau bunga kesepakatan.' },
+];
+
+const PRODUKTIF = [
+  { key:'kur',       label:'KUR (Kredit Usaha Rakyat)', icon:'🏛️', rate:6.0,  mode:'amortizing', info:'Program pemerintah berbunga rendah untuk UMKM. Maks Rp500jt.' },
+  { key:'kmk',       label:'Kredit Modal Kerja',        icon:'⚙️', rate:10.5, mode:'amortizing', info:'Pinjaman untuk modal operasional bisnis, biasanya jangka pendek.' },
+  { key:'krek',      label:'Rekening Koran / PRK',      icon:'🔄', rate:10.5, mode:'revolving',  info:'Fasilitas kredit revolving. Bayar bunga saja, pokok bisa naik-turun sesuai kebutuhan bisnis.' },
+  { key:'ki',        label:'Kredit Investasi',          icon:'📈', rate:10.0, mode:'amortizing', info:'Pinjaman untuk pembelian aset produktif jangka panjang (mesin, kendaraan niaga, dll).' },
+  { key:'kkb_niaga', label:'KKB Kendaraan Niaga',       icon:'🚚', rate:9.0,  mode:'amortizing', info:'Kredit kendaraan operasional bisnis: truk, minibus, pick-up, dll.' },
+  { key:'kpr_invest',label:'KPR Properti Investasi',    icon:'🏢', rate:9.5,  mode:'amortizing', info:'KPR untuk properti yang disewakan atau dijadikan aset investasi.' },
+  { key:'margin',    label:'Margin Trading / Efek',     icon:'📊', rate:12.0, mode:'revolving',  info:'Fasilitas margin dari sekuritas untuk pembelian saham/efek.' },
+];
+
+const DEFAULT_RATE = { kpr:9.5, kkb:10, motor:10, cc:27, paylater:24, kta:18, p2p:24, keluarga:0, kur:6, kmk:10.5, krek:10.5, ki:10, kkb_niaga:9, kpr_invest:9.5, margin:12 };
+
+// ============================================================
+// CALCULATION HELPERS
+// ============================================================
+function calcMonthlyPayment(outstanding, annualRate, tenorMonths) {
+  if (annualRate <= 0) return outstanding / Math.max(tenorMonths, 1);
+  const r = annualRate / 100 / 12;
+  const n = tenorMonths;
+  return outstanding * (r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1);
+}
+
+function calcOutstandingFromPayment(monthlyPayment, annualRate, remainingMonths) {
+  if (annualRate <= 0) return monthlyPayment * remainingMonths;
+  const r = annualRate / 100 / 12;
+  const n = remainingMonths;
+  if (r === 0) return monthlyPayment * n;
+  return monthlyPayment * (1 - Math.pow(1+r, -n)) / r;
+}
+
+function monthsRemaining(endYearMonth) {
+  if (!endYearMonth) return 0;
+  const [y, m] = endYearMonth.split('-').map(Number);
+  const now = new Date();
+  return Math.max(0, (y - now.getFullYear()) * 12 + (m - now.getMonth() - 1));
+}
+
+// ============================================================
+// DEBT FORM
+// ============================================================
+const EMPTY_FORM = {
+  category: 'konsumtif',
+  key: 'kpr',
+  name: '',
+  inputMode: 'A',
+  // Mode A fields
+  monthlyPayment: '',
+  endYearMonth: '',
+  // Mode B fields
+  outstanding: '',
+  interestRate: '',
+  tenorMonths: '',
+  // Revolving / Mode C
+  plafon: '',
+  renewalDate: '',
+  // Shared
+  notes: '',
+  linkedAssetId: '',
+};
+
+function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, isProPlus = false }) {
+  const allTypes = [...KONSUMTIF, ...PRODUKTIF];
+  const [f, setF] = useState(() => {
+    if (editData) return { ...EMPTY_FORM, ...editData };
+    return EMPTY_FORM;
   });
+  const setFF = (k, v) => setF(p => ({ ...p, [k]: v }));
 
-  const startEdit = (d) => {
-    setEditId(d.id);
-    setForm({
-      name: d.name,
-      type: d.type,
-      outstanding: String(d.outstanding),
-      monthlyPayment: String(d.monthlyPayment),
-      interestRate: String(d.interestRate || ""),
-      notes: d.notes || "",
+  const typeList  = f.category === 'konsumtif' ? KONSUMTIF : PRODUKTIF;
+  const typeDef   = allTypes.find(t => t.key === f.key) || allTypes[0];
+  const isRevolving = typeDef.mode === 'revolving';
+  const effectiveRate = parseVal(f.interestRate) || DEFAULT_RATE[f.key] || 10;
+
+  // Derived calculations
+  const derivedOutstanding = useMemo(() => {
+    if (f.inputMode === 'A') {
+      const rem = monthsRemaining(f.endYearMonth);
+      if (!rem || !parseVal(f.monthlyPayment)) return 0;
+      return calcOutstandingFromPayment(parseVal(f.monthlyPayment), effectiveRate, rem);
+    }
+    if (isRevolving) return parseVal(f.outstanding);
+    return parseVal(f.outstanding);
+  }, [f.inputMode, f.monthlyPayment, f.endYearMonth, f.outstanding, effectiveRate, isRevolving]);
+
+  const derivedMonthlyPayment = useMemo(() => {
+    if (f.inputMode === 'A') return parseVal(f.monthlyPayment);
+    if (isRevolving) return derivedOutstanding * (effectiveRate / 100 / 12);
+    const tenor = parseInt(f.tenorMonths) || 12;
+    return derivedOutstanding > 0 ? calcMonthlyPayment(derivedOutstanding, effectiveRate, tenor) : 0;
+  }, [f.inputMode, f.monthlyPayment, isRevolving, derivedOutstanding, effectiveRate, f.tenorMonths]);
+
+  const utilisasi = f.inputMode !== 'A' && isRevolving && parseVal(f.plafon) > 0
+    ? (parseVal(f.outstanding) / parseVal(f.plafon)) * 100 : 0;
+
+  const canSave = f.name.trim() && derivedOutstanding > 0;
+
+  const handleSave = () => {
+    if (!canSave) return;
+    onSave({
+      id: editData?.id || Date.now().toString(),
+      category: f.category,
+      type: f.key,
+      name: f.name,
+      outstanding: String(Math.round(derivedOutstanding)),
+      monthlyPayment: String(Math.round(derivedMonthlyPayment)),
+      interestRate: String(effectiveRate),
+      plafon: f.plafon || '0',
+      renewalDate: f.renewalDate || '',
+      linkedAssetId: f.linkedAssetId || '',
+      notes: f.notes || '',
+      inputMode: f.inputMode,
+      endYearMonth: f.endYearMonth || '',
+      tenorMonths: f.tenorMonths || '',
     });
   };
-  const saveEdit = (id) => {
-    setDebts((p) => p.map((d) => (d.id === id ? { ...d, ...form } : d)));
-    setEditId(null);
-    setForm({
-      name: "",
-      type: "kpr",
-      outstanding: "",
-      monthlyPayment: "",
-      interestRate: "",
-      startDate: "",
-      endDate: "",
-      notes: "",
-    });
-  };
-  const cancelEdit = () => {
-    setEditId(null);
-    setForm({
-      name: "",
-      type: "kpr",
-      outstanding: "",
-      monthlyPayment: "",
-      interestRate: "",
-      startDate: "",
-      endDate: "",
-      notes: "",
-    });
-  };
-  const fV = (v, c) => fM(v, c, hideValues);
 
-  const totalOutstanding = debts.reduce(
-    (s, d) => s + parseVal(d.outstanding),
-    0
-  );
-  const totalMonthly = debts.reduce(
-    (s, d) => s + parseVal(d.monthlyPayment),
-    0
-  );
-  const avgRate = debts.length
-    ? debts.reduce((s, d) => s + parseVal(d.interestRate || "0"), 0) /
-      debts.length
-    : 0;
-
-  const canAdd =
-    debts.length < (tier.maxDebts === Infinity ? 99999 : tier.maxDebts);
-
-  const addDebt = () => {
-    if (!form.name || !form.outstanding) return;
-    setDebts((p) => [...p, { id: Date.now(), ...form }]);
-    setForm({
-      name: "",
-      type: "kpr",
-      outstanding: "",
-      monthlyPayment: "",
-      interestRate: "",
-      startDate: "",
-      endDate: "",
-      notes: "",
-    });
-    setMode("list");
-  };
-
-  const removeDebt = (id) => setDebts((p) => p.filter((d) => d.id !== id));
-
-  // Payoff projection
-  const monthsToPayoff = (outstanding, monthly, annualRate) => {
-    const P = parseVal(outstanding),
-      pmt = parseVal(monthly),
-      r = parseVal(annualRate) / 100 / 12;
-    if (!P || !pmt) return null;
-    if (r === 0) return Math.ceil(P / pmt);
-    const n = -Math.log(1 - (r * P) / pmt) / Math.log(1 + r);
-    return isFinite(n) && n > 0 ? Math.ceil(n) : null;
-  };
+  const fV = v => fM(v, 'IDR', false);
+  const inp = { width:'100%', background:T.inputBg, border:`1px solid ${T.border}`, color:T.text, borderRadius:9, padding:'10px 12px', fontSize:12, outline:'none', boxSizing:'border-box' };
+  const MONTHS = Array.from({length:12},(_,i)=>({v:String(i+1).padStart(2,'0'),l:['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'][i]}));
+  const YEARS  = Array.from({length:30},(_,i)=>{const y=new Date().getFullYear()+i; return {v:String(y),l:String(y)};});
 
   return (
-    <div>
-      {/* Summary */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
-          gap: 10,
-          marginBottom: 16,
-        }}
-      >
-        {[
-          {
-            label: "Total Hutang",
-            val: fV(totalOutstanding, dispCur),
-            color: T.red,
-            icon: "💸",
-          },
-          {
-            label: "Cicilan/Bulan",
-            val: fV(totalMonthly, dispCur),
-            color: T.orange,
-            icon: "📅",
-          },
-          {
-            label: "Bunga Rata-rata",
-            val: debts.length ? `${avgRate.toFixed(1)}%` : "—",
-            color: T.purple,
-            icon: "📊",
-          },
-        ].map((s) => (
-          <div
-            key={s.label}
-            style={{
-              padding: "12px 14px",
-              background: T.card,
-              border: `1px solid ${T.border}`,
-              borderRadius: 12,
-            }}
-          >
-            <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
-            <div style={{ color: T.muted, fontSize: 9, marginBottom: 3 }}>
-              {s.label}
-            </div>
-            <div
-              style={{
-                color: s.color,
-                fontSize: 13,
-                fontWeight: "bold",
-                fontFamily: "'Playfair Display',Georgia,serif",
-              }}
-            >
-              {s.val}
-            </div>
-          </div>
-        ))}
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+
+      {/* Category toggle */}
+      <div>
+        <div style={{ color:T.muted, fontSize:10, marginBottom:6, display:'flex', alignItems:'center', gap:4 }}>
+          Kategori Hutang
+          <InfoBtn T={T} content={"Konsumtif: hutang untuk kebutuhan pribadi, tidak menghasilkan pendapatan. Produktif: hutang untuk bisnis/investasi yang berpotensi menghasilkan pendapatan."} />
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          {[['konsumtif','🛒 Konsumtif'],['produktif','🏭 Produktif']].map(([v,l]) => (
+            <button key={v} onClick={()=>{setFF('category',v); setFF('key', v==='konsumtif'?'kpr':'kur');}}
+              style={{ padding:'10px 12px', borderRadius:9, cursor:'pointer', fontSize:12, fontWeight:'bold', border:`1px solid ${f.category===v?T.accent:T.border}`, background:f.category===v?T.accentDim:T.surface, color:f.category===v?T.accent:T.muted }}>
+              {l}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Tier limit warning */}
-      {!canAdd && (
-        <div
-          style={{
-            padding: "10px 14px",
-            background: T.redDim,
-            border: `1px solid ${T.red}33`,
-            borderRadius: 10,
-            marginBottom: 14,
-            fontSize: 12,
-            color: T.red,
-          }}
-        >
-          ⚠ Batas hutang tier {tier.label} tercapai ({tier.maxDebts} item).
-          Upgrade untuk tambah lebih banyak.
+      {/* Type selector */}
+      <div>
+        <div style={{ color:T.muted, fontSize:10, marginBottom:6 }}>Jenis Hutang</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+          {typeList.map(t => (
+            <button key={t.key} onClick={()=>{setFF('key',t.key); setFF('interestRate','');}}
+              style={{ padding:'9px 10px', borderRadius:9, cursor:'pointer', textAlign:'left', fontSize:11, display:'flex', gap:6, alignItems:'center', border:`1px solid ${f.key===t.key?T.accent:T.border}`, background:f.key===t.key?T.accentDim:T.surface, color:f.key===t.key?T.accent:T.muted }}>
+              <span>{t.icon}</span>
+              <div>
+                <div style={{ fontWeight: f.key===t.key?'bold':'normal' }}>{t.label}</div>
+                <div style={{ fontSize:9, opacity:0.7 }}>~{t.rate}% p.a.</div>
+              </div>
+            </button>
+          ))}
+        </div>
+        {typeDef && (
+          <div style={{ marginTop:6, padding:'7px 10px', background:T.surface, borderRadius:8, fontSize:10, color:T.muted, lineHeight:1.5 }}>
+            {typeDef.info}
+            {isRevolving && <span style={{ color:T.orange||T.accent, fontWeight:'bold' }}> (Revolving)</span>}
+          </div>
+        )}
+      </div>
+
+      {/* Name */}
+      <div>
+        <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Nama / Keterangan <span style={{ color:T.red }}>*</span></div>
+        <input value={f.name} onChange={e=>setFF('name',e.target.value)} placeholder={typeDef?.label || 'Nama hutang'} style={inp} />
+      </div>
+
+      {/* Input mode selector */}
+      {!isRevolving && (
+        <div>
+          <div style={{ color:T.muted, fontSize:10, marginBottom:6 }}>Cara Input</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            {[['A','Tahu angsurannya','Angsuran + kapan selesai'],['B','Tahu sisa hutangnya','Outstanding + bunga + tenor']].map(([v,l,sub])=>(
+              <div key={v} onClick={()=>setFF('inputMode',v)} style={{ padding:'10px 12px', borderRadius:9, cursor:'pointer', border:`1px solid ${f.inputMode===v?T.accent:T.border}`, background:f.inputMode===v?T.accentDim:T.surface }}>
+                <div style={{ color:f.inputMode===v?T.accent:T.text, fontSize:12, fontWeight:'bold' }}>{l}</div>
+                <div style={{ color:T.muted, fontSize:10 }}>{sub}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
+      {/* MODE A: angsuran + end date */}
+      {!isRevolving && f.inputMode === 'A' && (
+        <>
+          <div>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Angsuran / Bulan (IDR) *</div>
+            <input value={f.monthlyPayment} onChange={e=>setFF('monthlyPayment',e.target.value)} placeholder="3500000" style={inp} />
+          </div>
+          <div>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Selesai pada (Bulan / Tahun) *</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <select value={(f.endYearMonth||'').split('-')[1]||''} onChange={e=>{const y=(f.endYearMonth||'').split('-')[0]||new Date().getFullYear(); setFF('endYearMonth',`${y}-${e.target.value}`);}} style={{...inp}}>
+                <option value="">Bulan</option>
+                {MONTHS.map(m=><option key={m.v} value={m.v}>{m.l}</option>)}
+              </select>
+              <select value={(f.endYearMonth||'').split('-')[0]||''} onChange={e=>{const m=(f.endYearMonth||'').split('-')[1]||'01'; setFF('endYearMonth',`${e.target.value}-${m}`);}} style={{...inp}}>
+                <option value="">Tahun</option>
+                {YEARS.map(y=><option key={y.v} value={y.v}>{y.l}</option>)}
+              </select>
+            </div>
+            {monthsRemaining(f.endYearMonth) > 0 && (
+              <div style={{ color:T.muted, fontSize:9, marginTop:3 }}>Sisa {monthsRemaining(f.endYearMonth)} bulan</div>
+            )}
+          </div>
+          <div>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
+              Suku Bunga / Thn (%) - opsional
+              <InfoBtn T={T} content={`Jika tidak diisi, digunakan asumsi default ${DEFAULT_RATE[f.key]||10}% untuk estimasi outstanding.`} />
+            </div>
+            <input value={f.interestRate} onChange={e=>setFF('interestRate',e.target.value)} placeholder={String(DEFAULT_RATE[f.key]||10)} style={inp} />
+          </div>
+        </>
+      )}
+
+      {/* MODE B: outstanding + rate + tenor */}
+      {!isRevolving && f.inputMode === 'B' && (
+        <>
+          <div>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Sisa Hutang / Outstanding (IDR) *</div>
+            <input value={f.outstanding} onChange={e=>setFF('outstanding',e.target.value)} placeholder="150000000" style={inp} />
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <div>
+              <div style={{ color:T.muted, fontSize:10, marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
+                Suku Bunga / Thn (%)
+                <InfoBtn T={T} content={`Default untuk ${typeDef?.label}: ${DEFAULT_RATE[f.key]||10}% per tahun.`} />
+              </div>
+              <input value={f.interestRate} onChange={e=>setFF('interestRate',e.target.value)} placeholder={String(DEFAULT_RATE[f.key]||10)} style={inp} />
+            </div>
+            <div>
+              <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Tenor Sisa (bulan)</div>
+              <input value={f.tenorMonths} onChange={e=>setFF('tenorMonths',e.target.value)} placeholder="36" style={inp} />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* REVOLVING / MODE C */}
+      {isRevolving && (
+        <>
+          <div>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
+              Plafon / Limit Kredit (IDR)
+              <InfoBtn T={T} content={"Total fasilitas yang diberikan. Tidak dihitung sebagai hutang - hanya untuk menghitung utilisasi."} />
+            </div>
+            <input value={f.plafon} onChange={e=>setFF('plafon',e.target.value)} placeholder="500000000" style={inp} />
+          </div>
+          <div>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Outstanding Saat Ini (IDR) * <span style={{ color:T.muted, fontSize:9 }}> - yang dihitung sebagai hutang</span></div>
+            <input value={f.outstanding} onChange={e=>setFF('outstanding',e.target.value)} placeholder="200000000" style={inp} />
+            {utilisasi > 0 && (
+              <div style={{ marginTop:6 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:T.muted, marginBottom:3 }}>
+                  <span>Utilisasi fasilitas</span>
+                  <span style={{ color:utilisasi>80?T.red:utilisasi>60?T.orange:T.green, fontWeight:'bold' }}>{utilisasi.toFixed(1)}%</span>
+                </div>
+                <Bar pct={utilisasi} color={utilisasi>80?T.red:utilisasi>60?T.orange:T.green} h={6} T={T} />
+              </div>
+            )}
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <div>
+              <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Suku Bunga / Thn (%)</div>
+              <input value={f.interestRate} onChange={e=>setFF('interestRate',e.target.value)} placeholder={String(DEFAULT_RATE[f.key]||10.5)} style={inp} />
+            </div>
+            <div>
+              <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Jatuh Tempo Renewal</div>
+              <input type="month" value={f.renewalDate} onChange={e=>setFF('renewalDate',e.target.value)} style={{...inp}} />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Link to asset - Pro & Pro+ only */}
+      {isPro && f.category === 'produktif' && (
+        <div>
+          <div style={{ color:T.muted, fontSize:10, marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
+            {isProPlus ? 'Link ke Aset (mempengaruhi ROI)' : 'Referensi Aset'}
+            <InfoBtn T={T} content={isProPlus ? "Pro+: bunga hutang ini akan mengurangi ROI aset terkait secara otomatis." : "Pro: catatan referensi saja, tidak mempengaruhi kalkulasi."} />
+          </div>
+          <select value={f.linkedAssetId} onChange={e=>setFF('linkedAssetId',e.target.value)} style={{...inp}}>
+            <option value="">Pilih aset (opsional)</option>
+            {assets.filter(a=>['property','business'].includes(a.classKey)).map(a=>(
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Notes */}
+      <div>
+        <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Catatan (opsional)</div>
+        <input value={f.notes} onChange={e=>setFF('notes',e.target.value)} placeholder="Bank, no. rekening, dll" style={inp} />
+      </div>
+
+      {/* Live preview */}
+      {derivedOutstanding > 0 && (
+        <div style={{ padding:'12px 14px', background:T.accentDim, borderRadius:10, border:`1px solid ${T.accentSoft}` }}>
+          <div style={{ color:T.accent, fontSize:11, fontWeight:'bold', marginBottom:8 }}>Ringkasan</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            {[
+              { l:'Outstanding', v:fV(derivedOutstanding), c:T.red },
+              { l:isRevolving?'Bunga/Bulan':'Cicilan/Bulan', v:fV(derivedMonthlyPayment), c:T.orange },
+              ...(parseVal(f.plafon)>0?[{ l:'Sisa Fasilitas', v:fV(parseVal(f.plafon)-derivedOutstanding), c:T.green }]:[]),
+            ].map(item=>(
+              <div key={item.l} style={{ padding:'7px 10px', background:T.surface, borderRadius:8 }}>
+                <div style={{ color:T.muted, fontSize:9 }}>{item.l}</div>
+                <div style={{ color:item.c, fontSize:12, fontWeight:'bold' }}>{item.v}</div>
+              </div>
+            ))}
+          </div>
+          {utilisasi > 80 && isProPlus && (
+            <div style={{ marginTop:10, padding:'8px 12px', background:T.redDim, borderRadius:8, border:`1px solid ${T.red}33` }}>
+              <div style={{ color:T.red, fontSize:11, fontWeight:'bold', marginBottom:2 }}>⚠ Utilisasi Tinggi ({utilisasi.toFixed(0)}%)</div>
+              <div style={{ color:T.muted, fontSize:10, lineHeight:1.5 }}>Pertimbangkan setor sebagian untuk menjaga fleksibilitas operasional dan mengurangi beban bunga.</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div style={{ display:'flex', gap:8 }}>
+        <TBtn T={T} variant="primary" onClick={handleSave} style={{ flex:1 }} disabled={!canSave}>
+          {editData ? 'Simpan Perubahan' : '+ Tambah Hutang'}
+        </TBtn>
+        <TBtn T={T} variant="default" onClick={onCancel} style={{ padding:'10px 16px' }}>Batal</TBtn>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// MAIN SCENE
+// ============================================================
+function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideValues = false, isPro = false, isProPlus = false }) {
+  const fV = (v) => fM(v, dispCur, hideValues);
+  const [mode, setMode]     = useState('list');
+  const [editDebt, setEditDebt] = useState(null);
+  const [activeTab, setActiveTab] = useState('all');
+
+  const totalOutstanding = debts.reduce((s, d) => s + parseVal(d.outstanding), 0);
+  const totalMonthly     = debts.reduce((s, d) => s + parseVal(d.monthlyPayment), 0);
+
+  const konsumtif = debts.filter(d => d.category === 'konsumtif' || !d.category);
+  const produktif = debts.filter(d => d.category === 'produktif');
+  const totalKons = konsumtif.reduce((s,d) => s + parseVal(d.outstanding), 0);
+  const totalProd = produktif.reduce((s,d) => s + parseVal(d.outstanding), 0);
+
+  const allTypes  = [...KONSUMTIF, ...PRODUKTIF];
+
+  const saveDebt = (data) => {
+    if (editDebt) {
+      setDebts(p => p.map(d => d.id === editDebt.id ? { ...d, ...data } : d));
+    } else {
+      setDebts(p => [...p, { ...data, id: Date.now().toString() }]);
+    }
+    setMode('list');
+    setEditDebt(null);
+  };
+
+  const deleteDebt = (id) => setDebts(p => p.filter(d => d.id !== id));
+
+  const displayedDebts = activeTab === 'konsumtif' ? konsumtif
+    : activeTab === 'produktif' ? produktif
+    : debts;
+
+  return (
+    <div style={{ paddingBottom:40 }}>
+
+      {/* Header summary */}
+      <Card T={T} style={{ marginBottom:16 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
+          <div style={{ padding:'12px 14px', background:T.surface, borderRadius:11, border:`1px solid ${T.red}33` }}>
+            <div style={{ color:T.muted, fontSize:9, letterSpacing:1.2, marginBottom:4 }}>TOTAL HUTANG</div>
+            <div style={{ color:T.red, fontSize:16, fontWeight:'bold', fontFamily:"'Playfair Display',serif" }}>{fV(totalOutstanding)}</div>
+            <div style={{ color:T.muted, fontSize:10, marginTop:2 }}>{debts.length} hutang aktif</div>
+          </div>
+          <div style={{ padding:'12px 14px', background:T.surface, borderRadius:11, border:`1px solid ${T.orange}33` }}>
+            <div style={{ color:T.muted, fontSize:9, letterSpacing:1.2, marginBottom:4 }}>CICILAN / BULAN</div>
+            <div style={{ color:T.orange||T.accent, fontSize:16, fontWeight:'bold', fontFamily:"'Playfair Display',serif" }}>{fV(totalMonthly)}</div>
+            <div style={{ color:T.muted, fontSize:10, marginTop:2 }}>Total kewajiban bulanan</div>
+          </div>
+        </div>
+
+        {/* Konsumtif vs Produktif bar */}
+        {debts.length > 0 && (
+          <div>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                <span style={{ color:T.red, fontSize:11, fontWeight:'bold' }}>🛒 Konsumtif</span>
+                <InfoBtn T={T} content={"Hutang konsumtif digunakan untuk kebutuhan pribadi dan tidak menghasilkan pendapatan. Contoh: KPR rumah tinggal, kendaraan pribadi, kartu kredit, paylater."} />
+              </div>
+              <span style={{ color:T.red, fontSize:11, fontWeight:'bold' }}>{fV(totalKons)}</span>
+            </div>
+            <Bar pct={totalOutstanding > 0 ? (totalKons/totalOutstanding)*100 : 0} color={T.red} h={10} T={T} />
+            <div style={{ display:'flex', justifyContent:'space-between', marginTop:8, marginBottom:8 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                <span style={{ color:T.green, fontSize:11, fontWeight:'bold' }}>🏭 Produktif</span>
+                <InfoBtn T={T} content={"Hutang produktif digunakan untuk menghasilkan pendapatan atau menambah aset produktif. Contoh: KUR, kredit modal kerja, KPR properti sewa, kredit investasi."} />
+              </div>
+              <span style={{ color:T.green, fontSize:11, fontWeight:'bold' }}>{fV(totalProd)}</span>
+            </div>
+            <Bar pct={totalOutstanding > 0 ? (totalProd/totalOutstanding)*100 : 0} color={T.green} h={10} T={T} />
+            {totalOutstanding > 0 && (
+              <div style={{ marginTop:10, padding:'8px 12px', background:T.surface, borderRadius:8, display:'flex', justifyContent:'space-between' }}>
+                <span style={{ color:T.muted, fontSize:11 }}>Rasio Produktif</span>
+                <span style={{ color: totalProd/totalOutstanding > 0.5 ? T.green : T.orange, fontSize:12, fontWeight:'bold' }}>
+                  {((totalProd/totalOutstanding)*100).toFixed(0)}%
+                  {totalProd/totalOutstanding > 0.5 ? ' - Sehat' : ' - Perlu Perhatian'}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
       {/* Add button */}
-      {mode === "list" && (
-        <button
-          onClick={() => canAdd && setMode("add")}
-          disabled={!canAdd}
-          style={{
-            width: "100%",
-            padding: "11px 0",
-            borderRadius: 10,
-            border: `1px solid ${canAdd ? T.red + "44" : T.border}`,
-            background: canAdd ? T.redDim : T.surface,
-            color: canAdd ? T.red : T.muted,
-            cursor: canAdd ? "pointer" : "not-allowed",
-            fontSize: 13,
-            fontWeight: "bold",
-            marginBottom: 16,
-          }}
-        >
+      {mode === 'list' && (
+        <button onClick={()=>{setEditDebt(null);setMode('add');}} style={{ width:'100%', marginBottom:16, padding:'12px 0', borderRadius:10, border:`1px dashed ${T.accentSoft}`, background:T.accentDim, color:T.accent, cursor:'pointer', fontSize:13, fontWeight:'bold' }}>
           + Tambah Hutang
         </button>
       )}
 
-      {/* Add form */}
-      {mode === "add" && (
-        <div
-          style={{
-            background: T.card,
-            border: `1px solid ${T.red}33`,
-            borderRadius: 14,
-            padding: 20,
-            marginBottom: 16,
-          }}
-        >
-          <div
-            style={{
-              color: T.red,
-              fontSize: 11,
-              letterSpacing: 2,
-              marginBottom: 14,
-              fontFamily: "'Playfair Display',serif",
-            }}
-          >
-            TAMBAH HUTANG
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {/* Type selector */}
-            <div>
-              <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 6 }}>
-                Jenis Hutang
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 7,
-                }}
-              >
-                {DEBT_TYPES.map((dt) => (
-                  <button
-                    key={dt.key}
-                    onClick={() =>
-                      setForm((p) => ({
-                        ...p,
-                        type: dt.key,
-                        interestRate: String(dt.rate),
-                      }))
-                    }
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: 9,
-                      border: `1px solid ${
-                        form.type === dt.key ? dt.color : T.border
-                      }`,
-                      background:
-                        form.type === dt.key ? dt.color + "18" : T.surface,
-                      color: form.type === dt.key ? dt.color : T.muted,
-                      cursor: "pointer",
-                      fontSize: 11,
-                      textAlign: "left",
-                      display: "flex",
-                      gap: 6,
-                      alignItems: "center",
-                    }}
-                  >
-                    <span>{dt.icon}</span>
-                    <span>{dt.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>
-                Nama / Keterangan
-              </div>
-              <input
-                value={form.name}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, name: e.target.value }))
-                }
-                placeholder="Contoh: KPR BTN, CC BCA"
-                style={{
-                  width: "100%",
-                  background: T.inputBg,
-                  border: `1px solid ${T.border}`,
-                  color: T.text,
-                  borderRadius: 9,
-                  padding: "10px 12px",
-                  fontSize: 13,
-                  outline: "none",
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 9,
-              }}
-            >
-              <div>
-                <div
-                  style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}
-                >
-                  Sisa Hutang (IDR)
-                </div>
-                <input
-                  value={form.outstanding}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, outstanding: e.target.value }))
-                  }
-                  placeholder="0"
-                  style={{
-                    width: "100%",
-                    background: T.inputBg,
-                    border: `1px solid ${T.border}`,
-                    color: T.text,
-                    borderRadius: 9,
-                    padding: "10px 12px",
-                    fontSize: 13,
-                    outline: "none",
-                  }}
-                />
-              </div>
-              <div>
-                <div
-                  style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}
-                >
-                  Cicilan/Bulan (IDR)
-                </div>
-                <input
-                  value={form.monthlyPayment}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, monthlyPayment: e.target.value }))
-                  }
-                  placeholder="0"
-                  style={{
-                    width: "100%",
-                    background: T.inputBg,
-                    border: `1px solid ${T.border}`,
-                    color: T.text,
-                    borderRadius: 9,
-                    padding: "10px 12px",
-                    fontSize: 13,
-                    outline: "none",
-                  }}
-                />
-              </div>
-              <div>
-                <div
-                  style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}
-                >
-                  Bunga / Tahun (%)
-                </div>
-                <input
-                  value={form.interestRate}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, interestRate: e.target.value }))
-                  }
-                  placeholder={
-                    DEBT_TYPES.find((d) => d.key === form.type)?.rate
-                  }
-                  style={{
-                    width: "100%",
-                    background: T.inputBg,
-                    border: `1px solid ${T.border}`,
-                    color: T.text,
-                    borderRadius: 9,
-                    padding: "10px 12px",
-                    fontSize: 13,
-                    outline: "none",
-                  }}
-                />
-              </div>
-              <div>
-                <div
-                  style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}
-                >
-                  Catatan (opsional)
-                </div>
-                <input
-                  value={form.notes}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, notes: e.target.value }))
-                  }
-                  placeholder="Institusi, tenor, dll"
-                  style={{
-                    width: "100%",
-                    background: T.inputBg,
-                    border: `1px solid ${T.border}`,
-                    color: T.text,
-                    borderRadius: 9,
-                    padding: "10px 12px",
-                    fontSize: 13,
-                    outline: "none",
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Live payoff preview */}
-            {parseVal(form.outstanding) > 0 &&
-              parseVal(form.monthlyPayment) > 0 && (
-                <div
-                  style={{
-                    padding: "10px 14px",
-                    background: T.redDim,
-                    borderRadius: 10,
-                    border: `1px solid ${T.red}22`,
-                  }}
-                >
-                  {(() => {
-                    const months = monthsToPayoff(
-                      form.outstanding,
-                      form.monthlyPayment,
-                      form.interestRate
-                    );
-                    const totalPaid = months
-                      ? parseVal(form.monthlyPayment) * months
-                      : null;
-                    const interest = totalPaid
-                      ? totalPaid - parseVal(form.outstanding)
-                      : null;
-                    return months ? (
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 1fr",
-                          gap: 8,
-                        }}
-                      >
-                        <div>
-                          <div style={{ color: T.muted, fontSize: 9 }}>
-                            Lunas dalam
-                          </div>
-                          <div
-                            style={{
-                              color: T.orange,
-                              fontSize: 12,
-                              fontWeight: "bold",
-                            }}
-                          >
-                            {months >= 12
-                              ? `${Math.floor(months / 12)}th ${months % 12}bln`
-                              : `${months} bulan`}
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{ color: T.muted, fontSize: 9 }}>
-                            Total bunga
-                          </div>
-                          <div
-                            style={{
-                              color: T.red,
-                              fontSize: 12,
-                              fontWeight: "bold",
-                            }}
-                          >
-                            {fMoney(interest)}
-                          </div>
-                        </div>
-                      </div>
-                    ) : null;
-                  })()}
-                </div>
-              )}
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={addDebt}
-                style={{
-                  flex: 1,
-                  padding: "11px 0",
-                  borderRadius: 9,
-                  border: "none",
-                  background: T.red,
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                  fontSize: 13,
-                }}
-              >
-                ✓ Simpan
-              </button>
-              <button
-                onClick={() => setMode("list")}
-                style={{
-                  padding: "11px 16px",
-                  borderRadius: 9,
-                  border: `1px solid ${T.border}`,
-                  background: "none",
-                  color: T.muted,
-                  cursor: "pointer",
-                  fontSize: 12,
-                }}
-              >
-                Batal
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Form */}
+      {(mode === 'add' || mode === 'edit') && (
+        <Card T={T} style={{ marginBottom:16, border:`1px solid ${T.accentSoft}` }}>
+          <SL T={T}>{mode === 'edit' ? 'Edit Hutang' : 'Tambah Hutang Baru'}</SL>
+          <DebtForm
+            T={T}
+            onSave={saveDebt}
+            onCancel={()=>{setMode('list');setEditDebt(null);}}
+            editData={editDebt}
+            assets={assets}
+            isPro={isPro}
+            isProPlus={isProPlus}
+          />
+        </Card>
       )}
 
-      {/* Debt list */}
-      {debts.map((d) => {
-        const dt = DEBT_TYPES.find((t) => t.key === d.type) || DEBT_TYPES[0];
-        const months = monthsToPayoff(
-          d.outstanding,
-          d.monthlyPayment,
-          d.interestRate
-        );
-        const pctPaid = 0; // would need original amount — placeholder
-        return (
-          <div
-            key={d.id}
-            style={{
-              background: T.card,
-              border: `1px solid ${dt.color}22`,
-              borderRadius: 13,
-              padding: "15px 16px",
-              marginBottom: 10,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                marginBottom: 10,
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 7,
-                    alignItems: "center",
-                    marginBottom: 3,
-                  }}
-                >
-                  <span style={{ fontSize: 16 }}>{dt.icon}</span>
-                  <span
-                    style={{ color: T.text, fontSize: 14, fontWeight: "bold" }}
-                  >
-                    {d.name}
-                  </span>
+      {/* Filter tabs */}
+      {mode === 'list' && debts.length > 0 && (
+        <>
+          <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+            {[['all','Semua'],['konsumtif','🛒 Konsumtif'],['produktif','🏭 Produktif']].map(([id,label])=>(
+              <button key={id} onClick={()=>setActiveTab(id)} style={{ flex:1, padding:'8px 0', borderRadius:9, border:`1px solid ${activeTab===id?T.accent:T.border}`, background:activeTab===id?T.accentDim:T.surface, color:activeTab===id?T.accent:T.muted, cursor:'pointer', fontSize:11, fontWeight:activeTab===id?'bold':'normal' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Debt list */}
+          {displayedDebts.map(d => {
+            const typeDef = allTypes.find(t => t.key === d.type) || { icon:'📄', label:'Hutang', color:T.muted };
+            const isRev   = typeDef.mode === 'revolving';
+            const plafon  = parseVal(d.plafon);
+            const outstanding = parseVal(d.outstanding);
+            const utilisasi = isRev && plafon > 0 ? (outstanding / plafon) * 100 : 0;
+            const renewalDaysLeft = d.renewalDate
+              ? Math.ceil((new Date(d.renewalDate+'-01') - new Date()) / (1000*60*60*24))
+              : null;
+
+            return (
+              <Card key={d.id} T={T} style={{ marginBottom:10 }} glow={utilisasi > 80 && isProPlus ? T.red : undefined}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+                  <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                    <span style={{ fontSize:22 }}>{typeDef.icon}</span>
+                    <div>
+                      <div style={{ color:T.text, fontSize:13, fontWeight:600 }}>{d.name}</div>
+                      <div style={{ display:'flex', gap:6, marginTop:2, flexWrap:'wrap' }}>
+                        <span style={{ fontSize:9, padding:'1px 7px', borderRadius:4, background:(d.category==='produktif'?T.green:T.red)+'22', color:d.category==='produktif'?T.green:T.red, fontWeight:700 }}>
+                          {d.category==='produktif'?'Produktif':'Konsumtif'}
+                        </span>
+                        <span style={{ fontSize:9, padding:'1px 7px', borderRadius:4, background:T.surface, color:T.muted }}>{typeDef.label}</span>
+                        {isRev && <span style={{ fontSize:9, padding:'1px 7px', borderRadius:4, background:T.accentDim, color:T.accent }}>Revolving</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign:'right' }}>
+                    <div style={{ color:T.red, fontSize:14, fontWeight:'bold', fontFamily:"'Playfair Display',serif" }}>{fV(outstanding)}</div>
+                    <div style={{ color:T.muted, fontSize:9 }}>outstanding</div>
+                  </div>
                 </div>
-                <div style={{ color: T.muted, fontSize: 11 }}>
-                  {dt.label}
-                  {d.notes ? ` · ${d.notes}` : ""}
+
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:7, marginBottom:10 }}>
+                  <div style={{ padding:'7px 8px', background:T.surface, borderRadius:8 }}>
+                    <div style={{ color:T.muted, fontSize:9 }}>{isRev?'Bunga/Bln':'Cicilan/Bln'}</div>
+                    <div style={{ color:T.orange||T.accent, fontSize:11, fontWeight:'bold' }}>{fV(parseVal(d.monthlyPayment))}</div>
+                  </div>
+                  <div style={{ padding:'7px 8px', background:T.surface, borderRadius:8 }}>
+                    <div style={{ color:T.muted, fontSize:9 }}>Bunga/Thn</div>
+                    <div style={{ color:T.text, fontSize:11, fontWeight:'bold' }}>{d.interestRate||'-'}%</div>
+                  </div>
+                  {plafon > 0 ? (
+                    <div style={{ padding:'7px 8px', background:T.surface, borderRadius:8 }}>
+                      <div style={{ color:T.muted, fontSize:9 }}>Utilisasi</div>
+                      <div style={{ color:utilisasi>80?T.red:utilisasi>60?T.orange:T.green, fontSize:11, fontWeight:'bold' }}>{utilisasi.toFixed(0)}%</div>
+                    </div>
+                  ) : d.endYearMonth ? (
+                    <div style={{ padding:'7px 8px', background:T.surface, borderRadius:8 }}>
+                      <div style={{ color:T.muted, fontSize:9 }}>Lunas</div>
+                      <div style={{ color:T.text, fontSize:11, fontWeight:'bold' }}>{d.endYearMonth}</div>
+                    </div>
+                  ) : (
+                    <div style={{ padding:'7px 8px', background:T.surface, borderRadius:8 }}>
+                      <div style={{ color:T.muted, fontSize:9 }}>Tenor</div>
+                      <div style={{ color:T.text, fontSize:11, fontWeight:'bold' }}>{d.tenorMonths||'-'} bln</div>
+                    </div>
+                  )}
                 </div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div
-                  style={{
-                    color: dt.color,
-                    fontSize: 14,
-                    fontWeight: "bold",
-                    fontFamily: "'Playfair Display',serif",
-                  }}
-                >
-                  {fV(parseVal(d.outstanding), dispCur)}
+
+                {/* Utilisasi bar for revolving */}
+                {isRev && plafon > 0 && (
+                  <div style={{ marginBottom:8 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:T.muted, marginBottom:3 }}>
+                      <span>Utilisasi {fV(outstanding)} / {fV(plafon)}</span>
+                      <span style={{ color:utilisasi>80?T.red:T.green }}>{utilisasi.toFixed(1)}%</span>
+                    </div>
+                    <Bar pct={utilisasi} color={utilisasi>80?T.red:utilisasi>60?T.orange:T.green} h={6} T={T} />
+                    {utilisasi > 80 && isProPlus && (
+                      <div style={{ marginTop:6, padding:'6px 10px', background:T.redDim, borderRadius:7, fontSize:10, color:T.red }}>
+                        ⚠ Utilisasi tinggi - pertimbangkan kurangi penarikan atau setor sebagian
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Renewal warning */}
+                {renewalDaysLeft !== null && renewalDaysLeft <= 60 && (
+                  <div style={{ marginBottom:8, padding:'6px 10px', background:renewalDaysLeft<=14?T.redDim:T.accentDim, borderRadius:7, fontSize:10, color:renewalDaysLeft<=14?T.red:T.accent }}>
+                    {renewalDaysLeft <= 0 ? '⚠ Renewal sudah jatuh tempo!' : `⏰ Renewal dalam ${renewalDaysLeft} hari`}
+                  </div>
+                )}
+
+                {d.notes && <div style={{ color:T.muted, fontSize:10, marginBottom:8, fontStyle:'italic' }}>{d.notes}</div>}
+
+                <div style={{ display:'flex', gap:8 }}>
+                  <TBtn T={T} variant="ghost" onClick={()=>{setEditDebt(d);setMode('edit');window.scrollTo({top:0,behavior:'smooth'});}} style={{ flex:1, padding:'7px 0', fontSize:11 }}>✎ Edit</TBtn>
+                  <TBtn T={T} variant="danger" onClick={()=>deleteDebt(d.id)} style={{ padding:'7px 14px', fontSize:11 }}>✕</TBtn>
                 </div>
-                <div style={{ color: T.muted, fontSize: 10 }}>sisa hutang</div>
-              </div>
+              </Card>
+            );
+          })}
+
+          {displayedDebts.length === 0 && (
+            <div style={{ textAlign:'center', padding:'24px', color:T.muted, fontSize:12 }}>
+              Belum ada hutang {activeTab !== 'all' ? activeTab : ''} yang dicatat
             </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: 8,
-                marginBottom: 10,
-              }}
-            >
-              {[
-                {
-                  l: "Cicilan/bln",
-                  v: fV(parseVal(d.monthlyPayment), dispCur),
-                  c: T.orange,
-                },
-                {
-                  l: "Bunga/thn",
-                  v: d.interestRate ? `${d.interestRate}%` : "—",
-                  c: T.purple,
-                },
-                {
-                  l: "Lunas dlm",
-                  v: months
-                    ? months >= 12
-                      ? `${Math.floor(months / 12)}th ${months % 12}bln`
-                      : `${months}bln`
-                    : "—",
-                  c: T.blue,
-                },
-              ].map((s) => (
-                <div
-                  key={s.l}
-                  style={{
-                    background: T.surface,
-                    borderRadius: 8,
-                    padding: "7px 10px",
-                  }}
-                >
-                  <div style={{ color: T.muted, fontSize: 9 }}>{s.l}</div>
-                  <div style={{ color: s.c, fontSize: 11, fontWeight: "bold" }}>
-                    {s.v}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {editId === d.id ? (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 10,
-                  marginTop: 10,
-                  paddingTop: 10,
-                  borderTop: `1px solid ${T.border}`,
-                }}
-              >
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 8,
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        color: T.textSoft,
-                        fontSize: 10,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Nama
-                    </div>
-                    <input
-                      value={form.name}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, name: e.target.value }))
-                      }
-                      style={{
-                        width: "100%",
-                        background: T.inputBg,
-                        border: `1px solid ${T.accent}`,
-                        color: T.text,
-                        borderRadius: 8,
-                        padding: "8px 10px",
-                        fontSize: 12,
-                        outline: "none",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <div
-                      style={{
-                        color: T.textSoft,
-                        fontSize: 10,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Sisa Hutang (IDR)
-                    </div>
-                    <input
-                      value={form.outstanding}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, outstanding: e.target.value }))
-                      }
-                      style={{
-                        width: "100%",
-                        background: T.inputBg,
-                        border: `1px solid ${T.accent}`,
-                        color: T.text,
-                        borderRadius: 8,
-                        padding: "8px 10px",
-                        fontSize: 12,
-                        outline: "none",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <div
-                      style={{
-                        color: T.textSoft,
-                        fontSize: 10,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Cicilan/Bulan
-                    </div>
-                    <input
-                      value={form.monthlyPayment}
-                      onChange={(e) =>
-                        setForm((p) => ({
-                          ...p,
-                          monthlyPayment: e.target.value,
-                        }))
-                      }
-                      style={{
-                        width: "100%",
-                        background: T.inputBg,
-                        border: `1px solid ${T.accent}`,
-                        color: T.text,
-                        borderRadius: 8,
-                        padding: "8px 10px",
-                        fontSize: 12,
-                        outline: "none",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <div
-                      style={{
-                        color: T.textSoft,
-                        fontSize: 10,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Bunga/Thn (%)
-                    </div>
-                    <input
-                      value={form.interestRate}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, interestRate: e.target.value }))
-                      }
-                      style={{
-                        width: "100%",
-                        background: T.inputBg,
-                        border: `1px solid ${T.accent}`,
-                        color: T.text,
-                        borderRadius: 8,
-                        padding: "8px 10px",
-                        fontSize: 12,
-                        outline: "none",
-                      }}
-                    />
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    onClick={() => saveEdit(d.id)}
-                    style={{
-                      flex: 1,
-                      padding: "9px 0",
-                      borderRadius: 8,
-                      border: "none",
-                      background: T.accent,
-                      color: "#000",
-                      cursor: "pointer",
-                      fontWeight: "bold",
-                      fontSize: 12,
-                    }}
-                  >
-                    ✓ Simpan
-                  </button>
-                  <button
-                    onClick={cancelEdit}
-                    style={{
-                      padding: "9px 14px",
-                      borderRadius: 8,
-                      border: `1px solid ${T.border}`,
-                      background: "none",
-                      color: T.muted,
-                      cursor: "pointer",
-                      fontSize: 11,
-                    }}
-                  >
-                    Batal
-                  </button>
-                  <button
-                    onClick={() => {
-                      removeDebt(d.id);
-                      cancelEdit();
-                    }}
-                    style={{
-                      padding: "9px 12px",
-                      borderRadius: 8,
-                      border: `1px solid ${T.red}33`,
-                      background: T.redDim,
-                      color: T.red,
-                      cursor: "pointer",
-                      fontSize: 11,
-                    }}
-                  >
-                    × Hapus
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button
-                  onClick={() => startEdit(d)}
-                  style={{
-                    flex: 1,
-                    padding: "7px 0",
-                    borderRadius: 8,
-                    border: `1px solid ${T.border}`,
-                    background: "none",
-                    color: T.muted,
-                    cursor: "pointer",
-                    fontSize: 11,
-                  }}
-                >
-                  ✎ Edit
-                </button>
-                <button
-                  onClick={() => removeDebt(d.id)}
-                  style={{
-                    padding: "7px 12px",
-                    borderRadius: 8,
-                    border: `1px solid ${T.red}33`,
-                    background: T.redDim,
-                    color: T.red,
-                    cursor: "pointer",
-                    fontSize: 11,
-                  }}
-                >
-                  × Hapus
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })}
-      {debts.length === 0 && mode === "list" && (
-        <div
-          style={{ textAlign: "center", padding: "40px 20px", color: T.muted }}
-        >
-          <div style={{ fontSize: 40, marginBottom: 12 }}>💸</div>
-          <div style={{ fontSize: 13, marginBottom: 6 }}>
-            Belum ada hutang tercatat
-          </div>
-          <div style={{ fontSize: 11, lineHeight: 1.6 }}>
-            Tambahkan KPR, kartu kredit, atau cicilan
-            <br />
-            untuk melengkapi kalkulasi net worth kamu
-          </div>
+          )}
+        </>
+      )}
+
+      {/* Empty state */}
+      {mode === 'list' && debts.length === 0 && (
+        <div style={{ textAlign:'center', padding:'40px 24px', background:T.card, borderRadius:14, border:`1px dashed ${T.border}` }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>📋</div>
+          <div style={{ color:T.textSoft, fontSize:14, fontWeight:'bold', marginBottom:8 }}>Belum ada catatan hutang</div>
+          <div style={{ color:T.muted, fontSize:12, lineHeight:1.6 }}>Catat hutang Anda untuk memantau kewajiban bulanan dan Net Worth yang akurat.</div>
         </div>
       )}
     </div>
