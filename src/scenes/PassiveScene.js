@@ -700,7 +700,7 @@ function PassiveIncomeScene({
             <div>
               <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
                 Pengeluaran Bulanan (IDR)
-                <InfoTip T={T} text={"Total kebutuhan dan keinginan sehari-hari, termasuk makan, transportasi, gaya hidup, dan tagihan rutin. Tidak termasuk cicilan hutang atau pinjaman yang sudah tercatat di modul Hutang."} />
+                <InfoBtn T={T} content={"Total kebutuhan dan keinginan sehari-hari, termasuk makan, transportasi, gaya hidup, dan tagihan rutin. Tidak termasuk cicilan hutang atau pinjaman yang sudah tercatat di modul Hutang."} />
               </div>
               <input
                 value={monthlyExpense}
@@ -712,7 +712,7 @@ function PassiveIncomeScene({
             <div>
               <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
                 Penghasilan Tetap/Bulan (IDR)
-                <InfoTip T={T} text={"Gaji, tunjangan, atau pendapatan aktif lainnya yang diterima secara rutin setiap bulan. Digunakan untuk menghitung posisi arus kas dan ketercapaian Financial Freedom."} />
+                <InfoBtn T={T} content={"Gaji, tunjangan, atau pendapatan aktif lainnya yang diterima secara rutin setiap bulan. Digunakan untuk menghitung posisi arus kas dan ketercapaian Financial Freedom."} />
               </div>
               <input
                 value={monthlyFixedIncome}
