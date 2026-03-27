@@ -418,7 +418,7 @@ function PropertyForm({ onSave, onCancel, T, editData }) {
               },
               {
                 l: "Rental Yield",
-                v: rentalYield > 0 ? `${rentalYield.toFixed(1)}%/thn` : "—",
+                v: rentalYield > 0 ? `${rentalYield.toFixed(1)}%/thn` : "-",
                 c: T.blue,
               },
               {
@@ -530,354 +530,493 @@ function PropertyForm({ onSave, onCancel, T, editData }) {
   );
 }
 
-function BusinessForm({ onSave, onCancel, T, editData, hideValues = false }) {
-  const [f, setF] = useState(
-    editData || {
-      name: "",
-      type: "kos",
-      modalInvested: "",
-      monthlyRevenue: "",
-      monthlyOpex: "",
-      ownershipPct: "100",
-      notes: "",
-    }
-  );
 
-  const revenue = parseVal(f.monthlyRevenue);
-  const opex =
-    (f.opexMode || "nominal") === "pct"
-      ? (revenue * parseVal(f.monthlyOpex)) / 100
-      : parseVal(f.monthlyOpex);
-  const netProfit =
-    Math.max(0, revenue - opex) * (parseVal(f.ownershipPct) / 100);
-  const annualProfit = netProfit * 12;
-  const bizType =
-    BUSINESS_TYPES.find((b) => b.value === f.type) || BUSINESS_TYPES[0];
-  const valuation = annualProfit * bizType.multiplier;
-  const modal = parseVal(f.modalInvested);
-  const roiPct = modal > 0 ? (annualProfit / modal) * 100 : 0;
+// =========================================================
+// VALUATION ENGINE
+// =========================================================
+
+const SECTOR_MULTIPLES = {
+  kos:          { low: 3,   mid: 4,   high: 5,   label: "Kos/Penginapan" },
+  fnb:          { low: 1,   mid: 1.5, high: 2,   label: "F&B/Kuliner" },
+  retail:       { low: 1,   mid: 1.5, high: 2.5, label: "Retail/Toko" },
+  jasa:         { low: 1.5, mid: 2.5, high: 3,   label: "Jasa/Servis" },
+  online:       { low: 2,   mid: 3,   high: 5,   label: "Bisnis Online" },
+  pt_cv_owner:  { low: 1.5, mid: 2,   high: 3,   label: "Pemilik PT/CV" },
+  investor_pt_cv:{ low: 5,  mid: 8,  high: 15,   label: "Penanaman Modal" },
+  lainnya:      { low: 1,   mid: 2,   high: 3,   label: "Lainnya" },
+};
+
+function calcValuationOperational(netProfitMonthly, ownershipPct, bizType) {
+  const mult = SECTOR_MULTIPLES[bizType] || SECTOR_MULTIPLES.lainnya;
+  const annualProfit = netProfitMonthly * 12;
+  const ownership = ownershipPct / 100;
+  return {
+    annualProfit,
+    low:  annualProfit * mult.low  * ownership,
+    mid:  annualProfit * mult.mid  * ownership,
+    high: annualProfit * mult.high * ownership,
+    multLow: mult.low, multMid: mult.mid, multHigh: mult.high,
+  };
+}
+
+function calcValuationInvestor({ monthlyProfit, ownershipPct, investmentAmount }) {
+  const ownership = ownershipPct / 100;
+  const annualProfit = monthlyProfit * 12;
+  const mult = SECTOR_MULTIPLES.investor_pt_cv;
+  const valPT = { low: annualProfit * mult.low, mid: annualProfit * mult.mid, high: annualProfit * mult.high };
+  const equity = { low: valPT.low * ownership, mid: valPT.mid * ownership, high: valPT.high * ownership };
+  const entryValuation = investmentAmount / ownership;
+  const growth = { low: valPT.low / entryValuation, mid: valPT.mid / entryValuation, high: valPT.high / entryValuation };
+  const netMargin = monthlyProfit > 0 ? (monthlyProfit / monthlyProfit) : 0;
+  const paybackMonths = (monthlyProfit * ownership) > 0 ? investmentAmount / (monthlyProfit * ownership) : 0;
+  return { annualProfit, valPT, equity, entryValuation, growth, paybackMonths, ownership };
+}
+
+// =========================================================
+// INFO TOOLTIP
+// =========================================================
+function InfoTip({ text, T }) {
+  const [show, setShow] = React.useState(false);
+  return (
+    <span style={{ position: "relative", display: "inline-block", marginLeft: 4 }}>
+      <button onClick={() => setShow(p => !p)} style={{ width: 14, height: 14, borderRadius: "50%", background: T.border, color: T.muted, border: "none", cursor: "pointer", fontSize: 9, fontWeight: "bold", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>i</button>
+      {show && (
+        <>
+          <div onClick={() => setShow(false)} style={{ position: "fixed", inset: 0, zIndex: 999 }} />
+          <div style={{ position: "absolute", left: 18, top: -8, zIndex: 1000, background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 13px", width: 230, boxShadow: `0 6px 20px ${T.shadow}`, fontSize: 11, color: T.textSoft, lineHeight: 1.6 }}>
+            {text}
+            <button onClick={() => setShow(false)} style={{ position: "absolute", top: 5, right: 8, background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 12 }}>x</button>
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
+// =========================================================
+// BUSINESS FORM (new)
+// =========================================================
+function BusinessForm({ onSave, onCancel, T, editData, hideValues = false, properties = [] }) {
+  const [f, setF] = React.useState(editData || {
+    name: "", type: "fnb",
+    netProfitMonthly: "",
+    ownershipPct: "100",
+    incomeType: "active",
+    // kos specific
+    buildingLinked: false,
+    linkedPropertyId: "",
+    buildingValue: "",
+    // investor specific
+    investmentAmount: "",
+    dividendAmount: "",
+    dividendFreq: "monthly",
+    knowsProfit: false,
+    profitPTMonthly: "",
+    sector: "jasa",
+    notes: "",
+  });
+
+  const setFF = (k, v) => setF(p => ({ ...p, [k]: v }));
+
+  const [showCalc, setShowCalc] = React.useState(false);
+
+  const isKos       = f.type === "kos";
+  const isInvestor  = f.type === "investor_pt_cv";
+  const isOperational = !isInvestor;
+
+  const netProfit   = parseVal(f.netProfitMonthly);
+  const ownership   = parseVal(f.ownershipPct) || 100;
+  const modal       = parseVal(f.investmentAmount);
+  const divAmount   = parseVal(f.dividendAmount);
+  const divFreqMult = { monthly: 12, quarterly: 4, annual: 1 }[f.dividendFreq] || 12;
+  const divMonthly  = divAmount * divFreqMult / 12;
+
+  // Valuasi
+  let valResult = null;
+  let valueForNetWorth = 0;
+  let incomeMonthly = 0;
+
+  if (isInvestor) {
+    if (f.knowsProfit && parseVal(f.profitPTMonthly) > 0) {
+      valResult = calcValuationInvestor({ monthlyProfit: parseVal(f.profitPTMonthly), ownershipPct: ownership, investmentAmount: modal });
+      valueForNetWorth = valResult.equity.mid;
+      incomeMonthly = divMonthly || parseVal(f.profitPTMonthly) * (ownership / 100);
+    } else {
+      valueForNetWorth = modal;
+      incomeMonthly = divMonthly;
+    }
+  } else {
+    if (netProfit > 0) {
+      valResult = calcValuationOperational(netProfit, ownership, f.type);
+      const buildingVal = isKos && f.buildingLinked ? (f.linkedPropertyId ? 0 : parseVal(f.buildingValue)) : 0;
+      valueForNetWorth = valResult.mid + buildingVal;
+      incomeMonthly = netProfit * (ownership / 100);
+    }
+  }
+
+  const canSave = f.name && (isInvestor ? (modal > 0 || divAmount > 0) : netProfit > 0);
+
+  const handleSave = () => {
+    if (!canSave) return;
+    const linkedProp = isKos && f.buildingLinked && f.linkedPropertyId
+      ? properties.find(p => p.id === f.linkedPropertyId)
+      : null;
+    const newPropertyData = isKos && f.buildingLinked && !f.linkedPropertyId && parseVal(f.buildingValue) > 0
+      ? { name: f.name + " - Bangunan", classKey: "property", valueIDR: parseVal(f.buildingValue), propertyData: { name: f.name + " - Bangunan", currentValue: f.buildingValue } }
+      : null;
+
+    onSave({
+      classKey: "business",
+      name: f.name,
+      valueIDR: valueForNetWorth,
+      businessData: f,
+      income: incomeMonthly > 0 ? { amount: incomeMonthly, frequency: "monthly", type: "business" } : undefined,
+      incomeType: f.incomeType,
+      newPropertyData,
+    });
+  };
+
+  // Input field style
+  const inp = { width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 9, padding: "10px 12px", fontSize: 12, outline: "none", boxSizing: "border-box" };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+      {/* TYPE SELECTOR */}
       <div>
-        <div style={{ color: "#9aa3b0", fontSize: 10, marginBottom: 6 }}>
-          Jenis Bisnis
-        </div>
-        <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}
-        >
-          {BUSINESS_TYPES.map((bt) => (
-            <button
-              key={bt.value}
-              onClick={() => setF((p) => ({ ...p, type: bt.value }))}
-              style={{
-                padding: "9px 10px",
-                borderRadius: 9,
-                border: `1px solid ${
-                  f.type === bt.value ? T.purple : T.border
-                }`,
-                background: f.type === bt.value ? T.purple + "18" : T.surface,
-                color: f.type === bt.value ? T.purple : T.muted,
-                cursor: "pointer",
-                fontSize: 11,
-                textAlign: "left",
-                display: "flex",
-                gap: 6,
-                alignItems: "center",
-              }}
-            >
-              <span>{bt.icon}</span>
-              <span>{bt.label}</span>
+        <div style={{ color: T.muted, fontSize: 10, marginBottom: 6 }}>Jenis Bisnis</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+          {BUSINESS_TYPES.map(bt => (
+            <button key={bt.value} onClick={() => setFF("type", bt.value)} style={{
+              padding: "9px 10px", borderRadius: 9, textAlign: "left", cursor: "pointer", fontSize: 11, display: "flex", gap: 6, alignItems: "center",
+              border: `1px solid ${f.type === bt.value ? T.purple : T.border}`,
+              background: f.type === bt.value ? T.purple + "18" : T.surface,
+              color: f.type === bt.value ? T.purple : T.muted,
+            }}>
+              <span>{bt.icon}</span><span>{bt.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
-        <div style={{ gridColumn: "span 2" }}>
-          <div style={LS}>Nama Bisnis</div>
-          <input
-            value={f.name}
-            onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
-            placeholder={`Contoh: Kos ${bizType.icon}`}
-            style={{
-              width: "100%",
-              background: T.inputBg,
-              border: `1px solid ${T.border}`,
-              color: T.text,
-              borderRadius: 9,
-              padding: "10px 12px",
-              fontSize: 12,
-              outline: "none",
-            }}
-          />
+      {/* NAME */}
+      <div>
+        <div style={{ color: T.muted, fontSize: 10, marginBottom: 4 }}>Nama Bisnis <span style={{ color: T.red }}>*</span></div>
+        <input value={f.name} onChange={e => setFF("name", e.target.value)} placeholder="Contoh: Warung Bu Sari" style={inp} />
+      </div>
+
+      {/* ACTIVE / PASSIVE */}
+      <div>
+        <div style={{ color: T.muted, fontSize: 10, marginBottom: 6, display: "flex", alignItems: "center" }}>
+          Tipe Pendapatan
+          <InfoTip T={T} text={"Aktif: bisnis bergantung pada keterlibatan langsung Anda. Jika Anda berhenti, bisnis terganggu. Pendapatan masuk Active Income.
+
+Pasif: bisnis berjalan dengan manajemen/sistem sendiri. Anda hanya menerima return. Pendapatan masuk Passive Income."} />
         </div>
-        <div>
-          <div style={LS}>Modal Disetor (IDR)</div>
-          <input
-            value={f.modalInvested}
-            onChange={(e) =>
-              setF((p) => ({ ...p, modalInvested: e.target.value }))
-            }
-            placeholder="Total investasi"
-            style={{
-              width: "100%",
-              background: T.inputBg,
-              border: `1px solid ${T.border}`,
-              color: T.text,
-              borderRadius: 9,
-              padding: "10px 12px",
-              fontSize: 12,
-              outline: "none",
-            }}
-          />
+        <div style={{ display: "flex", gap: 8 }}>
+          {[["active", "Aktif", "Saya terlibat langsung"], ["passive", "Pasif", "Ada manajemen/sistem"]].map(([v, l, sub]) => (
+            <div key={v} onClick={() => setFF("incomeType", v)} style={{
+              flex: 1, padding: "10px 12px", borderRadius: 9, cursor: "pointer",
+              border: `1px solid ${f.incomeType === v ? T.accent : T.border}`,
+              background: f.incomeType === v ? T.accentDim : T.surface,
+            }}>
+              <div style={{ color: f.incomeType === v ? T.accent : T.text, fontSize: 12, fontWeight: "bold" }}>{l}</div>
+              <div style={{ color: T.muted, fontSize: 10 }}>{sub}</div>
+            </div>
+          ))}
         </div>
-        <div>
-          <div style={LS}>Kepemilikan (%)</div>
-          <input
-            value={f.ownershipPct}
-            onChange={(e) =>
-              setF((p) => ({ ...p, ownershipPct: e.target.value }))
-            }
-            type="number"
-            min="1"
-            max="100"
-            style={{
-              width: "100%",
-              background: T.inputBg,
-              border: `1px solid ${T.border}`,
-              color: T.text,
-              borderRadius: 9,
-              padding: "10px 12px",
-              fontSize: 12,
-              outline: "none",
-            }}
-          />
-        </div>
-        <div>
-          <div style={LS}>Pendapatan/bulan (IDR)</div>
-          <input
-            value={f.monthlyRevenue}
-            onChange={(e) =>
-              setF((p) => ({ ...p, monthlyRevenue: e.target.value }))
-            }
-            placeholder="Gross revenue"
-            style={{
-              width: "100%",
-              background: T.inputBg,
-              border: `1px solid ${T.border}`,
-              color: T.text,
-              borderRadius: 9,
-              padding: "10px 12px",
-              fontSize: 12,
-              outline: "none",
-            }}
-          />
-        </div>
-        <div>
-          <div
-            style={{
-              ...LS,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <span>Biaya Operasional/bulan</span>
-            <div style={{ display: "flex", gap: 4 }}>
+      </div>
+
+      {/* OWNERSHIP */}
+      <div>
+        <div style={{ color: T.muted, fontSize: 10, marginBottom: 4 }}>Kepemilikan (%)</div>
+        <input value={f.ownershipPct} onChange={e => setFF("ownershipPct", e.target.value)} type="number" min="1" max="100" style={inp} />
+      </div>
+
+      {/* ---- OPERATIONAL INPUTS (F&B, Jasa, Retail, Online, Kos, PT Owner, Lainnya) ---- */}
+      {isOperational && (
+        <>
+          <div>
+            <div style={{ color: T.muted, fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center" }}>
+              Net Profit / Bulan (IDR) <span style={{ color: T.red, marginLeft: 2 }}>*</span>
+              <InfoTip T={T} text={"Net Profit = pendapatan setelah dikurangi SEMUA biaya operasional (HPP, gaji karyawan, sewa, utilitas, dll).
+
+Jika bisnis dijalankan sendiri, kurangi juga estimasi gaji pasar untuk posisi Anda agar valuasi lebih akurat.
+
+Contoh: Omset Rp45jt - biaya ops Rp27.75jt - gaji Anda Rp5jt = Net Profit Rp12.25jt"} />
+            </div>
+            <input value={f.netProfitMonthly} onChange={e => setFF("netProfitMonthly", e.target.value)} placeholder="Contoh: 12250000" style={inp} />
+            {netProfit > 0 && <div style={{ color: T.muted, fontSize: 9, marginTop: 3 }}>= {fMoney(netProfit * 12)} / tahun</div>}
+          </div>
+
+          {/* KOS: building link */}
+          {isKos && (
+            <div style={{ padding: "12px 14px", background: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
+              <div style={{ color: T.textSoft, fontSize: 11, fontWeight: "bold", marginBottom: 10 }}>
+                Aset Bangunan
+                <InfoTip T={T} text={"Nilai bangunan untuk valuasi kos berbasis aset. Jika bangunan sudah diinput di Real Assets, pilih dari daftar agar tidak double-count di Net Worth."} />
+              </div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                {[[true, "Sudah di Real Assets"], [false, "Belum/input manual"]].map(([v, l]) => (
+                  <button key={String(v)} onClick={() => setFF("buildingLinked", v)} style={{
+                    flex: 1, padding: "8px 0", borderRadius: 8, cursor: "pointer", fontSize: 11,
+                    border: `1px solid ${f.buildingLinked === v ? T.accent : T.border}`,
+                    background: f.buildingLinked === v ? T.accentDim : T.surface,
+                    color: f.buildingLinked === v ? T.accent : T.muted,
+                  }}>{l}</button>
+                ))}
+              </div>
+              {f.buildingLinked && properties.length > 0 && (
+                <select value={f.linkedPropertyId} onChange={e => setFF("linkedPropertyId", e.target.value)} style={{ ...inp }}>
+                  <option value="">Pilih properti...</option>
+                  {properties.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} - {fMoney(getIDR(p))}</option>
+                  ))}
+                </select>
+              )}
+              {f.buildingLinked && properties.length === 0 && (
+                <div style={{ color: T.muted, fontSize: 11 }}>Belum ada properti di Real Assets. Input manual di bawah.</div>
+              )}
+              {(!f.buildingLinked || (f.buildingLinked && !f.linkedPropertyId)) && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ color: T.muted, fontSize: 10, marginBottom: 4 }}>Nilai Bangunan (IDR)</div>
+                  <input value={f.buildingValue} onChange={e => setFF("buildingValue", e.target.value)} placeholder="Contoh: 800000000" style={inp} />
+                  {!f.buildingLinked && parseVal(f.buildingValue) > 0 && (
+                    <div style={{ color: T.blue, fontSize: 10, marginTop: 3 }}>Akan otomatis ditambahkan ke Real Assets</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ---- INVESTOR INPUTS ---- */}
+      {isInvestor && (
+        <>
+          <div>
+            <div style={{ color: T.muted, fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center" }}>
+              Modal Disetor (IDR) <span style={{ color: T.red, marginLeft: 2 }}>*</span>
+              <InfoTip T={T} text={"Total investasi yang sudah Anda masukkan ke PT/CV ini."} />
+            </div>
+            <input value={f.investmentAmount} onChange={e => setFF("investmentAmount", e.target.value)} placeholder="Contoh: 300000000" style={inp} />
+          </div>
+
+          <div style={{ padding: "12px 14px", background: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
+            <div style={{ color: T.textSoft, fontSize: 11, fontWeight: "bold", marginBottom: 10 }}>
+              Apakah Anda mengetahui Net Profit PT ini?
+              <InfoTip T={T} text={"Jika Anda tahu net profit PT, sistem akan menghitung valuasi penuh (3 skenario).
+
+Jika tidak, nilai di Net Worth = modal disetor dan pendapatan dihitung dari dividen aktual."} />
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              {[[true, "Ya, saya tahu"], [false, "Tidak, input dividen saja"]].map(([v, l]) => (
+                <button key={String(v)} onClick={() => setFF("knowsProfit", v)} style={{
+                  flex: 1, padding: "8px 0", borderRadius: 8, cursor: "pointer", fontSize: 11,
+                  border: `1px solid ${f.knowsProfit === v ? T.accent : T.border}`,
+                  background: f.knowsProfit === v ? T.accentDim : T.surface,
+                  color: f.knowsProfit === v ? T.accent : T.muted,
+                }}>{l}</button>
+              ))}
+            </div>
+            {f.knowsProfit && (
+              <div>
+                <div style={{ color: T.muted, fontSize: 10, marginBottom: 4 }}>Net Profit PT / Bulan (IDR)</div>
+                <input value={f.profitPTMonthly} onChange={e => setFF("profitPTMonthly", e.target.value)} placeholder="Contoh: 25000000" style={inp} />
+              </div>
+            )}
+          </div>
+
+          {/* Dividend */}
+          <div>
+            <div style={{ color: T.muted, fontSize: 10, marginBottom: 4 }}>
+              {f.knowsProfit ? "Dividen Aktual yang Diterima (opsional)" : "Dividen yang Diterima (IDR)"}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+              <input value={f.dividendAmount} onChange={e => setFF("dividendAmount", e.target.value)} placeholder="Contoh: 3500000" style={inp} />
+              <select value={f.dividendFreq} onChange={e => setFF("dividendFreq", e.target.value)} style={{ ...inp, width: "auto", minWidth: 110 }}>
+                <option value="monthly">/ Bulan</option>
+                <option value="quarterly">/ Kuartal</option>
+                <option value="annual">/ Tahun</option>
+              </select>
+            </div>
+            {divMonthly > 0 && <div style={{ color: T.muted, fontSize: 9, marginTop: 3 }}>= {fMoney(divMonthly)} / bulan</div>}
+          </div>
+
+          {/* Sector for investor */}
+          <div>
+            <div style={{ color: T.muted, fontSize: 10, marginBottom: 6 }}>
+              Sektor PT
+              <InfoTip T={T} text={"Sektor menentukan range profit multiplier yang digunakan untuk estimasi valuasi perusahaan."} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
               {[
-                ["nominal", "Rp"],
-                ["pct", "%"],
-              ].map(([m, l]) => (
-                <button
-                  key={m}
-                  onClick={() => setF((p) => ({ ...p, opexMode: m }))}
-                  style={{
-                    padding: "2px 7px",
-                    borderRadius: 5,
-                    border: `1px solid ${
-                      (f.opexMode || "nominal") === m ? T.accent : T.border
-                    }`,
-                    background:
-                      (f.opexMode || "nominal") === m ? T.accentDim : "none",
-                    color: (f.opexMode || "nominal") === m ? T.accent : T.muted,
-                    cursor: "pointer",
-                    fontSize: 9,
-                  }}
-                >
-                  {l}
+                ["tech", "Tech / Digital", "5x-15x"],
+                ["jasa", "Jasa / Servis", "2x-6x"],
+                ["fnb", "F&B / FMCG", "1x-3x"],
+                ["properti", "Properti", "3x-6x"],
+                ["manufaktur", "Manufaktur", "2x-5x"],
+                ["other", "Lainnya", "2x-5x"],
+              ].map(([v, l, r]) => (
+                <button key={v} onClick={() => setFF("sector", v)} style={{
+                  padding: "8px 10px", borderRadius: 8, cursor: "pointer", textAlign: "left", fontSize: 11,
+                  border: `1px solid ${f.sector === v ? T.accent : T.border}`,
+                  background: f.sector === v ? T.accentDim : T.surface,
+                  color: f.sector === v ? T.accent : T.muted,
+                }}>
+                  <div style={{ fontWeight: "bold" }}>{l}</div>
+                  <div style={{ fontSize: 9, opacity: 0.7 }}>{r} profit/thn</div>
                 </button>
               ))}
             </div>
           </div>
-          <input
-            value={f.monthlyOpex}
-            onChange={(e) =>
-              setF((p) => ({ ...p, monthlyOpex: e.target.value }))
-            }
-            placeholder={
-              (f.opexMode || "nominal") === "pct"
-                ? "% dari pendapatan (contoh: 40)"
-                : "Gaji, sewa, bahan dll"
-            }
-            style={{
-              width: "100%",
-              background: T.inputBg,
-              border: `1px solid ${T.border}`,
-              color: T.text,
-              borderRadius: 9,
-              padding: "10px 12px",
-              fontSize: 12,
-              outline: "none",
-            }}
-          />
-          {(f.opexMode || "nominal") === "pct" &&
-            parseVal(f.monthlyOpex) > 0 &&
-            parseVal(f.monthlyRevenue) > 0 && (
-              <div style={{ color: T.muted, fontSize: 10, marginTop: 4 }}>
-                = Rp
-                {Math.round(
-                  (parseVal(f.monthlyRevenue) * parseVal(f.monthlyOpex)) / 100
-                ).toLocaleString("id-ID")}{" "}
-                /bln
-              </div>
-            )}
-        </div>
-        <div style={{ gridColumn: "span 2" }}>
-          <div style={LS}>Catatan (opsional)</div>
-          <input
-            value={f.notes}
-            onChange={(e) => setF((p) => ({ ...p, notes: e.target.value }))}
-            placeholder="Misal: 10 kamar, full terisi"
-            style={{
-              width: "100%",
-              background: T.inputBg,
-              border: `1px solid ${T.border}`,
-              color: T.text,
-              borderRadius: 9,
-              padding: "10px 12px",
-              fontSize: 12,
-              outline: "none",
-            }}
-          />
-        </div>
+        </>
+      )}
+
+      {/* NOTES */}
+      <div>
+        <div style={{ color: T.muted, fontSize: 10, marginBottom: 4 }}>Catatan (opsional)</div>
+        <input value={f.notes} onChange={e => setFF("notes", e.target.value)} placeholder="Contoh: 10 kamar, full terisi" style={inp} />
       </div>
 
-      {/* Live valuation preview */}
-      {revenue > 0 && (
-        <div
-          style={{
-            padding: "12px 14px",
-            background: T.purple + "14",
-            borderRadius: 10,
-            border: `1px solid ${T.purple}33`,
-          }}
-        >
-          <div
-            style={{
-              color: T.purple,
-              fontSize: 11,
-              fontWeight: "bold",
-              marginBottom: 8,
-            }}
-          >
-            📊 Estimasi Valuasi ({bizType.label})
-          </div>
-          <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
-          >
-            {[
-              {
-                l: "Net Profit/bln",
-                v: fMoney(netProfit),
-                c: netProfit > 0 ? T.green : T.red,
-              },
-              { l: "Net Profit/thn", v: fMoney(annualProfit), c: T.green },
-              {
-                l: `Valuasi (${bizType.multiplier}× profit)`,
-                v: fMoney(valuation),
-                c: T.purple,
-              },
-              {
-                l: "ROI/thn",
-                v: roiPct > 0 ? `${roiPct.toFixed(1)}%` : "—",
-                c: T.accent,
-              },
-            ].map((s) => (
-              <div key={s.l}>
-                <div style={{ color: "#4d5866", fontSize: 9 }}>{s.l}</div>
-                <div style={{ color: s.c, fontSize: 12, fontWeight: "bold" }}>
-                  {s.v}
-                </div>
+      {/* VALUATION RESULT - always visible summary */}
+      {(valResult || (isInvestor && !f.knowsProfit && modal > 0)) && (
+        <div style={{ padding: "14px 15px", background: T.purple + "14", borderRadius: 12, border: `1px solid ${T.purple}33` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div>
+              <div style={{ color: T.purple, fontSize: 12, fontWeight: "bold" }}>Estimasi Nilai Bisnis</div>
+              <div style={{ color: T.muted, fontSize: 10 }}>
+                {isInvestor && !f.knowsProfit ? "Berdasarkan modal disetor" : "Mid scenario (masuk Net Worth)"}
               </div>
-            ))}
+            </div>
+            <div style={{ color: T.purple, fontSize: 18, fontWeight: "bold", fontFamily: "'Playfair Display',serif" }}>
+              {fMoney(valueForNetWorth)}
+            </div>
           </div>
-          <div
-            style={{
-              color: "#4d5866",
-              fontSize: 10,
-              marginTop: 8,
-              lineHeight: 1.5,
-            }}
-          >
-            Valuasi menggunakan metode {bizType.multiplier}× annual profit
-            (standar untuk {bizType.label.toLowerCase()})
+
+          {/* Low-Mid-High bar */}
+          {valResult && isOperational && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 10 }}>
+              {[["Konservatif", valResult.low, valResult.multLow], ["Tengah", valResult.mid, valResult.multMid], ["Optimis", valResult.high, valResult.multHigh]].map(([l, v, m]) => (
+                <div key={l} style={{ padding: "8px 10px", background: T.surface, borderRadius: 8, textAlign: "center" }}>
+                  <div style={{ color: T.muted, fontSize: 9 }}>{l}</div>
+                  <div style={{ color: T.purple, fontSize: 11, fontWeight: "bold" }}>{fMoney(v)}</div>
+                  <div style={{ color: T.muted, fontSize: 9 }}>{m}x</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {valResult && isInvestor && f.knowsProfit && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 10 }}>
+              {[["Konservatif", valResult.equity.low], ["Tengah", valResult.equity.mid], ["Optimis", valResult.equity.high]].map(([l, v]) => (
+                <div key={l} style={{ padding: "8px 10px", background: T.surface, borderRadius: 8, textAlign: "center" }}>
+                  <div style={{ color: T.muted, fontSize: 9 }}>{l}</div>
+                  <div style={{ color: T.purple, fontSize: 11, fontWeight: "bold" }}>{fMoney(v)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Toggle detail engine */}
+          <button onClick={() => setShowCalc(p => !p)} style={{ width: "100%", padding: "7px 0", background: "none", border: `1px solid ${T.purple}44`, borderRadius: 7, color: T.purple, cursor: "pointer", fontSize: 11 }}>
+            {showCalc ? "Sembunyikan perhitungan" : "Tampilkan perhitungan detail"}
+          </button>
+
+          {showCalc && (
+            <div style={{ marginTop: 10, padding: "12px 14px", background: T.surface, borderRadius: 9, border: `1px solid ${T.border}` }}>
+              {isOperational && valResult && (
+                <>
+                  <div style={{ color: T.textSoft, fontSize: 10, fontWeight: "bold", marginBottom: 8 }}>Rincian Perhitungan</div>
+                  {[
+                    { l: "Net Profit / Bulan", v: fMoney(netProfit) },
+                    { l: "Net Profit / Tahun", v: fMoney(valResult.annualProfit) },
+                    { l: "Kepemilikan", v: ownership + "%" },
+                    { l: `Multiple Range (${SECTOR_MULTIPLES[f.type]?.label || ""})`, v: `${valResult.multLow}x - ${valResult.multHigh}x` },
+                    { l: "Valuasi Konservatif", v: fMoney(valResult.low) },
+                    { l: "Valuasi Tengah (dipakai)", v: fMoney(valResult.mid) },
+                    { l: "Valuasi Optimis", v: fMoney(valResult.high) },
+                  ].map(row => (
+                    <div key={row.l} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
+                      <span style={{ color: T.textSoft, fontSize: 11 }}>{row.l}</span>
+                      <span style={{ color: T.text, fontSize: 11, fontWeight: "bold" }}>{row.v}</span>
+                    </div>
+                  ))}
+                  {isKos && parseVal(f.buildingValue) > 0 && !f.linkedPropertyId && (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
+                        <span style={{ color: T.textSoft, fontSize: 11 }}>+ Nilai Bangunan</span>
+                        <span style={{ color: T.blue, fontSize: 11, fontWeight: "bold" }}>{fMoney(parseVal(f.buildingValue))}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0" }}>
+                        <span style={{ color: T.textSoft, fontSize: 11 }}>Total (Goodwill + Bangunan)</span>
+                        <span style={{ color: T.purple, fontSize: 11, fontWeight: "bold" }}>{fMoney(valResult.mid + parseVal(f.buildingValue))}</span>
+                      </div>
+                    </>
+                  )}
+                  {isKos && f.linkedPropertyId && (
+                    <div style={{ padding: "6px 0", color: T.blue, fontSize: 10 }}>Bangunan sudah di Real Assets - tidak double-count</div>
+                  )}
+                </>
+              )}
+              {isInvestor && valResult && f.knowsProfit && (
+                <>
+                  <div style={{ color: T.textSoft, fontSize: 10, fontWeight: "bold", marginBottom: 8 }}>Rincian Engine Investasi</div>
+                  {[
+                    { l: "Net Profit PT / Bulan", v: fMoney(parseVal(f.profitPTMonthly)) },
+                    { l: "Net Profit PT / Tahun", v: fMoney(valResult.annualProfit) },
+                    { l: "Entry Valuation PT", v: fMoney(valResult.entryValuation) },
+                    { l: "Valuasi PT Sekarang (mid)", v: fMoney(valResult.valPT.mid) },
+                    { l: `Ekuitas Anda (${ownership}%)`, v: fMoney(valResult.equity.mid) },
+                    { l: "Growth vs Entry (mid)", v: valResult.growth.mid.toFixed(2) + "x" },
+                    { l: "Payback Period", v: valResult.paybackMonths > 0 ? Math.round(valResult.paybackMonths) + " bulan" : "-" },
+                  ].map(row => (
+                    <div key={row.l} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
+                      <span style={{ color: T.textSoft, fontSize: 11 }}>{row.l}</span>
+                      <span style={{ color: T.text, fontSize: 11, fontWeight: "bold" }}>{row.v}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Disclaimer */}
+          <div style={{ marginTop: 10, padding: "8px 12px", background: T.surface, borderRadius: 8, border: `1px solid ${T.border}` }}>
+            <div style={{ color: T.muted, fontSize: 10, lineHeight: 1.6 }}>
+              <span style={{ color: T.textSoft, fontWeight: "bold" }}>Disclaimer:</span> Hasil valuasi merupakan estimasi kasar berdasarkan pendekatan profit multiplier yang umum digunakan. Angka aktual dapat berbeda secara signifikan tergantung kondisi pasar, due diligence, dan negosiasi. Untuk valuasi yang akurat, konsultasikan dengan akuntan publik atau konsultan bisnis berlisensi.
+            </div>
           </div>
         </div>
       )}
 
+      {/* INCOME SUMMARY */}
+      {incomeMonthly > 0 && (
+        <div style={{ padding: "10px 14px", background: f.incomeType === "active" ? T.orangeDim || T.accentDim : T.greenDim, borderRadius: 9, border: `1px solid ${f.incomeType === "active" ? T.orange || T.accent : T.green}33`, display: "flex", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ color: T.textSoft, fontSize: 11, fontWeight: "bold" }}>{f.incomeType === "active" ? "Active Income" : "Passive Income"}</div>
+            <div style={{ color: T.muted, fontSize: 10 }}>masuk ke ringkasan arus kas</div>
+          </div>
+          <div style={{ color: f.incomeType === "active" ? T.orange || T.accent : T.green, fontSize: 14, fontWeight: "bold" }}>+{fMoney(incomeMonthly)}/bln</div>
+        </div>
+      )}
+
+      {/* SAVE / CANCEL */}
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-        <button
-          onClick={() => {
-            if (!f.name || !f.modalInvested) return;
-            const useVal = valuation > 0 ? valuation : modal;
-            onSave({
-              classKey: "business",
-              name: f.name,
-              valueIDR: useVal,
-              businessData: f,
-              income:
-                netProfit > 0
-                  ? {
-                      amount: netProfit,
-                      frequency: "monthly",
-                      type: "business",
-                    }
-                  : undefined,
-            });
-          }}
-          style={{
-            flex: 1,
-            padding: "11px 0",
-            borderRadius: 9,
-            border: "none",
-            background: T.purple,
-            color: "#fff",
-            cursor: "pointer",
-            fontWeight: "bold",
-            fontSize: 13,
-          }}
-        >
-          ✓ Simpan Bisnis
+        <button onClick={handleSave} disabled={!canSave} style={{
+          flex: 1, padding: "12px 0", borderRadius: 9, border: "none", fontWeight: "bold", fontSize: 13, cursor: canSave ? "pointer" : "not-allowed",
+          background: canSave ? T.purple : T.border, color: canSave ? "#fff" : T.muted,
+        }}>
+          Simpan Bisnis
         </button>
-        <button
-          onClick={onCancel}
-          style={{
-            padding: "11px 16px",
-            borderRadius: 9,
-            border: `1px solid ${T.border}`,
-            background: "none",
-            color: T.muted,
-            cursor: "pointer",
-            fontSize: 12,
-          }}
-        >
+        <button onClick={onCancel} style={{ padding: "12px 16px", borderRadius: 9, border: `1px solid ${T.border}`, background: "none", color: T.muted, cursor: "pointer", fontSize: 12 }}>
           Batal
         </button>
       </div>
     </div>
   );
 }
+
 
 function RealAssetsScene({
   assets,
@@ -938,6 +1077,11 @@ function RealAssetsScene({
           ...p,
           { id: Date.now(), ...kprSync, propertyId: newId },
         ]);
+      }
+      // Auto-add property to Real Assets if kos building not yet listed
+      if (data.newPropertyData) {
+        const propId = Date.now() + 1;
+        setAssets((p) => [...p, { id: propId, ...data.newPropertyData }]);
       }
     }
     setMode("list");
@@ -1098,6 +1242,7 @@ function RealAssetsScene({
             T={T}
             onSave={saveAsset}
             onCancel={() => setMode("list")}
+            properties={properties}
           />
         </div>
       )}
@@ -1162,6 +1307,7 @@ function RealAssetsScene({
               setEditAsset(null);
             }}
             editData={editAsset.businessData}
+            properties={properties}
           />
         </div>
       )}
@@ -1316,7 +1462,7 @@ function RealAssetsScene({
                                 : 1),
                             dispCur
                           )
-                        : "—"}
+                        : "-"}
                     </div>
                   </div>
                 </div>
@@ -1488,7 +1634,7 @@ function RealAssetsScene({
                         fontWeight: "bold",
                       }}
                     >
-                      {roi > 0 ? `${roi.toFixed(1)}%` : "—"}
+                      {roi > 0 ? `${roi.toFixed(1)}%` : "-"}
                     </div>
                   </div>
                   <div
