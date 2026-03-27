@@ -447,6 +447,34 @@ function SettingsPopup({
               Alert saat deviasi {">"} 10%
             </div>
           </div>
+          <div
+            onClick={() =>
+              setSettings((p) => ({ ...p, notifications: !p.notifications }))
+            }
+            style={{
+              width: 42,
+              height: 22,
+              borderRadius: 11,
+              background: settings.notifications ? T.accent : T.border,
+              cursor: "pointer",
+              position: "relative",
+              transition: "background 0.2s",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: 3,
+                left: settings.notifications ? 23 : 3,
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                background: "#fff",
+                transition: "left 0.2s",
+              }}
+            />
+          </div>
+        </div>
 
         {/* Font & Zoom settings */}
         <div style={{ marginBottom: 14 }}>
@@ -579,6 +607,82 @@ function SettingsPopup({
           <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 8 }}>
             MODUL TAMBAHAN
           </div>
+          <div
+            style={{
+              padding: "12px 14px",
+              background: T.card,
+              borderRadius: 10,
+              border: `1px solid ${T.border}`,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <div style={{ color: T.text, fontSize: 12 }}>
+                  🏡 Properti &amp; Bisnis
+                </div>
+                <div style={{ color: T.muted, fontSize: 10 }}>
+                  Lacak properti, kos-kosan, bisnis &amp; passive income-nya
+                </div>
+              </div>
+              <div
+                onClick={() =>
+                  setSettings((p) => ({
+                    ...p,
+                    modules: {
+                      ...p.modules,
+                      realAssets: !p.modules?.realAssets,
+                    },
+                  }))
+                }
+                style={{
+                  width: 42,
+                  height: 22,
+                  borderRadius: 11,
+                  background: settings.modules?.realAssets
+                    ? T.accent
+                    : T.border,
+                  cursor: "pointer",
+                  position: "relative",
+                  transition: "background 0.2s",
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 3,
+                    left: settings.modules?.realAssets ? 23 : 3,
+                    width: 16,
+                    height: 16,
+                    borderRadius: "50%",
+                    background: "#fff",
+                    transition: "left 0.2s",
+                  }}
+                />
+              </div>
+            </div>
+            {settings.modules?.realAssets && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: "6px 10px",
+                  background: T.accentDim,
+                  borderRadius: 7,
+                  color: T.accent,
+                  fontSize: 10,
+                }}
+              >
+                ✓ Tab "Properti & Bisnis" aktif di sidebar
+              </div>
+            )}
+          </div>
+        </div>
 
         <div
           style={{
