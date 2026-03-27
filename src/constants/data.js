@@ -328,6 +328,19 @@ const INSURANCE_PRO_LIMIT = 5;
 // -----------------------------------------------------------------------------
 const FREE_UPLOAD_LIMIT = 3;
 
+
+// -----------------------------------------------------------------------------
+// INCOME TYPES (PassiveScene - jenis pendapatan per aset)
+// -----------------------------------------------------------------------------
+const INCOME_TYPES = [
+  { value: "deposit_interest", label: "Bunga Bank",           icon: "🏦", usePct: true  },
+  { value: "coupon",           label: "Kupon Obligasi/Setara", icon: "📜", usePct: true  },
+  { value: "dividend",         label: "Dividen Saham/Setara",  icon: "📈", usePct: true  },
+  { value: "rental",           label: "Sewa Properti",         icon: "🏠", usePct: false },
+  { value: "business",         label: "Usaha/Bisnis",          icon: "🏪", usePct: false },
+  { value: "other",            label: "Lainnya",               icon: "💰", usePct: false },
+];
+
 // -----------------------------------------------------------------------------
 // EXPORTS
 // -----------------------------------------------------------------------------
@@ -359,4 +372,5 @@ export {
   INSURANCE_PRO_LIMIT,
   // Misc
   FREE_UPLOAD_LIMIT,
+  INCOME_TYPES,
 };
