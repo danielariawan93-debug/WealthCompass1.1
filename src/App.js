@@ -812,6 +812,7 @@ function WealthCompassV7() {
                   hideValues={hideValues}
                   activeIncomes={activeIncomes}
                   setActiveIncomes={setActiveIncomes}
+                  setTab={handleSetTab}
                 />
               ) : (
                 <div style={{ textAlign: "center", padding: "60px 24px" }}>
