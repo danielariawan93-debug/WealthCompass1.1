@@ -1433,5 +1433,58 @@ function FinanceToolsScene({
   );
 }
 
-export { DebtIncomeCard, PassiveIncomeSummary, PassiveIncomeScene, FinanceToolsScene };
+
+// -- ACTIVE INCOME SUMMARY (collapsible bar for Portfolio tab) -----------------
+function ActiveIncomeSummary({ activeIncomes = [], dispCur, T, hideValues = false, setTab }) {
+  const fV = (v, c) => fM(v, c, hideValues);
+  const [expanded, setExpanded] = useState(false);
+  const totalMonthly = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
+  const ACTIVE_ICONS = { salary:'💼', freelance:'🖥️', biz_active:'🏪', other:'💰' };
+
+  if (activeIncomes.length === 0) return null;
+
+  return (
+    <Card T={T} glow={T.orange || T.accent} style={{ marginBottom: 16 }}>
+      <div role="button" onClick={() => setExpanded(p => !p)} style={{ cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap: 10 }}>
+          <span style={{ fontSize: 14 }}>💼</span>
+          <div>
+            <div style={{ color: T.orange || T.accent, fontSize: 14, fontWeight:'bold', fontFamily:"'Playfair Display', Georgia, serif" }}>
+              {fV(totalMonthly, dispCur)}
+              <span style={{ color: T.muted, fontSize: 11, fontWeight:'normal' }}>/bln</span>
+            </div>
+            <div style={{ color: T.muted, fontSize: 10 }}>
+              Active Income · {activeIncomes.length} sumber
+            </div>
+          </div>
+        </div>
+        <span style={{ color: T.muted, fontSize: 16, transition:'transform 0.2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>▾</span>
+      </div>
+
+      {expanded && (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
+          {activeIncomes.map((entry, i) => (
+            <div key={entry.id || i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 8, padding:'8px 10px', background: T.surface, borderRadius: 9 }}>
+              <div style={{ display:'flex', gap: 8, alignItems:'center' }}>
+                <span style={{ fontSize: 16 }}>{ACTIVE_ICONS[entry.type] || '💰'}</span>
+                <div>
+                  <div style={{ color: T.text, fontSize: 12, fontWeight: 500 }}>{entry.label}</div>
+                  <div style={{ color: T.muted, fontSize: 10 }}>{entry.type === 'salary' ? 'Gaji' : entry.type === 'freelance' ? 'Freelance' : entry.type === 'biz_active' ? 'Bisnis Aktif' : 'Active Income'}</div>
+                </div>
+              </div>
+              <div style={{ color: T.orange || T.accent, fontSize: 13, fontWeight:'bold' }}>+{fV(entry.amount, dispCur)}/bln</div>
+            </div>
+          ))}
+          {setTab && (
+            <button onClick={() => setTab('finance-tools')} style={{ width:'100%', marginTop: 8, padding:'8px 0', background:'none', border:`1px solid ${T.border}`, borderRadius: 8, color: T.muted, cursor:'pointer', fontSize: 11 }}>
+              Kelola Active Income di Finance Tools →
+            </button>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+export { DebtIncomeCard, PassiveIncomeSummary, ActiveIncomeSummary, PassiveIncomeScene, FinanceToolsScene };
                               

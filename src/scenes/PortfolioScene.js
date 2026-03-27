@@ -303,6 +303,72 @@ function PortfolioScene({
 
   return (
     <div>
+      <Card T={T} style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+      <Donut
+        T={T}
+        slices={byClass.map((ac) => ({ v: ac.v, c: ac.riskColor }))}
+        total={total}
+        size={130}
+      />
+        <div style={{ flex: 1 }}>
+          <div style={{ color: T.muted, fontSize: 10, letterSpacing: 1.5, marginBottom: 4 }}>
+          TOTAL NET WORTH
+        </div>
+          <div style={{ color: T.accent, fontSize: 20, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: "bold", marginBottom: 4 }}>
+          {fV(total, dispCur)}
+        </div>
+        {liquidTotal < total && (
+            <div style={{ marginBottom: 10 }}>
+      <div style={{ color: T.muted, fontSize: 9, letterSpacing: 1, marginBottom: 2 }}>LIQUID NET WORTH</div>
+      <div style={{ color: T.textSoft, fontSize: 14, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: "bold" }}>
+              {fV(liquidTotal, dispCur)}
+            </div>
+      <div style={{ color: T.muted, fontSize: 9 }}>excl. Properti & Bisnis</div>
+          </div>
+        )}
+        {byClass
+          .filter((ac) => ac.v > 0)
+          .map((ac) => (
+      <div
+              key={ac.key}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                marginBottom: 5,
+              }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: ac.riskColor,
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{ color: T.textSoft, fontSize: 11, flex: 1 }}
+              >
+                {ac.shortLabel}
+              </span>
+              <span
+                style={{
+                  color: T.text,
+                  fontSize: 11,
+                  fontWeight: "bold",
+                }}
+              >
+                {ac.pct.toFixed(1)}%
+              </span>
+            </div>
+          ))}
+      </div>
+            </div>
+          </Card>
+
+
       {/* Sub-tab bar */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         {[
@@ -379,70 +445,6 @@ function PortfolioScene({
                 {assets.length}/{tier.maxAssets} aset terpakai
               </div>
             )}
-          <Card T={T} style={{ marginBottom: 16 }}>
-            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-              <Donut
-                T={T}
-                slices={byClass.map((ac) => ({ v: ac.v, c: ac.riskColor }))}
-                total={total}
-                size={130}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ color: T.muted, fontSize: 10, letterSpacing: 1.5, marginBottom: 4 }}>
-                  TOTAL NET WORTH
-                </div>
-                <div style={{ color: T.accent, fontSize: 20, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: "bold", marginBottom: 4 }}>
-                  {fV(total, dispCur)}
-                </div>
-                {liquidTotal < total && (
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ color: T.muted, fontSize: 9, letterSpacing: 1, marginBottom: 2 }}>LIQUID NET WORTH</div>
-                    <div style={{ color: T.textSoft, fontSize: 14, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: "bold" }}>
-                      {fV(liquidTotal, dispCur)}
-                    </div>
-                    <div style={{ color: T.muted, fontSize: 9 }}>excl. Properti & Bisnis</div>
-                  </div>
-                )}
-                {byClass
-                  .filter((ac) => ac.v > 0)
-                  .map((ac) => (
-                    <div
-                      key={ac.key}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 7,
-                        marginBottom: 5,
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: "50%",
-                          background: ac.riskColor,
-                          flexShrink: 0,
-                        }}
-                      />
-                      <span
-                        style={{ color: T.textSoft, fontSize: 11, flex: 1 }}
-                      >
-                        {ac.shortLabel}
-                      </span>
-                      <span
-                        style={{
-                          color: T.text,
-                          fontSize: 11,
-                          fontWeight: "bold",
-                        }}
-                      >
-                        {ac.pct.toFixed(1)}%
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </Card>
 
           {byClass
             .filter((ac) => ac.items.length > 0)
@@ -521,7 +523,7 @@ function PortfolioScene({
                       ▾
                     </span>
                   </div>
-                  {/* Items — shown only when expanded */}
+                  {/* Items - shown only when expanded */}
                   {!isCollapsed &&
                     ac.items.map((asset) => {
                       const idrV = getIDR(asset);
@@ -916,7 +918,7 @@ function PortfolioScene({
             >
               {ASSET_CLASSES.map((ac) => (
                 <option key={ac.key} value={ac.key}>
-                  {ac.icon} {ac.label} — {ac.riskLabel}
+                  {ac.icon} {ac.label} - {ac.riskLabel}
                 </option>
               ))}
             </TSelect>
@@ -960,7 +962,7 @@ function PortfolioScene({
               >
                 {CRYPTO_COINS.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.symbol} — {c.label}
+                    {c.symbol} - {c.label}
                   </option>
                 ))}
               </TSelect>
@@ -1260,10 +1262,10 @@ function PortfolioScene({
                 </Chip>
                 <div style={{ color: T.muted, fontSize: 10, marginTop: 3 }}>
                   {tier?.id === "proplus"
-                    ? "Pro+ — tidak terbatas"
+                    ? "Pro+ - tidak terbatas"
                     : tier?.id === "pro"
-                    ? "Pro — 7x per bulan, reset tiap bulan"
-                    : "Free — 3x seumur hidup"}
+                    ? "Pro - 7x per bulan, reset tiap bulan"
+                    : "Free - 3x seumur hidup"}
                 </div>
               </div>
             </div>

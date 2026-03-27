@@ -559,10 +559,10 @@ function calcValuationOperational(netProfitMonthly, ownershipPct, bizType) {
   };
 }
 
-function calcValuationInvestor({ monthlyProfit, ownershipPct, investmentAmount }) {
+function calcValuationInvestor({ monthlyProfit, ownershipPct, investmentAmount, sector }) {
   const ownership = ownershipPct / 100;
   const annualProfit = monthlyProfit * 12;
-  const mult = SECTOR_MULTIPLES.investor_pt_cv;
+  const mult = SECTOR_MULTIPLES[sector] || SECTOR_MULTIPLES.investor_pt_cv;
   const valPT = { low: annualProfit * mult.low, mid: annualProfit * mult.mid, high: annualProfit * mult.high };
   const equity = { low: valPT.low * ownership, mid: valPT.mid * ownership, high: valPT.high * ownership };
   const entryValuation = investmentAmount / ownership;
@@ -638,7 +638,7 @@ function BusinessForm({ onSave, onCancel, T, editData, hideValues = false, prope
 
   if (isInvestor) {
     if (f.knowsProfit && parseVal(f.profitPTMonthly) > 0) {
-      valResult = calcValuationInvestor({ monthlyProfit: parseVal(f.profitPTMonthly), ownershipPct: ownership, investmentAmount: modal });
+      valResult = calcValuationInvestor({ monthlyProfit: parseVal(f.profitPTMonthly), ownershipPct: ownership, investmentAmount: modal, sector: f.sector || 'jasa' });
       valueForNetWorth = valResult.equity.mid;
       incomeMonthly = divMonthly || parseVal(f.profitPTMonthly) * (ownership / 100);
     } else {
@@ -662,7 +662,19 @@ function BusinessForm({ onSave, onCancel, T, editData, hideValues = false, prope
       ? properties.find(p => p.id === f.linkedPropertyId)
       : null;
     const newPropertyData = isKos && f.buildingLinked && !f.linkedPropertyId && parseVal(f.buildingValue) > 0
-      ? { name: f.name + " - Bangunan", classKey: "property", valueIDR: parseVal(f.buildingValue), propertyData: { name: f.name + " - Bangunan", currentValue: f.buildingValue } }
+      ? {
+          name: f.name + " - Bangunan",
+          classKey: "property",
+          valueIDR: parseVal(f.buildingValue),
+          propertyData: {
+            name: f.name + " - Bangunan",
+            currentValue: f.buildingValue,
+            purchasePrice: f.buildingValue,
+            purchaseYear: String(new Date().getFullYear()),
+            kprOutstanding: "0",
+            hasKPR: false,
+          }
+        }
       : null;
 
     onSave({
@@ -1018,6 +1030,8 @@ function RealAssetsScene({
   dispCur,
   T,
   hideValues = false,
+  activeIncomes = [],
+  setActiveIncomes = null,
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
   const [mode, setMode] = useState("list"); // list | add-property | add-business | edit
@@ -1076,6 +1090,24 @@ function RealAssetsScene({
         setAssets((p) => [...p, { id: propId, ...data.newPropertyData }]);
       }
     }
+    // Sync active income for businesses marked as active
+    if (setActiveIncomes && data.incomeType === "active" && data.income?.amount > 0) {
+      const bizName = data.name || "Bisnis";
+      const newEntry = {
+        id: "biz_" + (editAsset?.id || Date.now()),
+        label: bizName,
+        amount: data.income.amount,
+        type: "biz_active",
+      };
+      setActiveIncomes(p => {
+        const filtered = p.filter(a => a.id !== newEntry.id);
+        return [...filtered, newEntry];
+      });
+    } else if (setActiveIncomes && data.incomeType !== "active" && editAsset) {
+      // Remove from active incomes if changed to passive
+      setActiveIncomes(p => p.filter(a => a.id !== "biz_" + editAsset.id));
+    }
+
     setMode("list");
     setEditAsset(null);
   };
@@ -1524,13 +1556,13 @@ function RealAssetsScene({
             const bt =
               BUSINESS_TYPES.find((b) => b.value === bd.type) ||
               BUSINESS_TYPES[0];
-            const netProfit =
-              (parseVal(bd.monthlyRevenue) - parseVal(bd.monthlyOpex)) *
+            const netProfit = parseVal(bd.netProfitMonthly) *
               (parseVal(bd.ownershipPct || "100") / 100);
-            const roi =
-              parseVal(bd.modalInvested) > 0
-                ? ((netProfit * 12) / parseVal(bd.modalInvested)) * 100
-                : 0;
+            const isInvestorType = bd.type === "investor_pt_cv";
+            const modalField = isInvestorType ? bd.investmentAmount : bd.investmentAmount || bd.modalInvested;
+            const roi = parseVal(modalField) > 0
+              ? ((netProfit * 12) / parseVal(modalField)) * 100
+              : 0;
             return (
               <div
                 key={a.id}
@@ -1644,7 +1676,7 @@ function RealAssetsScene({
                         fontWeight: "bold",
                       }}
                     >
-                      {fV(parseVal(bd.modalInvested), dispCur)}
+                      {fV(parseVal(bd.investmentAmount || bd.modalInvested || "0"), dispCur)}
                     </div>
                   </div>
                 </div>
