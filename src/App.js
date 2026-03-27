@@ -101,6 +101,7 @@ function WealthCompassV7() {
       return "";
     }
   });
+  const [monthlyFixedIncome, setMonthlyFixedIncome] = useState("");
   const [fontScale, setFontScale] = useState(1.0);
   const [settings, setSettings] = useState({
     language: "id",
@@ -150,6 +151,7 @@ function WealthCompassV7() {
     setActiveIncomes(d.activeIncomes || []);
     setInsurances(d.insurances || []);
     setMonthlyExpense(d.monthlyExpense || "");
+    setMonthlyFixedIncome(d.monthlyFixedIncome || "");
   };
 
   const handleLogout = () => {
@@ -182,6 +184,7 @@ function WealthCompassV7() {
     setActiveIncomes([]);
     setInsurances([]);
     setMonthlyExpense("");
+    setMonthlyFixedIncome("");
     setHideValues(false);
     setTab("profile");
     localStorage.removeItem("wc_session");
@@ -421,6 +424,7 @@ function WealthCompassV7() {
       activeIncomes,
       insurances,
       monthlyExpense,
+      monthlyFixedIncome,
     });
   }, [
     assets,
@@ -436,6 +440,7 @@ function WealthCompassV7() {
     activeIncomes,
     insurances,
     monthlyExpense,
+    monthlyFixedIncome,
   ]);
 
   // -- Firebase session check on mount ----------------------------------------
@@ -737,6 +742,7 @@ function WealthCompassV7() {
                   setShowUpgrade={setShowUpgrade}
                   monthlyExpense={monthlyExpense}
                   activeIncomes={activeIncomes}
+                  monthlyFixedIncome={monthlyFixedIncome}
                 />
                 <PortfolioScene
                   {...tabProps}
@@ -783,6 +789,8 @@ function WealthCompassV7() {
                 isProPlus={isProPlus}
                 monthlyExpense={monthlyExpense}
                 setMonthlyExpense={setMonthlyExpense}
+                monthlyFixedIncome={monthlyFixedIncome}
+                setMonthlyFixedIncome={setMonthlyFixedIncome}
               />
             )}
             {tab === "calc" && (
@@ -798,6 +806,8 @@ function WealthCompassV7() {
                 isProPlus={isProPlus}
                 monthlyExpense={monthlyExpense}
                 setMonthlyExpense={setMonthlyExpense}
+                monthlyFixedIncome={monthlyFixedIncome}
+                setMonthlyFixedIncome={setMonthlyFixedIncome}
               />
             )}
             {tab === "real-assets" &&
