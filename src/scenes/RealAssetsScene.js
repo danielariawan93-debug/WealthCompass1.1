@@ -709,9 +709,7 @@ function BusinessForm({ onSave, onCancel, T, editData, hideValues = false, prope
       <div>
         <div style={{ color: T.muted, fontSize: 10, marginBottom: 6, display: "flex", alignItems: "center" }}>
           Tipe Pendapatan
-          <InfoTip T={T} text={"Aktif: bisnis bergantung pada keterlibatan langsung Anda. Jika Anda berhenti, bisnis terganggu. Pendapatan masuk Active Income.
-
-Pasif: bisnis berjalan dengan manajemen/sistem sendiri. Anda hanya menerima return. Pendapatan masuk Passive Income."} />
+          <InfoTip T={T} text={"Aktif: bisnis bergantung pada keterlibatan langsung Anda - jika Anda berhenti bisnis terganggu, masuk Active Income. Pasif: bisnis berjalan sendiri dengan manajemen/sistem, Anda hanya menerima return, masuk Passive Income."} />
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {[["active", "Aktif", "Saya terlibat langsung"], ["passive", "Pasif", "Ada manajemen/sistem"]].map(([v, l, sub]) => (
@@ -739,11 +737,7 @@ Pasif: bisnis berjalan dengan manajemen/sistem sendiri. Anda hanya menerima retu
           <div>
             <div style={{ color: T.muted, fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center" }}>
               Net Profit / Bulan (IDR) <span style={{ color: T.red, marginLeft: 2 }}>*</span>
-              <InfoTip T={T} text={"Net Profit = pendapatan setelah dikurangi SEMUA biaya operasional (HPP, gaji karyawan, sewa, utilitas, dll).
-
-Jika bisnis dijalankan sendiri, kurangi juga estimasi gaji pasar untuk posisi Anda agar valuasi lebih akurat.
-
-Contoh: Omset Rp45jt - biaya ops Rp27.75jt - gaji Anda Rp5jt = Net Profit Rp12.25jt"} />
+              <InfoTip T={T} text={"Net Profit = pendapatan setelah dikurangi SEMUA biaya operasional (HPP, gaji karyawan, sewa, utilitas, dll). Jika bisnis dijalankan sendiri, kurangi juga estimasi gaji pasar untuk posisi Anda. Contoh: Omset Rp45jt - biaya ops Rp27.75jt - gaji Anda Rp5jt = Net Profit Rp12.25jt"} />
             </div>
             <input value={f.netProfitMonthly} onChange={e => setFF("netProfitMonthly", e.target.value)} placeholder="Contoh: 12250000" style={inp} />
             {netProfit > 0 && <div style={{ color: T.muted, fontSize: 9, marginTop: 3 }}>= {fMoney(netProfit * 12)} / tahun</div>}
@@ -805,9 +799,7 @@ Contoh: Omset Rp45jt - biaya ops Rp27.75jt - gaji Anda Rp5jt = Net Profit Rp12.2
           <div style={{ padding: "12px 14px", background: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
             <div style={{ color: T.textSoft, fontSize: 11, fontWeight: "bold", marginBottom: 10 }}>
               Apakah Anda mengetahui Net Profit PT ini?
-              <InfoTip T={T} text={"Jika Anda tahu net profit PT, sistem akan menghitung valuasi penuh (3 skenario).
-
-Jika tidak, nilai di Net Worth = modal disetor dan pendapatan dihitung dari dividen aktual."} />
+              <InfoTip T={T} text={"Jika Anda tahu net profit PT, sistem akan menghitung valuasi penuh (3 skenario). Jika tidak, nilai di Net Worth = modal disetor dan pendapatan dihitung dari dividen aktual."} />
             </div>
             <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
               {[[true, "Ya, saya tahu"], [false, "Tidak, input dividen saja"]].map(([v, l]) => (
