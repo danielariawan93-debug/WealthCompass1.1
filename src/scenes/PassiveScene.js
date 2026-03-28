@@ -104,15 +104,8 @@ function DebtIncomeCard({
             </div>
           </div>
         </div>
-        <span
-          style={{
-            color: T.muted,
-            fontSize: 16,
-            transition: "transform 0.2s",
-            transform: collapsed ? "none" : "rotate(180deg)",
-          }}
-        >
-          ▾
+        <span style={{ fontSize:10, padding:'3px 10px', borderRadius:10, background: T.surface, color: T.muted, border:`1px solid ${T.border}` }}>
+          {collapsed ? 'Tampilkan' : 'Sembunyikan'}
         </span>
       </div>
 
@@ -403,15 +396,8 @@ function PassiveIncomeSummary({
             </div>
           </div>
         </div>
-        <span
-          style={{
-            color: T.muted,
-            fontSize: 16,
-            transition: "transform 0.2s",
-            transform: expanded ? "rotate(180deg)" : "none",
-          }}
-        >
-          ▾
+        <span style={{ fontSize:10, padding:'3px 10px', borderRadius:10, background: T.surface, color: T.muted, border:`1px solid ${T.border}` }}>
+          {expanded ? 'Sembunyikan' : 'Tampilkan'}
         </span>
       </div>
 
@@ -846,11 +832,9 @@ function PassiveIncomeScene({
                 {group.items.filter((a) => a.income?.amount > 0).length}/
                 {group.items.length} aktif
               </span>
-              <span style={{
-                color: T.muted, fontSize: 11, marginLeft: 4,
-                transition: "transform 0.2s", display: "inline-block",
-                transform: collapsedGroups[group.key] === false ? "rotate(180deg)" : "none",
-              }}>&#9662;</span>
+              <span style={{ fontSize:10, padding:'2px 8px', borderRadius:9, background: T.surface, color: T.muted, border:`1px solid ${T.border}` }}>
+                {collapsedGroups[group.key] === false ? 'Sembunyikan' : 'Tampilkan'}
+              </span>
             </div>
 
             {collapsedGroups[group.key] === false && group.items.map((a) => {
@@ -1348,7 +1332,9 @@ function ActiveIncomeSummary({ activeIncomes = [], monthlyFixedIncome = "", disp
             </div>
           </div>
         </div>
-        <span style={{ color: T.muted, fontSize: 16, transition:'transform 0.2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>▾</span>
+        <span style={{ fontSize:10, padding:'3px 10px', borderRadius:10, background: T.surface, color: T.muted, border:`1px solid ${T.border}` }}>
+          {expanded ? 'Sembunyikan' : 'Tampilkan'}
+        </span>
       </div>
 
       {expanded && (

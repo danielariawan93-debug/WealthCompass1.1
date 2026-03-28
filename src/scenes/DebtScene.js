@@ -91,12 +91,13 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
 
   // Derived calculations
   const derivedOutstanding = useMemo(() => {
+    // Revolving always uses outstanding directly (no amortization)
+    if (isRevolving) return parseVal(f.outstanding);
     if (f.inputMode === 'A') {
       const rem = monthsRemaining(f.endYearMonth);
       if (!rem || !parseVal(f.monthlyPayment)) return 0;
       return calcOutstandingFromPayment(parseVal(f.monthlyPayment), effectiveRate, rem);
     }
-    if (isRevolving) return parseVal(f.outstanding);
     return parseVal(f.outstanding);
   }, [f.inputMode, f.monthlyPayment, f.endYearMonth, f.outstanding, effectiveRate, isRevolving]);
 
@@ -107,7 +108,7 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
     return derivedOutstanding > 0 ? calcMonthlyPayment(derivedOutstanding, effectiveRate, tenor) : 0;
   }, [f.inputMode, f.monthlyPayment, isRevolving, derivedOutstanding, effectiveRate, f.tenorMonths]);
 
-  const utilisasi = f.inputMode !== 'A' && isRevolving && parseVal(f.plafon) > 0
+  const utilisasi = isRevolving && parseVal(f.plafon) > 0
     ? (parseVal(f.outstanding) / parseVal(f.plafon)) * 100 : 0;
 
   const canSave = f.name.trim() && derivedOutstanding > 0;
