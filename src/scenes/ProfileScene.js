@@ -19,6 +19,8 @@ function ProfileScene({
   isProPlus = false,
   monthlyExpense = '',
   activeIncomes = [],
+  userEmail = "",
+  userPhoto = "",
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
   const [editingName, setEditingName] = useState(false);
@@ -96,9 +98,13 @@ function ProfileScene({
               justifyContent: "center",
               fontSize: 20,
               flexShrink: 0,
+              overflow: "hidden",
             }}
           >
-            👤
+            {userPhoto
+              ? <img src={userPhoto} alt="avatar" style={{ width:48, height:48, objectFit:"cover" }} />
+              : <span>👤</span>
+            }
           </div>
           <div style={{ flex: 1 }}>
             {editingName ? (
@@ -184,6 +190,12 @@ function ProfileScene({
                 >
                   ✎
                 </button>
+              </div>
+            )}
+            {userEmail && (
+              <div style={{ color: T.muted, fontSize: 10, marginTop: 2, display:"flex", alignItems:"center", gap:4 }}>
+                <span>✉</span>
+                <span>{userEmail}</span>
               </div>
             )}
             <div style={{ color: T.muted, fontSize: 11, marginTop: 4 }}>
