@@ -735,6 +735,8 @@ function WealthCompassV7() {
                 isProPlus={isProPlus}
                 monthlyExpense={monthlyExpense}
                 activeIncomes={activeIncomes}
+                userEmail={user?.email || ""}
+                userPhoto={user?.photo || ""}
               />
             )}
             {tab === "risk" && (
