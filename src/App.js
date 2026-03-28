@@ -20,6 +20,8 @@ import {
 import {
   saveAccountData,
   loadAccountData,
+  saveAccountDataCloud,
+  loadAccountDataCloud,
   DEFAULT_ACCOUNT_STATE,
 } from "./utils/storage";
 import {
@@ -117,8 +119,9 @@ function WealthCompassV7() {
 
   // -- AUTH HANDLERS (safe to reference state now) ----------------------------
   const handleLogin = (userData) => {
-    const saved = loadAccountData(userData.email);
-    const d = saved || DEFAULT_ACCOUNT_STATE;
+    // Load from localStorage immediately (fast, works offline)
+    const localSaved = loadAccountData(userData.email);
+    const d = localSaved || DEFAULT_ACCOUNT_STATE;
     setUser(userData);
     setAssets(d.assets?.length ? d.assets : []);
     setDebts(d.debts || []);
@@ -146,6 +149,37 @@ function WealthCompassV7() {
     setInsurances(d.insurances || []);
     setMonthlyExpense(d.monthlyExpense || "");
     setMonthlyFixedIncome(d.monthlyFixedIncome || "");
+
+    // Then try Firestore (async - overwrites local if cloud data exists)
+    if (userData.uid) {
+      loadAccountDataCloud(userData.uid).then(cloud => {
+        if (!cloud) return; // no cloud data yet, keep local
+        // Use cloud data (more up to date across devices)
+        setAssets(cloud.assets?.length ? cloud.assets : []);
+        setDebts(cloud.debts || []);
+        setGoals(cloud.goals || []);
+        setRiskProfile(cloud.riskProfile || null);
+        setIsPro(cloud.isPro || false);
+        setIsProPlus(cloud.isProPlus || false);
+        setUploadCount(cloud.uploadCount || 0);
+        setProExpiry(cloud.proExpiry || null);
+        setDispCur(cloud.dispCur || "IDR");
+        setSettings({
+          language: cloud.settings?.language || "id",
+          notifications: cloud.settings?.notifications !== false,
+          userName: cloud.settings?.userName || userData.name || userData.email?.split("@")[0] || "",
+          modules: cloud.settings?.modules || { realAssets: false },
+        });
+        setTheme(cloud.theme || "dark");
+        setCustomPresetId(cloud.customPresetId || "midnight");
+        setActiveIncomes(cloud.activeIncomes || []);
+        setInsurances(cloud.insurances || []);
+        setMonthlyExpense(cloud.monthlyExpense || "");
+        setMonthlyFixedIncome(cloud.monthlyFixedIncome || "");
+        // Also update localStorage with cloud data
+        saveAccountData(userData.email, cloud);
+      }).catch(() => {}); // fail silently if offline
+    }
   };
 
   const handleLogout = () => {
@@ -399,10 +433,10 @@ function WealthCompassV7() {
     return () => clearInterval(t);
   }, [proExpiry, user, assets, debts, goals, riskProfile, uploadCount, dispCur, settings, theme, customPresetId]);
 
-  // Auto-save account data whenever key data changes (placed here so all state is initialized)
+  // Auto-save to localStorage (instant) AND Firestore (cloud sync)
   useEffect(() => {
     if (!user?.email) return;
-    saveAccountData(user.email, {
+    const payload = {
       assets,
       debts,
       goals,
@@ -419,7 +453,9 @@ function WealthCompassV7() {
       insurances,
       monthlyExpense,
       monthlyFixedIncome,
-    });
+    };
+    saveAccountData(user.email, payload);
+    if (user?.uid) saveAccountDataCloud(user.uid, payload).catch(() => {});
   }, [
     assets,
     debts,
@@ -747,7 +783,6 @@ function WealthCompassV7() {
                   tier={tier}
                   uploadCount={uploadCount}
                   setUploadCount={setUploadCount}
-                  setTab={handleSetTab}
                 />
               </>
             )}
