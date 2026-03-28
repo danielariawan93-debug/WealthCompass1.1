@@ -22,7 +22,7 @@ function SL({ children, T }) {
     <div
       style={{
         color: T.accent,
-        fontSize: 11,
+        fontSize: 13,
         letterSpacing: 2,
         textTransform: "uppercase",
         marginBottom: 14,
@@ -37,7 +37,7 @@ function Chip({ children, color, T }) {
   return (
     <span
       style={{
-        fontSize: 10,
+        fontSize: 12,
         padding: "2px 8px",
         borderRadius: 4,
         background: color + "1a",
@@ -96,7 +96,7 @@ function TInput({ style = {}, T, ...props }) {
         color: T.text,
         borderRadius: 9,
         padding: "10px 12px",
-        fontSize: 13,
+        fontSize: 14,
         outline: "none",
         width: "100%",
         boxSizing: "border-box",
@@ -137,7 +137,7 @@ function TBtn({
     padding: "10px 16px",
     fontWeight: "bold",
     cursor: disabled ? "not-allowed" : "pointer",
-    fontSize: 13,
+    fontSize: 14,
     transition: "all 0.2s",
     ...style,
   };
