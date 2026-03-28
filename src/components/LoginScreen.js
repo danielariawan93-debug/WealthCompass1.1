@@ -58,10 +58,14 @@ function LoginScreen({ onLogin, T }) {
   const handleEmailSubmit = async () => {
     setError('');
     setInfo('');
-    if (!form.email || !form.password) { setError('Email dan password wajib diisi.'); return; }
-    if (mode === 'register' && !form.name) { setError('Nama wajib diisi.'); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { setError('Format email tidak valid.'); return; }
-    if (form.password.length < 6) { setError('Password minimal 6 karakter.'); return; }
+    if (mode === 'forgot') {
+      if (!form.email) { setError('Masukkan email Anda.'); return; }
+    } else {
+      if (!form.email || !form.password) { setError('Email dan password wajib diisi.'); return; }
+      if (mode === 'register' && !form.name) { setError('Nama wajib diisi.'); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) { setError('Format email tidak valid.'); return; }
+      if (form.password.length < 6) { setError('Password minimal 6 karakter.'); return; }
+    }
 
     setLoading(true);
     try {
@@ -191,8 +195,8 @@ function LoginScreen({ onLogin, T }) {
                 style={{ width: '100%', boxSizing: 'border-box', background: T.inputBg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 10, padding: '11px 14px', fontSize: 13, outline: 'none' }} />
             </div>
 
-            {/* Password */}
-            <div>
+            {/* Password - hidden for forgot mode */}
+            {mode !== 'forgot' && <div>
               <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 5 }}>Password</div>
               <div style={{ position: 'relative', width: '100%' }}>
                 <input value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
@@ -204,7 +208,7 @@ function LoginScreen({ onLogin, T }) {
                   {showPass ? '🙈' : '👁'}
                 </button>
               </div>
-            </div>
+            </div>}
 
             {/* Error */}
             {error && (
