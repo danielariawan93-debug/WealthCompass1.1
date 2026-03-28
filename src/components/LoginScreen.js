@@ -8,6 +8,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
+  sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
 
@@ -27,7 +28,7 @@ const googleProvider = new GoogleAuthProvider();
 export { auth };
 
 function LoginScreen({ onLogin, T }) {
-  const [mode, setMode] = useState('login'); // login | register
+  const [mode, setMode] = useState('login'); // login | register | forgot
   const [form, setForm] = useState({ email: '', password: '', name: '' });
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -64,7 +65,18 @@ function LoginScreen({ onLogin, T }) {
 
     setLoading(true);
     try {
-      if (mode === 'register') {
+      if (mode === 'forgot') {
+      try {
+        await sendPasswordResetEmail(auth, form.email);
+        setInfo('Email reset password sudah dikirim. Cek inbox Anda.');
+        setError('');
+      } catch (e) {
+        setError('Email tidak ditemukan atau terjadi kesalahan.');
+      }
+      setLoading(false);
+      return;
+    }
+    if (mode === 'register') {
         const result = await createUserWithEmailAndPassword(auth, form.email, form.password);
         await updateProfile(result.user, { displayName: form.name });
         await sendEmailVerification(result.user);
@@ -151,7 +163,7 @@ function LoginScreen({ onLogin, T }) {
 
           {/* Tab toggle */}
           <div style={{ display: 'flex', background: T.surface, borderRadius: 10, padding: 4, marginBottom: 24 }}>
-            {[['login', 'Masuk'], ['register', 'Daftar']].map(([m, l]) => (
+            {[['login', 'Masuk'], ['register', 'Daftar'], ['forgot', 'Lupa Password']].map(([m, l]) => (
               <button key={m} onClick={() => { setMode(m); setError(''); setInfo(''); }}
                 style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: mode === m ? T.accent : 'none', color: mode === m ? '#000' : T.muted, cursor: 'pointer', fontWeight: mode === m ? 'bold' : 'normal', fontSize: 13, transition: 'all 0.2s' }}>
                 {l}
@@ -161,7 +173,7 @@ function LoginScreen({ onLogin, T }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-            {/* Nama — hanya saat register */}
+            {/* Nama - hanya saat register */}
             {mode === 'register' && (
               <div>
                 <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 5 }}>Nama Lengkap</div>
@@ -211,7 +223,7 @@ function LoginScreen({ onLogin, T }) {
             {/* Tombol submit */}
             <button onClick={handleEmailSubmit} disabled={loading}
               style={{ width: '100%', padding: 13, borderRadius: 11, border: 'none', background: loading ? T.border : T.accent, color: loading ? T.muted : '#000', cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: 14, marginTop: 4, transition: 'all 0.2s' }}>
-              {loading ? '⏳ Memproses...' : mode === 'login' ? 'Masuk →' : 'Buat Akun →'}
+              {loading ? '⏳ Memproses...' : mode === 'login' ? 'Masuk →' : mode === 'forgot' ? 'Kirim Email Reset →' : 'Buat Akun →'}
             </button>
 
             {/* Divider */}
