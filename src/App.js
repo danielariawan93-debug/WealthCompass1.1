@@ -153,7 +153,12 @@ function WealthCompassV7() {
     // Then try Firestore (async - overwrites local if cloud data exists)
     if (userData.uid) {
       loadAccountDataCloud(userData.uid).then(cloud => {
-        if (!cloud) return; // no cloud data yet, keep local
+        if (!cloud) {
+          // Firestore empty - push local data up so other devices can sync
+          const localData = loadAccountData(userData.email);
+          if (localData) saveAccountDataCloud(userData.uid, localData).catch(() => {});
+          return;
+        }
         // Use cloud data (more up to date across devices)
         setAssets(cloud.assets?.length ? cloud.assets : []);
         setDebts(cloud.debts || []);
@@ -455,7 +460,13 @@ function WealthCompassV7() {
       monthlyFixedIncome,
     };
     saveAccountData(user.email, payload);
-    if (user?.uid) saveAccountDataCloud(user.uid, payload).catch(() => {});
+    if (user?.uid) {
+      saveAccountDataCloud(user.uid, payload)
+        .then(() => console.log("[WC] Firestore save OK uid:", user.uid))
+        .catch(e => console.error("[WC] Firestore save FAILED:", e.message));
+    } else {
+      console.warn("[WC] No uid - Firestore skip");
+    }
   }, [
     assets,
     debts,
