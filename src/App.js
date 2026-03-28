@@ -67,6 +67,7 @@ const CC_HDR = { 'Authorization': `Bearer ${CC_KEY}` };
 function WealthCompassV7() {
   // -- ALL STATE DECLARATIONS FIRST (handlers reference these via closure) -----
   const [user, setUser] = useState(null);
+  const cloudLoadDone = React.useRef(false); // block auto-save until cloud load completes
   const [authChecking, setAuthChecking] = useState(true);
   const [keepSignIn] = useState(() => localStorage.getItem('wc_keep_signin') !== 'false');
   const [theme, setTheme] = useState(() => {
@@ -119,6 +120,7 @@ function WealthCompassV7() {
 
   // -- AUTH HANDLERS (safe to reference state now) ----------------------------
   const handleLogin = (userData) => {
+    cloudLoadDone.current = false; // block auto-save until cloud load done
     // Load from localStorage immediately (fast, works offline)
     const localSaved = loadAccountData(userData.email);
     const d = localSaved || DEFAULT_ACCOUNT_STATE;
@@ -157,6 +159,7 @@ function WealthCompassV7() {
           // Firestore empty - push local data up so other devices can sync
           const localData = loadAccountData(userData.email);
           if (localData) saveAccountDataCloud(userData.uid, localData).catch(() => {});
+          cloudLoadDone.current = true; // allow auto-save now
           return;
         }
         // Use cloud data (more up to date across devices)
@@ -183,7 +186,10 @@ function WealthCompassV7() {
         setMonthlyFixedIncome(cloud.monthlyFixedIncome || "");
         // Also update localStorage with cloud data
         saveAccountData(userData.email, cloud);
-      }).catch(() => {}); // fail silently if offline
+        cloudLoadDone.current = true; // allow auto-save now
+      }).catch(() => {
+        cloudLoadDone.current = true; // allow auto-save even if cloud failed
+      });
     }
   };
 
@@ -441,6 +447,7 @@ function WealthCompassV7() {
   // Auto-save to localStorage (instant) AND Firestore (cloud sync)
   useEffect(() => {
     if (!user?.email) return;
+    if (!cloudLoadDone.current) return; // wait for cloud load before saving
     const payload = {
       assets,
       debts,
