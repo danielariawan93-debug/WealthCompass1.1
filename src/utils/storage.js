@@ -1,14 +1,15 @@
-import { initializeApp, getApps } from "firebase/app";
+import { getApps, initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 
-// Firebase config (same as LoginScreen)
+// Reuse existing Firebase app (initialized by LoginScreen)
+// Only initialize if not already done
 const firebaseConfig = {
   apiKey: "AIzaSyBUKtd-3swn6ZDA3lqHa8nAnNPvZ3d7Va0",
   authDomain: "wealthcompass-fee04.firebaseapp.com",
   projectId: "wealthcompass-fee04",
-  storageBucket: "wealthcompass-fee04.appspot.com",
-  messagingSenderId: "1087459978452",
-  appId: "1:1087459978452:web:4a4e2e3e3e3e3e3e3e3e3e",
+  storageBucket: "wealthcompass-fee04.firebasestorage.app",
+  messagingSenderId: "803676982970",
+  appId: "1:803676982970:web:f31ccd09d4021b60e0bc83",
 };
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const db = getFirestore(app);
@@ -39,21 +40,23 @@ function loadAccountData(email) {
 
 // Save to Firestore (async, cloud sync)
 async function saveAccountDataCloud(uid, data) {
+  if (!uid) return;
   try {
     await setDoc(doc(db, "users", uid), { data, updatedAt: Date.now() }, { merge: true });
   } catch (e) {
-    console.warn("Firestore save failed (offline?)", e);
+    console.warn("Firestore save failed:", e.message);
   }
 }
 
 // Load from Firestore (async, returns null if not found/offline)
 async function loadAccountDataCloud(uid) {
+  if (!uid) return null;
   try {
     const snap = await getDoc(doc(db, "users", uid));
     if (snap.exists()) return snap.data().data || null;
     return null;
   } catch (e) {
-    console.warn("Firestore load failed (offline?)", e);
+    console.warn("Firestore load failed:", e.message);
     return null;
   }
 }
