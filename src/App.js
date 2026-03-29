@@ -208,7 +208,6 @@ function WealthCompassV7() {
   };
 
   const handleLogout = () => {
-    // Save full state before clearing (include all fields)
     if (user?.email) {
       const savePayload = {
         assets, debts, goals, riskProfile,
@@ -220,12 +219,10 @@ function WealthCompassV7() {
       saveAccountData(user.email, savePayload);
       if (user?.uid) saveAccountDataCloud(user.uid, savePayload).catch(() => {});
     }
-    // Clear session and sign out - do NOT call setTab (avoid flash to profile)
     localStorage.removeItem("wc_session");
     localStorage.removeItem("wc_theme");
     localStorage.removeItem("wc_custom_theme");
     signOut(auth).catch(() => {});
-    // Clear all state
     setUser(null);
     setAssets([]);
     setDebts([]);
@@ -242,7 +239,6 @@ function WealthCompassV7() {
     setHideValues(false);
     setTheme("dark");
     setCustomPresetId("midnight");
-    // No setTab needed - setUser(null) renders LoginScreen directly
   };
 
   const handleUpgrade = (tierChoice = "pro", durationDays = 30) => {
