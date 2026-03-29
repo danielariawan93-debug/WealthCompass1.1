@@ -242,7 +242,7 @@ function WealthCompassV7() {
     setHideValues(false);
     setTheme("dark");
     setCustomPresetId("midnight");
-    setTab("profile");
+    // No setTab needed - setUser(null) renders LoginScreen directly
   };
 
   const handleUpgrade = (tierChoice = "pro", durationDays = 30) => {
@@ -503,26 +503,22 @@ function WealthCompassV7() {
 
   // -- Firebase session check on mount ----------------------------------------
   useEffect(() => {
-    let unsub;
-    unsub = onAuthStateChanged(auth, (firebaseUser) => {
-        unsub = onAuthStateChanged(auth, (firebaseUser) => {
-          if (firebaseUser) {
-            // Google: emailVerified OR providerData contains google
-            const isGoogle = firebaseUser.providerData?.some(p => p.providerId === 'google.com');
-            if (firebaseUser.emailVerified || isGoogle) {
-              const cached = (() => { try { return JSON.parse(localStorage.getItem('wc_session') || 'null'); } catch { return null; } })();
-              if (cached?.email === firebaseUser.email) {
-                handleLogin(cached);
-              } else {
-                const userData = { email: firebaseUser.email, name: firebaseUser.displayName || firebaseUser.email.split('@')[0], photo: firebaseUser.photoURL, uid: firebaseUser.uid };
-                handleLogin(userData);
-              }
-            }
+    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        const isGoogle = firebaseUser.providerData?.some(p => p.providerId === 'google.com');
+        if (firebaseUser.emailVerified || isGoogle) {
+          const cached = (() => { try { return JSON.parse(localStorage.getItem('wc_session') || 'null'); } catch { return null; } })();
+          if (cached?.email === firebaseUser.email) {
+            handleLogin(cached);
+          } else {
+            const userData = { email: firebaseUser.email, name: firebaseUser.displayName || firebaseUser.email.split('@')[0], photo: firebaseUser.photoURL, uid: firebaseUser.uid };
+            handleLogin(userData);
           }
-          setAuthChecking(false);
-        });
+        }
+      }
+      setAuthChecking(false);
     });
-    return () => { if (unsub) unsub(); };
+    return () => unsub();
   }, []);
 
   // -- Show login if not authenticated ----------------------------------------
