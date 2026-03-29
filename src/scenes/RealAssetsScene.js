@@ -689,6 +689,7 @@ function BusinessForm({ onSave, onCancel, T, editData, hideValues = false, prope
       income: (incomeMonthly > 0 && f.incomeType !== "active")
         ? { amount: incomeMonthly, frequency: "monthly", type: "business" }
         : undefined,
+      activeAmount: f.incomeType === "active" ? incomeMonthly : 0,
       incomeType: f.incomeType,
       newPropertyData,
     });
@@ -1098,12 +1099,12 @@ function RealAssetsScene({
       }
     }
     // Sync active income for businesses marked as active
-    if (setActiveIncomes && data.incomeType === "active" && data.income?.amount > 0) {
+    if (setActiveIncomes && data.incomeType === "active" && data.activeAmount > 0) {
       const bizName = data.name || "Bisnis";
       const newEntry = {
         id: "biz_" + (editAsset?.id || Date.now()),
         label: bizName,
-        amount: data.income.amount,
+        amount: data.activeAmount,
         type: "biz_active",
       };
       setActiveIncomes(p => {
