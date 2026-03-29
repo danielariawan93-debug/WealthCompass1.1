@@ -488,6 +488,7 @@ function PassiveIncomeSummary({
 function PassiveIncomeScene({
   assets,
   setAssets,
+  debts = [],
   dispCur,
   T,
   hideValues = false,
@@ -563,6 +564,18 @@ function PassiveIncomeScene({
   const gap = Math.max(0, expense - totalCashflowMonthly);
   const totalIDR = assets.reduce((s, a) => s + getIDR(a), 0);
 
+  // Financial Freedom calculations
+  const REVOLVING_KEYS = ['cc','paylater','krek','margin'];
+  const totalDebtMonthly = debts.reduce((s, d) => {
+    if (REVOLVING_KEYS.includes(d.type)) {
+      const rate = parseVal(d.interestRate) || 10;
+      return s + parseVal(d.outstanding) * (rate / 100 / 12);
+    }
+    return s + parseVal(d.monthlyPayment);
+  }, 0);
+  const targetFF = expense + totalDebtMonthly;
+  const fiRatio  = targetFF > 0 ? (totalMonthly / targetFF) * 100 : 0;
+
   // Group assets by ASSET_CLASS for display (Fix 3a)
   const groupedAssets = ASSET_CLASSES.map((ac) => ({
     ...ac,
@@ -621,189 +634,131 @@ function PassiveIncomeScene({
 
   return (
     <div>
-      {/* Summary header */}
-      <Card
-        T={T}
-        glow={totalMonthly > 0 ? T.green : undefined}
-        style={{ marginBottom: 16 }}
-      >
-        <SL T={T}>Financial Freedom Tracker</SL>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 12,
-            marginBottom: 16,
-          }}
-        >
-          {[
-            {
-              label: "Est. Income / Bulan",
-              val: fV(totalMonthly, dispCur),
-              color: T.green,
-              <InfoBtn T={T} content={"Total Income dari pendapatan Aktif dan Pasif dari Asset yang dimilki."} />
-              </div>
-            },
-            {
-              label: "Est. Pengeluaran / Bulan",
-              val: fV(totalAnnual, dispCur),
-              color: T.accent,
-              <InfoBtn T={T} content={"Total Pengeluaran / Bulan dari hutang aktif dan pengeluaran bulanan."} />
-              </div>
-            },
-            {
-              label: "Yield Portofolio",
-              val:
-                totalIDR > 0
-                  ? ((totalAnnual / totalIDR) * 100).toFixed(2) + "%"
-                  : "-",
-              color: T.blue,
-            },
-            {
-              label: "Aset Aktif",
-              val: `${incomeAssets.length} aset`,
-              color: T.purple,
-            },
-          ].map((s) => (
-            <div
-              key={s.label}
-              style={{
-                padding: "10px 12px",
-                background: T.surface,
-                borderRadius: 10,
-                border: `1px solid ${T.border}`,
-              }}
-            >
-              <div style={{ color: T.muted, fontSize: 10, marginBottom: 3 }}>
-                {s.label}
-              </div>
-              <div
-                style={{
-                  color: s.color,
-                  fontSize: 14,
-                  fontWeight: "bold",
-                  fontFamily: "'Playfair Display', Georgia, serif",
-                }}
-              >
-                {s.val}
-              </div>
-            </div>
-          ))}
+      {/* -- FINANCIAL FREEDOM TRACKER CARD -- */}
+      <Card T={T} style={{ marginBottom: 16 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+          <span style={{ fontSize:16 }}>🎯</span>
+          <span style={{ color:T.accent, fontSize:13, fontWeight:"bold", letterSpacing:0.5 }}>Target Financial Freedom</span>
         </div>
 
-        {/* Financial Freedom target */}
-        <div
-          style={{
-            padding: "12px 14px",
-            background: T.accentDim,
-            borderRadius: 10,
-            border: `1px solid ${T.accentSoft}`,
-          }}
-        >
-          <div
-            style={{
-              color: T.accent,
-              fontSize: 11,
-              fontWeight: "bold",
-              marginBottom: 8,
-            }}
-          >
-            🎯 Target Financial Freedom
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: expense > 0 ? 12 : 0 }}>
-            <div>
-              <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
-                Pengeluaran Bulanan (IDR)
-                <InfoBtn T={T} content={"Total kebutuhan dan keinginan sehari-hari, termasuk makan, transportasi, gaya hidup, dan tagihan rutin. Tidak termasuk cicilan hutang atau pinjaman yang sudah tercatat di modul Hutang."} />
-              </div>
-              <input
-                value={monthlyExpense}
-                onChange={(e) => { setMonthlyExpense(e.target.value); }}
-                placeholder="Contoh: 15000000"
-                style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 9, padding: "9px 12px", fontSize: 12, outline: "none", boxSizing: "border-box" }}
-              />
+        {/* Row 1: Input Pengeluaran + Auto Target */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+          {/* Pengeluaran bulanan - manual input */}
+          <div>
+            <div style={{ color:T.textSoft, fontSize:10, marginBottom:4, display:"flex", alignItems:"center", gap:4 }}>
+              Pengeluaran Bulanan (IDR)
+              <InfoBtn T={T} content={"Kebutuhan hidup bulanan: makan, transportasi, gaya hidup, tagihan rutin. Tidak termasuk cicilan hutang yang sudah tercatat di modul Hutang."} />
             </div>
-            <div>
-              <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
-                Penghasilan Tetap/Bulan (IDR)
-                <InfoBtn T={T} content={"Gaji, tunjangan, atau pendapatan aktif lainnya yang diterima secara rutin setiap bulan. Digunakan untuk menghitung posisi arus kas dan ketercapaian Financial Freedom."} />
-              </div>
-              <input
-                value={monthlyFixedIncome}
-                onChange={(e) => { setMonthlyFixedIncome(e.target.value); }}
-                placeholder="Gaji, dll"
-                style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 9, padding: "9px 12px", fontSize: 12, outline: "none", boxSizing: "border-box" }}
-              />
-              {fixedIncome > 0 && (
-                <div style={{ color: T.muted, fontSize: 9, marginTop: 2 }}>+{fV(fixedIncome, dispCur)}/bln masuk cashflow</div>
-              )}
-            </div>
+            <input
+              value={monthlyExpense}
+              onChange={e => setMonthlyExpense(e.target.value)}
+              placeholder="Contoh: 5000000"
+              style={{ width:"100%", background:T.inputBg, border:`1px solid ${T.border}`, color:T.text, borderRadius:9, padding:"9px 12px", fontSize:12, outline:"none", boxSizing:"border-box" }}
+            />
           </div>
-          {expense > 0 && (
-            <div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: 11,
-                  color: T.muted,
-                  marginBottom: 6,
-                }}
-              >
-                <span>Coverage total cashflow</span>
-                <span
-                  style={{
-                    color: coverage >= 100 ? T.green : T.orange,
-                    fontWeight: "bold",
-                  }}
-                >
-                  {coverage.toFixed(1)}%
-                </span>
-              </div>
-              <Bar
-                pct={Math.min(coverage, 100)}
-                color={coverage >= 100 ? T.green : T.orange}
-                h={8}
-                T={T}
-              />
-              {/* Show passive-only coverage as secondary info */}
-              {totalActiveMonthly > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.muted, marginTop: 5 }}>
-                  <span>- dari passive income saja</span>
-                  <span style={{ color: passiveCoverage >= 100 ? T.green : T.textSoft }}>
-                    {passiveCoverage.toFixed(1)}%
-                  </span>
+
+          {/* Target FF - auto = hutang/bln + pengeluaran */}
+          <div>
+            <div style={{ color:T.textSoft, fontSize:10, marginBottom:4, display:"flex", alignItems:"center", gap:4 }}>
+              Target Financial Freedom
+              <InfoBtn T={T} content={"Auto-hitung: Pengeluaran Bulanan + Total Cicilan Hutang/Bulan. Ini adalah minimum passive income yang harus dicapai agar Anda bebas secara finansial tanpa bergantung pada pekerjaan."} />
+            </div>
+            <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:9, padding:"9px 12px" }}>
+              <div style={{ color:T.green, fontSize:13, fontWeight:"bold" }}>{fV(targetFF, dispCur)}/bln</div>
+              {totalDebtMonthly > 0 && (
+                <div style={{ color:T.muted, fontSize:9, marginTop:2 }}>
+                  Kebutuhan {fV(expense, dispCur)} + Hutang {fV(totalDebtMonthly, dispCur)}
                 </div>
               )}
-              <div style={{ marginTop: 10 }}>
-                {coverage >= 100 ? (
-                  <div
-                    style={{ color: T.green, fontSize: 12, fontWeight: "bold" }}
-                  >
-                    🎉 Financial Freedom tercapai!
-                  </div>
-                ) : (
-                  <div>
-                    <div style={{ color: T.textSoft, fontSize: 12 }}>
-                      Kekurangan:{" "}
-                      <b style={{ color: T.red }}>{fV(gap, dispCur)}/bln</b>
-                    </div>
-                    <div style={{ color: T.muted, fontSize: 10, marginTop: 2 }}>
-                      Butuh ≈{" "}
-                      {fV(
-                        (gap * 12) / Math.max(totalAnnual / totalIDR, 0.05),
-                        dispCur
-                      )}{" "}
-                      aset tambahan pada yield saat ini
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Bar: Passive Income vs Target (FI Ratio) */}
+        {targetFF > 0 && (
+          <div style={{ marginBottom:14 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:T.muted, marginBottom:5 }}>
+              <span>Passive Income vs Target FF</span>
+              <span style={{ color: fiRatio >= 100 ? T.green : fiRatio >= 50 ? T.orange : T.red, fontWeight:"bold" }}>
+                {fiRatio.toFixed(1)}% FI Ratio
+              </span>
+            </div>
+            <Bar pct={Math.min(fiRatio, 100)} color={fiRatio >= 100 ? T.green : fiRatio >= 50 ? T.orange : T.red} h={9} T={T} />
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:T.muted, marginTop:3 }}>
+              <span>{fV(totalMonthly, dispCur)}/bln passive</span>
+              <span>Target {fV(targetFF, dispCur)}/bln</span>
+            </div>
+          </div>
+        )}
+
+        {/* Status */}
+        {targetFF > 0 && (
+          <div style={{ padding:"10px 12px", borderRadius:9, background: fiRatio >= 100 ? T.greenDim : T.redDim, border:`1px solid ${fiRatio >= 100 ? T.green : T.red}33`, marginBottom:14 }}>
+            {fiRatio >= 100 ? (
+              <div style={{ color:T.green, fontSize:12, fontWeight:"bold" }}>
+                🎉 Financial Freedom tercapai! Passive income Anda sudah menutupi seluruh kebutuhan hidup dan cicilan.
+              </div>
+            ) : (
+              <div>
+                <div style={{ color:T.red, fontSize:12, fontWeight:"bold", marginBottom:4 }}>
+                  ⚠ Financial Freedom BELUM tercapai
+                </div>
+                <div style={{ color:T.textSoft, fontSize:11 }}>
+                  Kurang <b style={{ color:T.red }}>{fV(Math.max(0, targetFF - totalMonthly), dispCur)}/bln</b> passive income lagi.
+                  {totalIDR > 0 && totalAnnual > 0 && (
+                    <span> Butuh tambahan aset ~{fV((Math.max(0, targetFF - totalMonthly) * 12) / (totalAnnual / totalIDR), dispCur)} pada yield saat ini.</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Disclaimer */}
+        <div style={{ padding:"10px 12px", background:T.surface, borderRadius:9, border:`1px solid ${T.border}` }}>
+          <div style={{ color:T.muted, fontSize:10, lineHeight:1.6 }}>
+            <b style={{ color:T.textSoft }}>Financial Freedom</b> adalah kondisi saat aset produktif Anda menghasilkan pendapatan pasif yang cukup untuk menutup seluruh biaya hidup dan komitmen keuangan (termasuk cicilan hutang), sehingga bekerja menjadi sebuah pilihan, bukan lagi keharusan. Hutang konsumtif aktif memperbesar angka target yang harus dicapai.
+          </div>
         </div>
       </Card>
 
+      {/* -- SECTION 2: 4 Kotak Info -- */}
+      <Card T={T} style={{ marginBottom:16 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          {/* Total Passive Income/Bln */}
+          <div style={{ padding:"10px 12px", background:T.surface, borderRadius:10, border:`1px solid ${T.border}` }}>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:3 }}>Total Passive Income/Bln</div>
+            <div style={{ color:T.green, fontSize:14, fontWeight:"bold", fontFamily:"'Playfair Display', Georgia, serif" }}>{fV(totalMonthly, dispCur)}</div>
+            <div style={{ color:T.muted, fontSize:9, marginTop:2 }}>{fV(totalAnnual, dispCur)}/thn</div>
+          </div>
+
+          {/* Total Pengeluaran/Bln */}
+          <div style={{ padding:"10px 12px", background:T.surface, borderRadius:10, border:`1px solid ${T.border}` }}>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:3 }}>Total Pengeluaran/Bln</div>
+            <div style={{ color:T.orange||T.accent, fontSize:14, fontWeight:"bold", fontFamily:"'Playfair Display', Georgia, serif" }}>{fV(targetFF, dispCur)}</div>
+            {expense > 0 && <div style={{ color:T.muted, fontSize:9, marginTop:2 }}>Kebutuhan {fV(expense, dispCur)} + Hutang {fV(totalDebtMonthly, dispCur)}</div>}
+          </div>
+
+          {/* Yield Portofolio */}
+          <div style={{ padding:"10px 12px", background:T.surface, borderRadius:10, border:`1px solid ${T.border}` }}>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:3, display:"flex", alignItems:"center", gap:4 }}>
+              Yield Portofolio
+              <InfoBtn T={T} content={"Yield = Total Passive Income Tahunan dibagi Total Nilai Aset. Bandingkan: deposito 5-6%, obligasi 6-8%, properti 8-12%, saham 12-20% p.a. Makin tinggi yield, makin produktif aset Anda."} />
+            </div>
+            <div style={{ color:T.blue, fontSize:14, fontWeight:"bold", fontFamily:"'Playfair Display', Georgia, serif" }}>
+              {totalIDR > 0 ? ((totalAnnual / totalIDR) * 100).toFixed(2) + "%" : "-"}
+            </div>
+            <div style={{ color:T.muted, fontSize:9, marginTop:2 }}>dari total portofolio</div>
+          </div>
+
+          {/* Total Aset Passive */}
+          <div style={{ padding:"10px 12px", background:T.surface, borderRadius:10, border:`1px solid ${T.border}` }}>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:3 }}>Aset Passive Produktif</div>
+            <div style={{ color:T.purple||T.accent, fontSize:14, fontWeight:"bold", fontFamily:"'Playfair Display', Georgia, serif" }}>{incomeAssets.length} aset</div>
+            <div style={{ color:T.muted, fontSize:9, marginTop:2 }}>{fV(incomeAssets.reduce((s,a) => s + getIDR(a), 0), dispCur)} total nilai</div>
+          </div>
+        </div>
+      </Card>
 
       {/* Active Income Section */}
       <Card T={T} style={{ marginBottom: 16 }}>
@@ -1316,6 +1271,7 @@ function PassiveIncomeScene({
 function FinanceToolsScene({
   assets,
   setAssets,
+  debts = [],
   dispCur,
   T,
   hideValues = false,
@@ -1364,6 +1320,7 @@ function FinanceToolsScene({
         <PassiveIncomeScene
           assets={assets}
           setAssets={setAssets}
+          debts={debts}
           dispCur={dispCur}
           T={T}
           hideValues={hideValues}
