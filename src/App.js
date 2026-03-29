@@ -147,7 +147,14 @@ function WealthCompassV7() {
     setTab("profile");
     setTheme(d.theme || "dark");
     setCustomPresetId(d.customPresetId || "midnight");
-    setActiveIncomes(d.activeIncomes || []);
+    // Clean stale activeIncomes - keep only entries matching active business assets
+    const loadedAssets = d.assets || [];
+    const loadedActive = (d.activeIncomes || []).filter(ai =>
+      loadedAssets.some(a =>
+        a.classKey === "business" && a.incomeType === "active" && "biz_" + a.id === ai.id
+      )
+    );
+    setActiveIncomes(loadedActive);
     setInsurances(d.insurances || []);
     setMonthlyExpense(d.monthlyExpense || "");
     setMonthlyFixedIncome(d.monthlyFixedIncome || "");
@@ -180,7 +187,14 @@ function WealthCompassV7() {
         });
         setTheme(cloud.theme || "dark");
         setCustomPresetId(cloud.customPresetId || "midnight");
-        setActiveIncomes(cloud.activeIncomes || []);
+        // Clean stale activeIncomes from cloud data too
+        const cloudAssets = cloud.assets || [];
+        const cleanCloudActive = (cloud.activeIncomes || []).filter(ai =>
+          cloudAssets.some(a =>
+            a.classKey === "business" && a.incomeType === "active" && "biz_" + a.id === ai.id
+          )
+        );
+        setActiveIncomes(cleanCloudActive);
         setInsurances(cloud.insurances || []);
         setMonthlyExpense(cloud.monthlyExpense || "");
         setMonthlyFixedIncome(cloud.monthlyFixedIncome || "");
@@ -776,6 +790,7 @@ function WealthCompassV7() {
                   dispCur={dispCur}
                   T={T}
                   hideValues={hideValues}
+                  activeIncomes={activeIncomes}
                 />
                 <ActiveIncomeSummary
                   activeIncomes={activeIncomes}
