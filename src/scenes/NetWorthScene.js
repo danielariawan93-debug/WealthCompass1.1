@@ -56,42 +56,16 @@ function NetWorthTrackerScene({
     return false;
   };
 
-  // Auto-snapshot: taken once per day at 23:59 or later
+  // Auto-snapshot: once per day on open (any time)
   useEffect(() => {
     const now = new Date();
     const today = now.toDateString();
     const lastSnap = snapshots[snapshots.length - 1];
     const lastDate = lastSnap ? new Date(lastSnap.ts).toDateString() : null;
-    // Only snapshot if: new day AND time is 23:00 or later
-    const isLateEnough = now.getHours() >= 23;
-    if (lastDate !== today && isLateEnough) {
+    if (lastDate !== today && currentTotal !== 0) {
       const newSnaps = [...snapshots, { ts: Date.now(), val: currentTotal }];
       setSnapshots(newSnaps);
-      try {
-        localStorage.setItem(snapKey, JSON.stringify(newSnaps));
-      } catch {}
-      {
-        snapshots.length > 0 && (
-          <div
-            style={{
-              color: T.muted,
-              fontSize: 10,
-              marginTop: 8,
-              paddingTop: 8,
-              borderTop: `1px solid ${T.border}`,
-            }}
-          >
-            📅 Pertama tercatat:{" "}
-            {new Date(
-              Math.min(...snapshots.map((s) => s.ts))
-            ).toLocaleDateString("id-ID", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-          </div>
-        );
-      }
+      try { localStorage.setItem(snapKey, JSON.stringify(newSnaps)); } catch {}
     }
   }, []);
 
