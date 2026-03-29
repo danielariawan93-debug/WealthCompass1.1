@@ -67,8 +67,8 @@ const CC_HDR = { 'Authorization': `Bearer ${CC_KEY}` };
 function WealthCompassV7() {
   // -- ALL STATE DECLARATIONS FIRST (handlers reference these via closure) -----
   const [user, setUser] = useState(null);
-  const cloudLoadDone = React.useRef(false); // block auto-save until cloud load completes
-  const isLoggingOut = React.useRef(false);   // block re-login after logout
+  const cloudLoadDone = React.useRef(false);
+  const isLoggingOut = React.useRef(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [keepSignIn] = useState(() => localStorage.getItem('wc_keep_signin') !== 'false');
   const [theme, setTheme] = useState(() => {
@@ -152,7 +152,8 @@ function WealthCompassV7() {
     const loadedAssets = d.assets || [];
     const loadedActive = (d.activeIncomes || []).filter(ai =>
       loadedAssets.some(a =>
-        a.classKey === "business" && a.incomeType === "active" && "biz_" + a.id === ai.id
+        a.classKey === "business" && a.incomeType === "active" &&
+        ("biz_" + String(a.id) === String(ai.id))
       )
     );
     setActiveIncomes(loadedActive);
@@ -167,7 +168,7 @@ function WealthCompassV7() {
           // Firestore empty - push local data up so other devices can sync
           const localData = loadAccountData(userData.email);
           if (localData) saveAccountDataCloud(userData.uid, localData).catch(() => {});
-          cloudLoadDone.current = true; // allow auto-save now
+          setTimeout(() => { cloudLoadDone.current = true; }, 300);
           return;
         }
         // Use cloud data (more up to date across devices)
@@ -192,7 +193,8 @@ function WealthCompassV7() {
         const cloudAssets = cloud.assets || [];
         const cleanCloudActive = (cloud.activeIncomes || []).filter(ai =>
           cloudAssets.some(a =>
-            a.classKey === "business" && a.incomeType === "active" && "biz_" + a.id === ai.id
+            a.classKey === "business" && a.incomeType === "active" &&
+            ("biz_" + String(a.id) === String(ai.id))
           )
         );
         setActiveIncomes(cleanCloudActive);
@@ -201,15 +203,16 @@ function WealthCompassV7() {
         setMonthlyFixedIncome(cloud.monthlyFixedIncome || "");
         // Also update localStorage with cloud data
         saveAccountData(userData.email, cloud);
-        cloudLoadDone.current = true; // allow auto-save now
+        // Delay cloudLoadDone agar React flush semua setState sebelum auto-save
+        setTimeout(() => { cloudLoadDone.current = true; }, 300);
       }).catch(() => {
-        cloudLoadDone.current = true; // allow auto-save even if cloud failed
+        setTimeout(() => { cloudLoadDone.current = true; }, 300);
       });
     }
   };
 
   const handleLogout = () => {
-    isLoggingOut.current = true; // prevent re-login from onAuthStateChanged
+    isLoggingOut.current = true;
     if (user?.email) {
       const savePayload = {
         assets, debts, goals, riskProfile,
@@ -433,13 +436,13 @@ function WealthCompassV7() {
           setIsPro(false);
           setIsProPlus(false);
           setProExpiry(null);
-          if (user?.email) {
+          if (user?.email && cloudLoadDone.current) {
             saveAccountData(user.email, {
               assets, debts, goals, riskProfile,
               isPro: false, isProPlus: false,
               uploadCount, proExpiry: null,
               dispCur, settings, theme, customPresetId,
-              activeIncomes, insurances, monthlyExpense,
+              activeIncomes, insurances, monthlyExpense, monthlyFixedIncome,
             });
           }
         } else if (daysLeft !== proExpiry.daysLeft) {
