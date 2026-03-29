@@ -847,6 +847,7 @@ function WealthCompassV7() {
                 setMonthlyExpense={setMonthlyExpense}
                 monthlyFixedIncome={monthlyFixedIncome}
                 setMonthlyFixedIncome={setMonthlyFixedIncome}
+                setTab={handleSetTab}
               />
             )}
             {tab === "calc" && (
@@ -865,6 +866,7 @@ function WealthCompassV7() {
                 setMonthlyExpense={setMonthlyExpense}
                 monthlyFixedIncome={monthlyFixedIncome}
                 setMonthlyFixedIncome={setMonthlyFixedIncome}
+                setTab={handleSetTab}
               />
             )}
             {tab === "real-assets" &&
