@@ -68,6 +68,7 @@ function WealthCompassV7() {
   // -- ALL STATE DECLARATIONS FIRST (handlers reference these via closure) -----
   const [user, setUser] = useState(null);
   const cloudLoadDone = React.useRef(false); // block auto-save until cloud load completes
+  const isLoggingOut = React.useRef(false);   // block re-login after logout
   const [authChecking, setAuthChecking] = useState(true);
   const [keepSignIn] = useState(() => localStorage.getItem('wc_keep_signin') !== 'false');
   const [theme, setTheme] = useState(() => {
@@ -208,6 +209,7 @@ function WealthCompassV7() {
   };
 
   const handleLogout = () => {
+    isLoggingOut.current = true; // prevent re-login from onAuthStateChanged
     if (user?.email) {
       const savePayload = {
         assets, debts, goals, riskProfile,
@@ -500,7 +502,7 @@ function WealthCompassV7() {
   // -- Firebase session check on mount ----------------------------------------
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
+      if (firebaseUser && !isLoggingOut.current) {
         const isGoogle = firebaseUser.providerData?.some(p => p.providerId === 'google.com');
         if (firebaseUser.emailVerified || isGoogle) {
           const cached = (() => { try { return JSON.parse(localStorage.getItem('wc_session') || 'null'); } catch { return null; } })();
