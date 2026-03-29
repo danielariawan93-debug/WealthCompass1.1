@@ -39,7 +39,16 @@ function DebtIncomeCard({
   const passiveIncomeMon = (instrIncomeAnnual + propBizIncomeAnnual) / 12;
   const instrIncomeMon   = instrIncomeAnnual / 12;
   const propBizIncomeMon = propBizIncomeAnnual / 12;
-  const totalDebtMon     = debts.reduce((s, d) => s + parseVal(d.monthlyPayment), 0);
+  // For revolving debts, recalculate bunga/bln = outstanding * rate/12
+  const getDebtMonthly = (d) => {
+    const REVOLVING_KEYS = ['cc','paylater','krek','margin'];
+    if (REVOLVING_KEYS.includes(d.type)) {
+      const rate = parseVal(d.interestRate) || 10;
+      return parseVal(d.outstanding) * (rate / 100 / 12);
+    }
+    return parseVal(d.monthlyPayment);
+  };
+  const totalDebtMon = debts.reduce((s, d) => s + getDebtMonthly(d), 0);
   const biayaBulanan     = parseVal(monthlyExpense);
 
   // Total outflow vs inflow (passive + active)
@@ -618,7 +627,7 @@ function PassiveIncomeScene({
         glow={totalMonthly > 0 ? T.green : undefined}
         style={{ marginBottom: 16 }}
       >
-        <SL T={T}>Passive Income Tracker</SL>
+        <SL T={T}>Financial Freedom Tracker</SL>
         <div
           style={{
             display: "grid",
@@ -792,9 +801,71 @@ function PassiveIncomeScene({
       </Card>
 
 
+      {/* Active Income Section */}
+      <Card T={T} style={{ marginBottom: 16 }}>
+        <SL T={T}>Active Income</SL>
+        <div style={{ color: T.textSoft, fontSize: 12, marginBottom: 14, lineHeight: 1.6 }}>
+          {isPro
+            ? "Pendapatan aktif otomatis dari bisnis & properti bertag Aktif di Real Assets."
+            : "Pendapatan aktif (gaji, bisnis, dll) yang Anda terima setiap bulan."}
+        </div>
+
+        {/* Penghasilan Tetap - all tiers, always editable */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ color: T.textSoft, fontSize: 11, fontWeight: "bold", marginBottom: 8 }}>
+            Penghasilan Tetap/Bulan (IDR)
+          </div>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <input
+              value={monthlyFixedIncome}
+              onChange={e => setMonthlyFixedIncome && setMonthlyFixedIncome(e.target.value)}
+              placeholder="Gaji, honorarium, dll"
+              style={{ flex: 1, background: T.inputBg, border: `1px solid ${T.border}`, color: T.text, borderRadius: 9, padding: "10px 12px", fontSize: 12, outline: "none" }}
+            />
+            {fixedIncome > 0 && (
+              <div style={{ color: T.green, fontSize: 12, fontWeight: "bold", flexShrink: 0 }}>
+                +{fV(fixedIncome, dispCur)}/bln
+              </div>
+            )}
+          </div>
+          <div style={{ color: T.muted, fontSize: 10, marginTop: 4 }}>
+            Isi gaji atau pendapatan aktif rutin. Otomatis tersimpan.
+          </div>
+        </div>
+
+        {/* Pro/Pro+: Auto bisnis aktif from Real Assets */}
+        {isPro && activeIncomes && activeIncomes.length > 0 && (
+          <div>
+            <div style={{ color: T.textSoft, fontSize: 11, fontWeight: "bold", marginBottom: 8 }}>
+              Bisnis Aktif (dari Real Assets)
+            </div>
+            {activeIncomes.map((entry, i) => (
+              <div key={entry.id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", background: T.surface, borderRadius: 9, border: `1px solid ${T.border}`, marginBottom: 6 }}>
+                <div>
+                  <div style={{ color: T.text, fontSize: 12, fontWeight: 500 }}>{entry.label}</div>
+                  <div style={{ color: T.muted, fontSize: 10 }}>Bisnis Aktif (tidak dapat diedit di sini)</div>
+                </div>
+                <div style={{ color: T.orange || T.accent, fontSize: 13, fontWeight: "bold" }}>+{fV(entry.amount || 0, dispCur)}/bln</div>
+              </div>
+            ))}
+            {!isProPlus && (
+              <div style={{ color: T.muted, fontSize: 10, marginTop: 6 }}>
+                Edit di menu Properti &amp; Bisnis
+              </div>
+            )}
+          </div>
+        )}
+
+        {isPro && (!activeIncomes || activeIncomes.length === 0) && (
+          <div style={{ color: T.muted, fontSize: 11, padding: "8px 0" }}>
+            Belum ada bisnis bertag Aktif. Tambahkan di Properti &amp; Bisnis.
+          </div>
+        )}
+      </Card>
+
       {/* Fix 3a: Assets grouped by category */}
       <Card T={T}>
-        <SL T={T}>Atur Income per Aset</SL>
+        <SL T={T}>Passive Income per Aset</SL>
         <div
           style={{
             color: T.textSoft,
@@ -1260,7 +1331,7 @@ function FinanceToolsScene({
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         {[
           ["calc", "◉ Kalkulator"],
-          ["income", "💰 Passive Income"],
+          ["income", "📊 Financial Freedom Tracker"],
         ].map(([id, l]) => (
           <button
             key={id}

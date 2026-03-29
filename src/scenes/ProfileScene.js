@@ -18,6 +18,7 @@ function ProfileScene({
   isPro = false,
   isProPlus = false,
   monthlyExpense = '',
+  monthlyFixedIncome = '',
   activeIncomes = [],
   userEmail = "",
   userPhoto = "",
@@ -47,10 +48,11 @@ function ProfileScene({
   const totalDebt      = debts.reduce((s, d) => s + parseVal(d.outstanding), 0);
   const netWorth       = total - totalDebt;
   const passiveMonthly = assets
-    .filter(a => a.income?.amount > 0)
+    .filter(a => a.income?.amount > 0 && !(a.classKey === "business" && a.incomeType === "active"))
     .reduce((s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 12) / 12, 0);
   const activeMonthly  = activeIncomes.reduce((s, a) => s + (a.amount || 0), 0);
-  const totalInflow    = passiveMonthly + activeMonthly;
+  const fixedMonthly   = parseVal(monthlyFixedIncome);
+  const totalInflow    = passiveMonthly + activeMonthly + fixedMonthly;
   const totalDebtMon   = debts.reduce((s, d) => s + parseVal(d.monthlyPayment), 0);
   const expense        = parseVal(monthlyExpense);
   const totalOutflow   = totalDebtMon + expense;

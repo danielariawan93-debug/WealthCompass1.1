@@ -102,8 +102,9 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
   }, [f.inputMode, f.monthlyPayment, f.endYearMonth, f.outstanding, effectiveRate, isRevolving]);
 
   const derivedMonthlyPayment = useMemo(() => {
-    if (f.inputMode === 'A') return parseVal(f.monthlyPayment);
+    // Revolving: always bunga/bulan = outstanding * rate/12
     if (isRevolving) return derivedOutstanding * (effectiveRate / 100 / 12);
+    if (f.inputMode === 'A') return parseVal(f.monthlyPayment);
     const tenor = parseInt(f.tenorMonths) || 12;
     return derivedOutstanding > 0 ? calcMonthlyPayment(derivedOutstanding, effectiveRate, tenor) : 0;
   }, [f.inputMode, f.monthlyPayment, isRevolving, derivedOutstanding, effectiveRate, f.tenorMonths]);
@@ -361,7 +362,16 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
   const [activeTab, setActiveTab] = useState('all');
 
   const totalOutstanding = debts.reduce((s, d) => s + parseVal(d.outstanding), 0);
-  const totalMonthly     = debts.reduce((s, d) => s + parseVal(d.monthlyPayment), 0);
+  const getAllTypes = () => [...KONSUMTIF, ...PRODUKTIF];
+  const getMonthlyForDebt = (d) => {
+    const typeDef = getAllTypes().find(t => t.key === d.type);
+    if (typeDef?.mode === 'revolving') {
+      const rate = parseVal(d.interestRate) || DEFAULT_RATE[d.type] || 10;
+      return parseVal(d.outstanding) * (rate / 100 / 12);
+    }
+    return parseVal(d.monthlyPayment);
+  };
+  const totalMonthly = debts.reduce((s, d) => s + getMonthlyForDebt(d), 0);
 
   const konsumtif = debts.filter(d => d.category === 'konsumtif' || !d.category);
   const produktif = debts.filter(d => d.category === 'produktif');
@@ -521,7 +531,7 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:7, marginBottom:10 }}>
                   <div style={{ padding:'7px 8px', background:T.surface, borderRadius:8 }}>
                     <div style={{ color:T.muted, fontSize:9 }}>{isRev?'Bunga/Bln':'Cicilan/Bln'}</div>
-                    <div style={{ color:T.orange||T.accent, fontSize:11, fontWeight:'bold' }}>{fV(parseVal(d.monthlyPayment))}</div>
+                    <div style={{ color:T.orange||T.accent, fontSize:11, fontWeight:'bold' }}>{fV(getMonthlyForDebt(d), dispCur)}</div>
                   </div>
                   <div style={{ padding:'7px 8px', background:T.surface, borderRadius:8 }}>
                     <div style={{ color:T.muted, fontSize:9 }}>Bunga/Thn</div>
