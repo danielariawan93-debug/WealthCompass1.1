@@ -684,7 +684,11 @@ function BusinessForm({ onSave, onCancel, T, editData, hideValues = false, prope
       name: f.name,
       valueIDR: valueForNetWorth,
       businessData: f,
-      income: incomeMonthly > 0 ? { amount: incomeMonthly, frequency: "monthly", type: "business" } : undefined,
+      // Active businesses: income stored in activeIncomes state, NOT in asset.income
+      // Passive businesses: income stored in asset.income for passive tracker
+      income: (incomeMonthly > 0 && f.incomeType !== "active")
+        ? { amount: incomeMonthly, frequency: "monthly", type: "business" }
+        : undefined,
       incomeType: f.incomeType,
       newPropertyData,
     });

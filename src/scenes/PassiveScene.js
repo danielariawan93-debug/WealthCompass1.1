@@ -349,6 +349,7 @@ function PassiveIncomeSummary({
   dispCur,
   T,
   hideValues = false,
+  activeIncomes = [],
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
   const [expanded, setExpanded] = useState(false);
