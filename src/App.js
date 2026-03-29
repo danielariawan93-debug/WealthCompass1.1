@@ -208,24 +208,25 @@ function WealthCompassV7() {
   };
 
   const handleLogout = () => {
+    // Save full state before clearing (include all fields)
     if (user?.email) {
-      saveAccountData(user.email, {
-        assets,
-        debts,
-        goals,
-        riskProfile,
-        isPro,
-        isProPlus,
-        uploadCount,
-        proExpiry,
-        dispCur,
-        settings,
-        theme,
-        customPresetId,
-        activeIncomes,
-        insurances,
-      });
+      const savePayload = {
+        assets, debts, goals, riskProfile,
+        isPro, isProPlus, uploadCount, proExpiry,
+        dispCur, settings, theme, customPresetId,
+        activeIncomes, insurances,
+        monthlyExpense, monthlyFixedIncome,
+      };
+      saveAccountData(user.email, savePayload);
+      if (user?.uid) saveAccountDataCloud(user.uid, savePayload).catch(() => {});
     }
+    // Clear session and sign out - do NOT call setTab (avoid flash to profile)
+    localStorage.removeItem("wc_session");
+    localStorage.removeItem("wc_theme");
+    localStorage.removeItem("wc_custom_theme");
+    signOut(auth).catch(() => {});
+    // Clear all state
+    setUser(null);
     setAssets([]);
     setDebts([]);
     setGoals([]);
@@ -239,14 +240,9 @@ function WealthCompassV7() {
     setMonthlyExpense("");
     setMonthlyFixedIncome("");
     setHideValues(false);
-    setTab("profile");
-    localStorage.removeItem("wc_session");
-    localStorage.removeItem("wc_theme");
-    localStorage.removeItem("wc_custom_theme");
     setTheme("dark");
     setCustomPresetId("midnight");
-    signOut(auth).catch(() => {});
-    setUser(null);
+    setTab("profile");
   };
 
   const handleUpgrade = (tierChoice = "pro", durationDays = 30) => {
