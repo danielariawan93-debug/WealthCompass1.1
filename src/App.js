@@ -542,9 +542,11 @@ function WealthCompassV7() {
         setTab={handleSetTab}
         T={T}
         isPro={isPro}
+        isProPlus={isProPlus}
         sideOpen={sideOpen}
         setSideOpen={setSideOpen}
         modules={settings.modules}
+        setShowUpgrade={setShowUpgrade}
       />
 
       {/* Main */}
@@ -752,6 +754,7 @@ function WealthCompassV7() {
                 isPro={isPro}
                 isProPlus={isProPlus}
                 monthlyExpense={monthlyExpense}
+                monthlyFixedIncome={monthlyFixedIncome}
                 activeIncomes={activeIncomes}
                 userEmail={user?.email || ""}
                 userPhoto={user?.photo || ""}
