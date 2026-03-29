@@ -835,6 +835,7 @@ function WealthCompassV7() {
               <FinanceToolsScene
                 assets={assets}
                 setAssets={setAssets}
+                debts={debts || []}
                 dispCur={dispCur}
                 T={T}
                 hideValues={hideValues}
@@ -852,6 +853,7 @@ function WealthCompassV7() {
               <FinanceToolsScene
                 assets={assets}
                 setAssets={setAssets}
+                debts={debts || []}
                 dispCur={dispCur}
                 T={T}
                 hideValues={hideValues}
