@@ -354,9 +354,11 @@ function PassiveIncomeSummary({
   const [expanded, setExpanded] = useState(false);
 
   // Exclude bisnis aktif dari passive income (sudah masuk activeIncomes)
+  // Bisnis dengan incomeType=active TIDAK boleh masuk passive income list
   const incomeAssets = assets.filter((a) =>
     a.income && a.income.amount > 0 &&
-    !(a.classKey === "business" && a.incomeType === "active")
+    !(a.classKey === "business" && a.incomeType === "active") &&
+    !(a.classKey === "business" && activeIncomes.some(ai => ai.id === "biz_" + a.id))
   );
   const totalAnnual = incomeAssets.reduce(
     (s, a) => s + a.income.amount * (FREQ_MULT[a.income.frequency] || 1),
@@ -499,6 +501,7 @@ function PassiveIncomeScene({
   setMonthlyFixedIncome: setMonthlyFixedIncomeProp = null,
   isPro = false,
   isProPlus = false,
+  setTab = null,
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
 
@@ -743,7 +746,7 @@ function PassiveIncomeScene({
           <div style={{ padding:"10px 12px", background:T.surface, borderRadius:10, border:`1px solid ${T.border}` }}>
             <div style={{ color:T.muted, fontSize:10, marginBottom:3, display:"flex", alignItems:"center", gap:4 }}>
               Yield Portofolio
-              <InfoBtn T={T} content={"Yield = Total Passive Income Tahunan dibagi Total Nilai Aset. Bandingkan: deposito 5-6%, obligasi 6-8%, properti 8-12%, saham 12-20% p.a. Makin tinggi yield, makin produktif aset Anda."} />
+              <InfoBtn T={T} content={"Cash Yield = Total Passive Income Tahunan dibagi Total Nilai Aset yang Produktif (yang sudah generate income). Hanya dihitung dari aset yang benar-benar menghasilkan cash flow. Benchmark: deposito 5-6%, obligasi 6-8%, properti sewa 8-12%, saham/dividen 3-6% p.a."} />
             </div>
             <div style={{ color:T.blue, fontSize:14, fontWeight:"bold", fontFamily:"'Playfair Display', Georgia, serif" }}>
               {totalIDR > 0 ? ((totalAnnual / totalIDR) * 100).toFixed(2) + "%" : "-"}
@@ -798,7 +801,8 @@ function PassiveIncomeScene({
             <div style={{ color: T.textSoft, fontSize: 11, fontWeight: "bold", marginBottom: 8 }}>
               Bisnis Aktif (dari Real Assets)
             </div>
-            {activeIncomes.map((entry, i) => (
+            {/* Deduplicate by id to prevent double entries */}
+            {activeIncomes.filter((entry, idx, arr) => arr.findIndex(e => e.id === entry.id) === idx).map((entry, i) => (
               <div key={entry.id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", background: T.surface, borderRadius: 9, border: `1px solid ${T.border}`, marginBottom: 6 }}>
                 <div>
                   <div style={{ color: T.text, fontSize: 12, fontWeight: 500 }}>{entry.label}</div>
@@ -936,31 +940,28 @@ function PassiveIncomeScene({
                         </div>
                       )}
                     </div>
-                    <button
-                      onClick={() =>
-                        isEditing ? setEditIncomeId(null) : openEdit(a)
-                      }
-                      style={{
-                        background: isEditing
-                          ? T.border
-                          : hasIncome
-                          ? T.greenDim
-                          : T.accentDim,
-                        color: isEditing
-                          ? T.muted
-                          : hasIncome
-                          ? T.green
-                          : T.accent,
-                        border: "none",
-                        borderRadius: 7,
-                        padding: "5px 10px",
-                        cursor: "pointer",
-                        fontSize: 11,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {isEditing ? "Batal" : hasIncome ? "✎ Edit" : "+ Tambah"}
-                    </button>
+                    {(isPro || isProPlus) && ["property","business"].includes(a.classKey) ? (
+                      <button
+                        onClick={() => setTab && setTab("real-assets")}
+                        style={{ background: T.accentDim, color: T.accent, border: "none", borderRadius: 7, padding: "5px 10px", cursor: "pointer", fontSize: 11, flexShrink: 0 }}
+                        title="Edit di Properti & Bisnis"
+                      >
+                        ✎ Edit di P&amp;B
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() =>
+                          isEditing ? setEditIncomeId(null) : openEdit(a)
+                        }
+                        style={{
+                          background: isEditing ? T.border : hasIncome ? T.greenDim : T.accentDim,
+                          color: isEditing ? T.muted : hasIncome ? T.green : T.accent,
+                          border: "none", borderRadius: 7, padding: "5px 10px", cursor: "pointer", fontSize: 11, flexShrink: 0,
+                        }}
+                      >
+                        {isEditing ? "Batal" : hasIncome ? "✎ Edit" : "+ Tambah"}
+                      </button>
+                    )}
                   </div>
 
                   {isEditing && (
@@ -1283,6 +1284,7 @@ function FinanceToolsScene({
   setMonthlyExpense = null,
   monthlyFixedIncome = undefined,
   setMonthlyFixedIncome = null,
+  setTab = null,
 }) {
   const [subTab, setSubTab] = useState("calc");
   return (
@@ -1331,6 +1333,7 @@ function FinanceToolsScene({
           setMonthlyExpense={setMonthlyExpense}
           monthlyFixedIncome={monthlyFixedIncome}
           setMonthlyFixedIncome={setMonthlyFixedIncome}
+          setTab={setTab}
         />
       )}
     </div>
