@@ -638,14 +638,18 @@ function PassiveIncomeScene({
         >
           {[
             {
-              label: "Per Bulan",
+              label: "Est. Income / Bulan",
               val: fV(totalMonthly, dispCur),
               color: T.green,
+              <InfoBtn T={T} content={"Total Income dari pendapatan Aktif dan Pasif dari Asset yang dimilki."} />
+              </div>
             },
             {
-              label: "Per Tahun",
+              label: "Est. Pengeluaran / Bulan",
               val: fV(totalAnnual, dispCur),
               color: T.accent,
+              <InfoBtn T={T} content={"Total Pengeluaran / Bulan dari hutang aktif dan pengeluaran bulanan."} />
+              </div>
             },
             {
               label: "Yield Portofolio",
