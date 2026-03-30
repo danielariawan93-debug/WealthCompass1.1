@@ -22,7 +22,7 @@ function getAccountKey(email) {
 // Save to localStorage (sync, always works offline)
 function saveAccountData(email, data) {
   try {
-    localStorage.setItem(getAccountKey(email), JSON.stringify({ ...data, _savedAt: Date.now() }));
+    localStorage.setItem(getAccountKey(email), JSON.stringify(data));
   } catch (e) {
     console.warn("Save failed", e);
   }
@@ -48,15 +48,12 @@ async function saveAccountDataCloud(uid, data) {
   }
 }
 
-// Load from Firestore (async, returns { data, updatedAt } or null if not found/offline)
+// Load from Firestore (async, returns null if not found/offline)
 async function loadAccountDataCloud(uid) {
   if (!uid) return null;
   try {
     const snap = await getDoc(doc(db, "users", uid));
-    if (snap.exists()) {
-      const docData = snap.data();
-      return { data: docData.data || null, updatedAt: docData.updatedAt || 0 };
-    }
+    if (snap.exists()) return snap.data().data || null;
     return null;
   } catch (e) {
     console.warn("Firestore load failed:", e.message);

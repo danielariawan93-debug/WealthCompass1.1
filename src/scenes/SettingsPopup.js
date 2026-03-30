@@ -52,6 +52,7 @@ function SettingsPopup({
   setIsPro,
   setShowUpgrade,
   onLogout,
+  logoutSaving,
   fontScale,
   setFontScale,
   customPresetId,
@@ -619,8 +620,9 @@ function SettingsPopup({
         </div>
         {onLogout && (
           <button
-            onClick={() => {
-              onLogout();
+            disabled={logoutSaving}
+            onClick={async () => {
+              await onLogout();
               onClose();
             }}
             style={{
@@ -630,13 +632,14 @@ function SettingsPopup({
               borderRadius: 9,
               border: `1px solid ${T.red}33`,
               background: T.redDim,
-              color: T.red,
-              cursor: "pointer",
+              color: logoutSaving ? T.muted : T.red,
+              cursor: logoutSaving ? "not-allowed" : "pointer",
               fontSize: 12,
               fontWeight: "bold",
+              opacity: logoutSaving ? 0.6 : 1,
             }}
           >
-            Keluar dari Akun
+            {logoutSaving ? "Menyimpan data..." : "Keluar dari Akun"}
           </button>
         )}
       </div>

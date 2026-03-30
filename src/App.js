@@ -69,6 +69,7 @@ function WealthCompassV7() {
   const [user, setUser] = useState(null);
   const cloudLoadDone = React.useRef(false);
   const isLoggingOut = React.useRef(false);
+  const [logoutSaving, setLogoutSaving] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [keepSignIn] = useState(() => localStorage.getItem('wc_keep_signin') !== 'false');
   const [theme, setTheme] = useState(() => {
@@ -162,28 +163,17 @@ function WealthCompassV7() {
     setMonthlyExpense(d.monthlyExpense || "");
     setMonthlyFixedIncome(d.monthlyFixedIncome || "");
 
-    // Then try Firestore (async - only overwrites local if cloud data is newer)
+    // Then try Firestore (async - always authoritative source of truth)
     if (userData.uid) {
-      loadAccountDataCloud(userData.uid).then(cloudResult => {
-        if (!cloudResult || !cloudResult.data) {
+      loadAccountDataCloud(userData.uid).then(cloud => {
+        if (!cloud) {
           // Firestore empty - push local data up so other devices can sync
           const localData = loadAccountData(userData.email);
           if (localData) saveAccountDataCloud(userData.uid, localData).catch(() => {});
           setTimeout(() => { cloudLoadDone.current = true; }, 300);
           return;
         }
-        const cloud = cloudResult.data;
-        const cloudUpdatedAt = cloudResult.updatedAt || 0;
-        const localSavedAt = localSaved?._savedAt || 0;
-        if (cloudUpdatedAt <= localSavedAt) {
-          // Local data is newer (e.g. logout save completed locally but not yet in Firestore)
-          // Push local data up to sync cloud, keep current state
-          const localData = loadAccountData(userData.email);
-          if (localData) saveAccountDataCloud(userData.uid, localData).catch(() => {});
-          setTimeout(() => { cloudLoadDone.current = true; }, 300);
-          return;
-        }
-        // Cloud is newer - use it (multi-device sync scenario)
+        // Use cloud data (single source of truth)
         setAssets(cloud.assets?.length ? cloud.assets : []);
         setDebts(cloud.debts || []);
         setGoals(cloud.goals || []);
@@ -213,7 +203,7 @@ function WealthCompassV7() {
         setInsurances(cloud.insurances || []);
         setMonthlyExpense(cloud.monthlyExpense || "");
         setMonthlyFixedIncome(cloud.monthlyFixedIncome || "");
-        // Also update localStorage with cloud data
+        // Mirror cloud data to localStorage as offline cache
         saveAccountData(userData.email, cloud);
         // Delay cloudLoadDone agar React flush semua setState sebelum auto-save
         setTimeout(() => { cloudLoadDone.current = true; }, 300);
@@ -223,9 +213,9 @@ function WealthCompassV7() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     isLoggingOut.current = true;
-    if (user?.email) {
+    if (user?.uid) {
       const savePayload = {
         assets, debts, goals, riskProfile,
         isPro, isProPlus, uploadCount, proExpiry,
@@ -233,8 +223,16 @@ function WealthCompassV7() {
         activeIncomes, insurances,
         monthlyExpense, monthlyFixedIncome,
       };
-      saveAccountData(user.email, savePayload);
-      if (user?.uid) saveAccountDataCloud(user.uid, savePayload).catch(() => {});
+      // Await Firestore save so data is committed before the next login loads it
+      setLogoutSaving(true);
+      try {
+        await saveAccountDataCloud(user.uid, savePayload);
+      } catch (e) {
+        console.error("[WC] Logout cloud save failed:", e.message);
+      }
+      setLogoutSaving(false);
+      // Keep localStorage in sync as offline cache
+      if (user?.email) saveAccountData(user.email, savePayload);
     }
     localStorage.removeItem("wc_session");
     localStorage.removeItem("wc_theme");
@@ -1073,6 +1071,7 @@ function WealthCompassV7() {
         setShowUpgrade={setShowUpgrade}
         T={T}
         onLogout={handleLogout}
+        logoutSaving={logoutSaving}
         fontScale={fontScale}
         setFontScale={setFontScale}
         customPresetId={customPresetId}
