@@ -8,7 +8,7 @@ import {
   RATES,
   RISK_PROFILES,
 } from "./constants/data";
-import { TIERS, getAIUsage, getTier } from "./constants/tiers";
+import { TIERS, getTier, PULSE_PACKAGES } from "./constants/tiers";
 import {
   fMoney,
   fM,
@@ -92,9 +92,12 @@ function WealthCompassV7() {
   const [isPro, setIsPro] = useState(false);
   const [isProPlus, setIsProPlus] = useState(false);
   const [uploadCount, setUploadCount] = useState(0);
+  const [monthlyUploadCount, setMonthlyUploadCount] = useState(0);
+  const [monthlyUploadMonth, setMonthlyUploadMonth] = useState("");
+  const [pulseCredits, setPulseCredits] = useState(5);
   const [debts, setDebts] = useState([]);
   const [goals, setGoals] = useState([]);
-  const [aiTokensUsed, setAiTokensUsed] = useState(() => getAIUsage());
+  const [showBuyPulse, setShowBuyPulse] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -135,6 +138,9 @@ function WealthCompassV7() {
     setIsPro(d.isPro || false);
     setIsProPlus(d.isProPlus || false);
     setUploadCount(d.uploadCount || 0);
+    setMonthlyUploadCount(d.monthlyUploadCount || 0);
+    setMonthlyUploadMonth(d.monthlyUploadMonth || "");
+    setPulseCredits(d.pulseCredits ?? 5);
     setProExpiry(d.proExpiry || null);
     setDispCur(d.dispCur || "IDR");
     setSettings({
@@ -181,6 +187,9 @@ function WealthCompassV7() {
         setIsPro(cloud.isPro || false);
         setIsProPlus(cloud.isProPlus || false);
         setUploadCount(cloud.uploadCount || 0);
+        setMonthlyUploadCount(cloud.monthlyUploadCount || 0);
+        setMonthlyUploadMonth(cloud.monthlyUploadMonth || "");
+        setPulseCredits(cloud.pulseCredits ?? 5);
         setProExpiry(cloud.proExpiry || null);
         setDispCur(cloud.dispCur || "IDR");
         setSettings({
@@ -218,7 +227,8 @@ function WealthCompassV7() {
     if (user?.uid) {
       const savePayload = {
         assets, debts, goals, riskProfile,
-        isPro, isProPlus, uploadCount, proExpiry,
+        isPro, isProPlus, uploadCount, monthlyUploadCount, monthlyUploadMonth,
+        pulseCredits, proExpiry,
         dispCur, settings, theme, customPresetId,
         activeIncomes, insurances,
         monthlyExpense, monthlyFixedIncome,
@@ -230,14 +240,16 @@ function WealthCompassV7() {
       } catch (e) {
         console.error("[WC] Logout cloud save failed:", e.message);
       }
-      setLogoutSaving(false);
       // Keep localStorage in sync as offline cache
       if (user?.email) saveAccountData(user.email, savePayload);
     }
     localStorage.removeItem("wc_session");
     localStorage.removeItem("wc_theme");
     localStorage.removeItem("wc_custom_theme");
-    signOut(auth).catch(() => {});
+    // Sign out from Firebase FIRST — LoginScreen mounts an onAuthStateChanged listener
+    // and will immediately re-login the user if Firebase still shows them authenticated.
+    try { await signOut(auth); } catch {}
+    setLogoutSaving(false);
     setUser(null);
     setAssets([]);
     setDebts([]);
@@ -246,6 +258,9 @@ function WealthCompassV7() {
     setIsPro(false);
     setIsProPlus(false);
     setUploadCount(0);
+    setMonthlyUploadCount(0);
+    setMonthlyUploadMonth("");
+    setPulseCredits(5);
     setProExpiry(null);
     setActiveIncomes([]);
     setInsurances([]);
@@ -259,6 +274,10 @@ function WealthCompassV7() {
   const handleUpgrade = (tierChoice = "pro", durationDays = 30) => {
     setIsPro(true);
     if (tierChoice === "proplus") setIsProPlus(true);
+    // Allocate Pulse Credits upfront for the full subscription period
+    const months = Math.max(1, Math.round(durationDays / 30));
+    const pulsePerMonth = tierChoice === "proplus" ? 100 : 25;
+    setPulseCredits(prev => prev + pulsePerMonth * months);
     const expDate = new Date();
     expDate.setDate(expDate.getDate() + durationDays);
     setProExpiry({
@@ -450,7 +469,8 @@ function WealthCompassV7() {
             saveAccountData(user.email, {
               assets, debts, goals, riskProfile,
               isPro: false, isProPlus: false,
-              uploadCount, proExpiry: null,
+              uploadCount, monthlyUploadCount, monthlyUploadMonth,
+              pulseCredits, proExpiry: null,
               dispCur, settings, theme, customPresetId,
               activeIncomes, insurances, monthlyExpense, monthlyFixedIncome,
             });
@@ -477,6 +497,9 @@ function WealthCompassV7() {
       isPro,
       isProPlus,
       uploadCount,
+      monthlyUploadCount,
+      monthlyUploadMonth,
+      pulseCredits,
       proExpiry,
       dispCur,
       settings,
@@ -503,6 +526,9 @@ function WealthCompassV7() {
     isPro,
     isProPlus,
     uploadCount,
+    monthlyUploadCount,
+    monthlyUploadMonth,
+    pulseCredits,
     proExpiry,
     dispCur,
     settings,
@@ -824,6 +850,13 @@ function WealthCompassV7() {
                   tier={tier}
                   uploadCount={uploadCount}
                   setUploadCount={setUploadCount}
+                  monthlyUploadCount={monthlyUploadCount}
+                  setMonthlyUploadCount={setMonthlyUploadCount}
+                  monthlyUploadMonth={monthlyUploadMonth}
+                  setMonthlyUploadMonth={setMonthlyUploadMonth}
+                  pulseCredits={pulseCredits}
+                  setPulseCredits={setPulseCredits}
+                  onBuyPulse={() => setShowBuyPulse(true)}
                 />
               </>
             )}
@@ -971,8 +1004,9 @@ function WealthCompassV7() {
                 {...tabProps}
                 debts={debts}
                 tier={tier}
-                aiTokensUsed={aiTokensUsed}
-                setAiTokensUsed={setAiTokensUsed}
+                pulseCredits={pulseCredits}
+                setPulseCredits={setPulseCredits}
+                onBuyPulse={() => setShowBuyPulse(true)}
               />
             )}
             {tab === "insurance" && (
@@ -1077,6 +1111,35 @@ function WealthCompassV7() {
         customPresetId={customPresetId}
         setCustomPresetId={setCustomPresetId}
       />
+
+      {/* Buy Pulse Modal */}
+      {showBuyPulse && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={() => setShowBuyPulse(false)}>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, padding: 24, maxWidth: 380, width: "100%", position: "relative" }}
+            onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowBuyPulse(false)} style={{ position: "absolute", top: 12, right: 14, background: "none", border: "none", color: T.muted, fontSize: 18, cursor: "pointer" }}>✕</button>
+            <div style={{ fontSize: 14, fontWeight: "bold", color: T.text, marginBottom: 4 }}>⚡ Beli PULSE Credit</div>
+            <div style={{ fontSize: 11, color: T.muted, marginBottom: 18 }}>
+              Saldo saat ini: <span style={{ color: T.accent, fontWeight: "bold" }}>{pulseCredits} Pulse</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
+              {PULSE_PACKAGES.map(pkg => (
+                <div key={pkg.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: "bold", color: T.text }}>⚡ {pkg.label}</div>
+                    <div style={{ fontSize: 10, color: T.muted }}>${(pkg.price / pkg.pulse).toFixed(3)} / Pulse</div>
+                  </div>
+                  <button style={{ padding: "6px 14px", background: T.accentDim, border: `1px solid ${T.accentSoft}`, borderRadius: 8, color: T.accent, fontSize: 12, fontWeight: "bold", cursor: "pointer" }}>
+                    ${pkg.price}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 10, color: T.muted, textAlign: "center" }}>Pembayaran via Stripe · Segera hadir</div>
+          </div>
+        </div>
+      )}
 
       {/* Floating zoom control */}
       <div

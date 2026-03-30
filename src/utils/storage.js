@@ -68,7 +68,10 @@ const DEFAULT_ACCOUNT_STATE = {
   riskProfile: null,
   isPro: false,
   isProPlus: false,
-  uploadCount: 0,
+  uploadCount: 0,        // Free tier: lifetime upload count
+  monthlyUploadCount: 0, // Pro/Pro+: uploads used this month
+  monthlyUploadMonth: "", // "2026-03" — resets monthlyUploadCount when month changes
+  pulseCredits: 5,       // All new accounts start with 5 free Pulse Credits (lifetime)
   settings: {
     language: "id",
     notifications: true,

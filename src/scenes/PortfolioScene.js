@@ -37,14 +37,7 @@ import {
   CRYPTO_COINS,
   CURRENCIES,
 } from "../constants/data";
-import {
-  TIERS,
-  getAIUsage,
-  addAIUsage,
-  canUploadPDF,
-  pdfUploadsRemaining,
-  addPDFUsage,
-} from "../constants/tiers";
+import { TIERS, canUploadFree, uploadsRemaining } from "../constants/tiers";
 
 function PortfolioScene({
   assets,
@@ -56,6 +49,13 @@ function PortfolioScene({
   tier,
   uploadCount,
   setUploadCount,
+  monthlyUploadCount = 0,
+  setMonthlyUploadCount,
+  monthlyUploadMonth = "",
+  setMonthlyUploadMonth,
+  pulseCredits = 0,
+  setPulseCredits,
+  onBuyPulse,
   hideValues = false,
   T,
   setTab = null,
@@ -64,8 +64,10 @@ function PortfolioScene({
   const canAdd =
     assets.length <
     (tier ? (tier.maxAssets === Infinity ? 999999 : tier.maxAssets) : 999999);
-  const pdfRemaining = tier ? pdfUploadsRemaining(tier, uploadCount) : 3;
-  const pdfAllowed = tier ? canUploadPDF(tier, uploadCount) : uploadCount < 3;
+  const pdfFreeRemaining = uploadsRemaining(tier, uploadCount, monthlyUploadCount, monthlyUploadMonth);
+  const pdfAllowed = canUploadFree(tier, uploadCount, monthlyUploadCount, monthlyUploadMonth);
+  // Can upload if free quota remains OR pulse credits available
+  const pdfAllowedWithPulse = pdfAllowed || pulseCredits > 0;
   const [subTab, setSubTab] = useState("list"); // list | add | upload
   const [collapsedClasses, setCollapsedClasses] = useState({});
   // Default: all asset detail sections hidden (true = collapsed)
@@ -220,7 +222,7 @@ function PortfolioScene({
   const [pdfError, setPdfError] = useState("");
   const [conflictMode, setConflictMode] = useState({});
   const fileRef = useRef();
-  const remaining = pdfRemaining; // from tier helper
+  const remaining = pdfFreeRemaining;
 
   const parsePDF = async () => {
     if (!pdfFile) return;
@@ -262,8 +264,21 @@ function PortfolioScene({
       const raw = data.content?.[0]?.text || "[]";
       const items = JSON.parse(raw.replace(/```json|```/g, "").trim());
       setPdfParsed(items.map((it, i) => ({ ...it, id: i, selected: true })));
-      addPDFUsage();
-      if (tier?.id === "free") setUploadCount((c) => c + 1);
+      const thisMonth = new Date().toISOString().slice(0, 7);
+      if (pdfAllowed) {
+        // Use free quota
+        if (tier?.id === "free") {
+          setUploadCount(c => c + 1);
+        } else {
+          // Pro / Pro+ — update monthly counter in account state (Firestore)
+          const newCount = monthlyUploadMonth === thisMonth ? monthlyUploadCount + 1 : 1;
+          setMonthlyUploadCount(newCount);
+          setMonthlyUploadMonth(thisMonth);
+        }
+      } else {
+        // Free quota exhausted — deduct 1 Pulse Credit
+        setPulseCredits(prev => Math.max(0, prev - 1));
+      }
     } catch (e) {
       setPdfError("Gagal parsing PDF: " + e.message);
     }
@@ -1256,27 +1271,20 @@ function PortfolioScene({
               </div>
               <div style={{ textAlign: "right" }}>
                 <Chip
-                  color={
-                    pdfAllowed
-                      ? tier?.id === "proplus"
-                        ? "#9b7ef8"
-                        : T.accent
-                      : T.red
-                  }
+                  color={pdfAllowed ? (tier?.id === "proplus" ? "#9b7ef8" : T.accent) : pulseCredits > 0 ? T.orange : T.red}
                   T={T}
                 >
-                  {tier?.id === "proplus"
-                    ? "💎 20x/bulan"
-                    : tier?.id === "pro"
-                    ? `⭐ ${pdfRemaining}x / bulan`
-                    : `${pdfRemaining}x tersisa`}
+                  {pdfAllowed
+                    ? tier?.id === "proplus" ? "💎 20x/bulan" : tier?.id === "pro" ? `⭐ ${remaining}x / bulan` : `${remaining}x tersisa`
+                    : `⚡ ${pulseCredits} Pulse`}
                 </Chip>
                 <div style={{ color: T.muted, fontSize: 10, marginTop: 3 }}>
                   {tier?.id === "proplus"
-                    ? "Pro+ - tidak terbatas"
+                    ? "Pro+ — 20x/bulan gratis"
                     : tier?.id === "pro"
-                    ? "Pro - 7x per bulan, reset tiap bulan"
-                    : "Free - 3x seumur hidup"}
+                    ? "Pro — 7x/bulan gratis"
+                    : "Free — 3x seumur hidup"}
+                  {!pdfAllowed && ` · 1 Pulse/upload`}
                 </div>
               </div>
             </div>
@@ -1328,15 +1336,29 @@ function PortfolioScene({
                 />
               </div>
               {pdfFile && (
-                <TBtn
-                  T={T}
-                  variant="primary"
-                  onClick={parsePDF}
-                  disabled={pdfParsing || !pdfAllowed}
-                  style={{ width: "100%", padding: 13 }}
-                >
-                  {pdfParsing ? "⏳ AI membaca PDF..." : "🔍 Analisa dengan AI"}
-                </TBtn>
+                <>
+                  <TBtn
+                    T={T}
+                    variant="primary"
+                    onClick={parsePDF}
+                    disabled={pdfParsing || !pdfAllowedWithPulse}
+                    style={{ width: "100%", padding: 13 }}
+                  >
+                    {pdfParsing
+                      ? "⏳ AI membaca PDF..."
+                      : pdfAllowed
+                      ? "🔍 Analisa dengan AI"
+                      : `🔍 Analisa (1 Pulse)`}
+                  </TBtn>
+                  {!pdfAllowedWithPulse && (
+                    <div style={{ marginTop: 8, textAlign: "center" }}>
+                      <span style={{ fontSize: 11, color: T.red }}>PULSE Credit habis. </span>
+                      {onBuyPulse && (
+                        <button onClick={onBuyPulse} style={{ fontSize: 11, background: "none", border: "none", color: T.accent, cursor: "pointer", textDecoration: "underline" }}>Beli Pulse</button>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
               {pdfError && (
                 <div
