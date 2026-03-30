@@ -15,6 +15,7 @@ function DebtIncomeCard({
   monthlyExpense = 0,
   activeIncomes = [],
   monthlyFixedIncome = "",
+  insurances = [],
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
 
@@ -49,10 +50,15 @@ function DebtIncomeCard({
     return parseVal(d.monthlyPayment);
   };
   const totalDebtMon = debts.reduce((s, d) => s + getDebtMonthly(d), 0);
-  const biayaBulanan     = parseVal(monthlyExpense);
+  const biayaBulanan = parseVal(monthlyExpense);
+  // Insurance premiums: annualize then divide to monthly
+  const totalInsuranceMon = insurances.reduce((s, ins) => {
+    const annual = parseVal(ins.premium) * (FREQ_MULT[ins.premiumFreq] || 1);
+    return s + annual / 12;
+  }, 0);
 
   // Total outflow vs inflow (passive + active)
-  const totalOutflow = totalDebtMon + biayaBulanan;
+  const totalOutflow = totalDebtMon + biayaBulanan + totalInsuranceMon;
   const totalInflow  = passiveIncomeMon + activeIncomeMon + fixedIncomeMon;
   const surplus      = totalInflow - totalOutflow;
 
@@ -240,6 +246,15 @@ function DebtIncomeCard({
                 {biayaBulanan === 0 && <div style={{ color: T.muted, fontSize: 9 }}>Isi di Passive Income</div>}
               </div>
             </div>
+            {totalInsuranceMon > 0 && (
+              <div style={{ marginTop: 8, padding: "10px 12px", background: T.redDim, borderRadius: 10, border: `1px solid ${T.red}22`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ color: T.muted, fontSize: 10, marginBottom: 2 }}>🛡 Premi Asuransi</div>
+                  <div style={{ color: T.muted, fontSize: 9 }}>{insurances.length} polis aktif</div>
+                </div>
+                <div style={{ color: T.red, fontSize: 13, fontWeight: "bold" }}>{fV(totalInsuranceMon, dispCur)}/bln</div>
+              </div>
+            )}
           </div>
 
           {/* Penambah */}
@@ -500,6 +515,7 @@ function PassiveIncomeScene({
   setMonthlyExpense: setMonthlyExpenseProp = null,
   monthlyFixedIncome: monthlyFixedIncomeProp = undefined,
   setMonthlyFixedIncome: setMonthlyFixedIncomeProp = null,
+  insurances = [],
   isPro = false,
   isProPlus = false,
   setTab = null,
@@ -577,7 +593,12 @@ function PassiveIncomeScene({
     }
     return s + parseVal(d.monthlyPayment);
   }, 0);
-  const targetFF = expense + totalDebtMonthly;
+  // Insurance premiums count as recurring outflow in FF target
+  const totalInsuranceMonthlyFF = insurances.reduce((s, ins) => {
+    const annual = parseVal(ins.premium) * (FREQ_MULT[ins.premiumFreq] || 1);
+    return s + annual / 12;
+  }, 0);
+  const targetFF = expense + totalDebtMonthly + totalInsuranceMonthlyFF;
   const fiRatio  = targetFF > 0 ? (totalMonthly / targetFF) * 100 : 0;
 
   // Group assets by ASSET_CLASS for display (Fix 3a)
@@ -665,13 +686,15 @@ function PassiveIncomeScene({
           <div>
             <div style={{ color:T.textSoft, fontSize:10, marginBottom:4, display:"flex", alignItems:"center", gap:4 }}>
               Target Financial Freedom
-              <InfoBtn T={T} content={"Auto-hitung: Pengeluaran Bulanan + Total Cicilan Hutang/Bulan. Ini adalah minimum passive income yang harus dicapai agar Anda bebas secara finansial tanpa bergantung pada pekerjaan."} />
+              <InfoBtn T={T} content={"Auto-hitung: Pengeluaran Bulanan + Cicilan Hutang + Premi Asuransi. Ini adalah minimum passive income yang harus dicapai agar Anda bebas secara finansial tanpa bergantung pada pekerjaan."} />
             </div>
             <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:9, padding:"9px 12px" }}>
               <div style={{ color:T.green, fontSize:13, fontWeight:"bold" }}>{fV(targetFF, dispCur)}/bln</div>
-              {totalDebtMonthly > 0 && (
+              {(totalDebtMonthly > 0 || totalInsuranceMonthlyFF > 0) && (
                 <div style={{ color:T.muted, fontSize:9, marginTop:2 }}>
-                  Kebutuhan {fV(expense, dispCur)} + Hutang {fV(totalDebtMonthly, dispCur)}
+                  Kebutuhan {fV(expense, dispCur)}
+                  {totalDebtMonthly > 0 && <> + Hutang {fV(totalDebtMonthly, dispCur)}</>}
+                  {totalInsuranceMonthlyFF > 0 && <> + Asuransi {fV(totalInsuranceMonthlyFF, dispCur)}</>}
                 </div>
               )}
             </div>
@@ -1285,6 +1308,7 @@ function FinanceToolsScene({
   setMonthlyExpense = null,
   monthlyFixedIncome = undefined,
   setMonthlyFixedIncome = null,
+  insurances = [],
   setTab = null,
 }) {
   const [subTab, setSubTab] = useState("calc");
@@ -1334,6 +1358,7 @@ function FinanceToolsScene({
           setMonthlyExpense={setMonthlyExpense}
           monthlyFixedIncome={monthlyFixedIncome}
           setMonthlyFixedIncome={setMonthlyFixedIncome}
+          insurances={insurances}
           setTab={setTab}
         />
       )}

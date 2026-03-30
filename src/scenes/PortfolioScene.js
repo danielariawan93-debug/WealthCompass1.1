@@ -84,7 +84,9 @@ function PortfolioScene({
     inputMode: "amount",
     metalType: "gold",
     metalPricePerGram: "",
+    metalPriceCurrency: "IDR",
     pricePerCoin: "",
+    pricePerCoinCurrency: "IDR",
   });
   const [editId, setEditId] = useState(null);
   const [editState, setEditState] = useState({
@@ -116,8 +118,8 @@ function PortfolioScene({
       const qty = parseVal(form.quantity);
       const ppc = parseVal(form.pricePerCoin);
       if (!ppc) return;
-      valueIDR = qty * ppc;
-      extra = { coinId: form.coinId, quantity: qty, pricePerCoin: ppc };
+      valueIDR = toIDR(qty * ppc, form.pricePerCoinCurrency);
+      extra = { coinId: form.coinId, quantity: qty, pricePerCoin: ppc, pricePerCoinCurrency: form.pricePerCoinCurrency };
     } else if (isEquity && form.inputMode === "units" && form.quantity) {
       const lots = parseVal(form.quantity);
       const pricePerShare = parseVal(form.amount);
@@ -128,11 +130,12 @@ function PortfolioScene({
       const metal = PRECIOUS_METALS.find((m) => m.id === form.metalType);
       const pricePerGram = parseVal(form.metalPricePerGram);
       if (!pricePerGram) return;
-      valueIDR = grams * pricePerGram;
+      valueIDR = toIDR(grams * pricePerGram, form.metalPriceCurrency);
       extra = {
         metalType: form.metalType,
         gramWeight: grams,
         pricePerGram,
+        pricePerGramCurrency: form.metalPriceCurrency,
         metalLabel: metal?.label,
       };
     } else {
@@ -152,7 +155,7 @@ function PortfolioScene({
         ...extra,
       },
     ]);
-    setForm((p) => ({ ...p, name: "", amount: "", quantity: "", pricePerCoin: "", metalPricePerGram: "" }));
+    setForm((p) => ({ ...p, name: "", amount: "", quantity: "", pricePerCoin: "", metalPricePerGram: "" , pricePerCoinCurrency: "IDR", metalPriceCurrency: "IDR" }));
     setSubTab("list");
   };
 
@@ -169,7 +172,9 @@ function PortfolioScene({
           ? asset.pricePerCoin || (asset.quantity ? Math.round(idrVal / asset.quantity) : Math.round(idrVal))
           : asset.sourceAmount || Math.round(idrVal)
       ),
-      cur: asset.sourceCurrency || "IDR",
+      cur: asset.coinId
+        ? (asset.pricePerCoinCurrency || "IDR")
+        : (asset.sourceCurrency || "IDR"),
       mode: asset.lots || asset.coinId ? "units" : "amount",
       qty: String(asset.quantity || asset.lots || ""),
     });
@@ -187,8 +192,8 @@ function PortfolioScene({
           const qty = parseVal(editState.qty);
           if (a.coinId) {
             const ppc = parseVal(editState.val);
-            newIDR = qty * ppc;
-            return { ...a, quantity: qty, pricePerCoin: ppc, valueIDR: newIDR, liveValue: undefined };
+            newIDR = toIDR(qty * ppc, editState.cur);
+            return { ...a, quantity: qty, pricePerCoin: ppc, pricePerCoinCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
           }
           if (a.lots) {
             const pps = parseVal(editState.val);
@@ -638,19 +643,33 @@ function PortfolioScene({
                                   />
                                   {asset.coinId && (
                                     <div>
-                                      <TInput
-                                        T={T}
-                                        value={editState.val}
-                                        onChange={(e) =>
-                                          setEditState((p) => ({ ...p, val: e.target.value }))
-                                        }
-                                        placeholder="Harga per koin (IDR)"
-                                        style={{ marginBottom: 8 }}
-                                      />
+                                      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                                        <TInput
+                                          T={T}
+                                          value={editState.val}
+                                          onChange={(e) =>
+                                            setEditState((p) => ({ ...p, val: e.target.value }))
+                                          }
+                                          placeholder="Harga per koin"
+                                          style={{ flex: 1 }}
+                                        />
+                                        <TSelect
+                                          T={T}
+                                          value={editState.cur}
+                                          onChange={(e) =>
+                                            setEditState((p) => ({ ...p, cur: e.target.value }))
+                                          }
+                                          style={{ width: 80 }}
+                                        >
+                                          {CURRENCIES.map((c) => (
+                                            <option key={c.code} value={c.code}>{c.code}</option>
+                                          ))}
+                                        </TSelect>
+                                      </div>
                                       {editState.qty && editState.val && parseVal(editState.val) > 0 && (
                                         <div style={{ fontSize: 10, color: T.blue, marginBottom: 8 }}>
-                                          {parseVal(editState.qty)} koin × {fMoney(parseVal(editState.val))} ={" "}
-                                          {fMoney(parseVal(editState.qty) * parseVal(editState.val))}
+                                          {parseVal(editState.qty)} koin × {fMoney(parseVal(editState.val))} {editState.cur} ={" "}
+                                          {fMoney(toIDR(parseVal(editState.qty) * parseVal(editState.val), editState.cur))}
                                         </div>
                                       )}
                                     </div>
@@ -1050,19 +1069,34 @@ function PortfolioScene({
                       marginBottom: 4,
                     }}
                   >
-                    Harga per gram (IDR)
+                    Harga per gram
                   </div>
-                  <TInput
-                    T={T}
-                    placeholder={`Input harga ${form.metalType === "gold" ? "emas" : form.metalType === "silver" ? "perak" : "logam"}/gram`}
-                    value={form.metalPricePerGram}
-                    onChange={(e) =>
-                      setForm((p) => ({
-                        ...p,
-                        metalPricePerGram: e.target.value,
-                      }))
-                    }
-                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <TInput
+                      T={T}
+                      placeholder={`Harga ${form.metalType === "gold" ? "emas" : form.metalType === "silver" ? "perak" : "logam"}/gram`}
+                      value={form.metalPricePerGram}
+                      onChange={(e) =>
+                        setForm((p) => ({
+                          ...p,
+                          metalPricePerGram: e.target.value,
+                        }))
+                      }
+                      style={{ flex: 1 }}
+                    />
+                    <TSelect
+                      T={T}
+                      value={form.metalPriceCurrency}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, metalPriceCurrency: e.target.value }))
+                      }
+                      style={{ width: 80 }}
+                    >
+                      {CURRENCIES.map((c) => (
+                        <option key={c.code} value={c.code}>{c.code}</option>
+                      ))}
+                    </TSelect>
+                  </div>
                 </div>
                 {(() => {
                   const grams = parseVal(form.quantity);
@@ -1078,8 +1112,8 @@ function PortfolioScene({
                         borderRadius: 7,
                       }}
                     >
-                      {grams}g × {fMoney(ppg)}/gram ={" "}
-                      <b>{fMoney(grams * ppg)}</b>
+                      {grams}g × {fMoney(ppg)} {form.metalPriceCurrency}/gram ={" "}
+                      <b>{fMoney(toIDR(grams * ppg, form.metalPriceCurrency))}</b>
                     </div>
                   ) : null;
                 })()}
@@ -1096,14 +1130,29 @@ function PortfolioScene({
                     setForm((p) => ({ ...p, quantity: e.target.value }))
                   }
                 />
-                <TInput
-                  T={T}
-                  placeholder="Harga per koin (IDR)"
-                  value={form.pricePerCoin}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, pricePerCoin: e.target.value }))
-                  }
-                />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <TInput
+                    T={T}
+                    placeholder="Harga per koin"
+                    value={form.pricePerCoin}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, pricePerCoin: e.target.value }))
+                    }
+                    style={{ flex: 1 }}
+                  />
+                  <TSelect
+                    T={T}
+                    value={form.pricePerCoinCurrency}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, pricePerCoinCurrency: e.target.value }))
+                    }
+                    style={{ width: 80 }}
+                  >
+                    {CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>{c.code}</option>
+                    ))}
+                  </TSelect>
+                </div>
                 {form.quantity && form.pricePerCoin && parseVal(form.pricePerCoin) > 0 && (
                   <div
                     style={{
@@ -1115,8 +1164,8 @@ function PortfolioScene({
                     }}
                   >
                     {parseVal(form.quantity)} {coinInfo?.symbol} ×{" "}
-                    {fMoney(parseVal(form.pricePerCoin))} ={" "}
-                    <b>{fV(parseVal(form.quantity) * parseVal(form.pricePerCoin), dispCur)}</b>
+                    {fMoney(parseVal(form.pricePerCoin))} {form.pricePerCoinCurrency} ={" "}
+                    <b>{fV(toIDR(parseVal(form.quantity) * parseVal(form.pricePerCoin), form.pricePerCoinCurrency), dispCur)}</b>
                   </div>
                 )}
               </div>

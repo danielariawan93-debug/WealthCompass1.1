@@ -314,7 +314,8 @@ function WealthCompassV7() {
         setLivePrices(p => ({ ...p, crypto: cached.crypto, gold: cached.gold, silver: cached.silver }));
         if (cached.rates) Object.assign(RATES, cached.rates);
         setAssets(prev => prev.map(a => {
-          if (a.coinId && cached.crypto?.[a.coinId])
+          // Only update liveValue for legacy assets without manual pricePerCoin
+          if (a.coinId && cached.crypto?.[a.coinId] && !a.pricePerCoin)
             return { ...a, liveValue: a.quantity * cached.crypto[a.coinId].idr };
           return a;
         }));
@@ -365,7 +366,8 @@ function WealthCompassV7() {
       setLivePrices(p => ({ ...p, crypto: cryptoData, gold: goldPerGram, silver: silverPerGram }));
       setLastUpdated(new Date().toLocaleTimeString('id-ID'));
       setAssets(prev => prev.map(a => {
-        if (a.coinId && cryptoData[a.coinId])
+        // Only update liveValue for legacy assets without manual pricePerCoin
+        if (a.coinId && cryptoData[a.coinId] && !a.pricePerCoin)
           return { ...a, liveValue: a.quantity * cryptoData[a.coinId].idr };
         return a;
       }));
@@ -837,6 +839,7 @@ function WealthCompassV7() {
                   monthlyExpense={monthlyExpense}
                   activeIncomes={activeIncomes}
                   monthlyFixedIncome={monthlyFixedIncome}
+                  insurances={insurances}
                 />
                 <PortfolioScene
                   {...tabProps}
@@ -894,6 +897,7 @@ function WealthCompassV7() {
                 setMonthlyExpense={setMonthlyExpense}
                 monthlyFixedIncome={monthlyFixedIncome}
                 setMonthlyFixedIncome={setMonthlyFixedIncome}
+                insurances={insurances}
                 setTab={handleSetTab}
               />
             )}
@@ -913,6 +917,7 @@ function WealthCompassV7() {
                 setMonthlyExpense={setMonthlyExpense}
                 monthlyFixedIncome={monthlyFixedIncome}
                 setMonthlyFixedIncome={setMonthlyFixedIncome}
+                insurances={insurances}
                 setTab={handleSetTab}
               />
             )}
