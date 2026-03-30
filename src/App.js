@@ -156,15 +156,7 @@ function WealthCompassV7() {
     setTab("profile");
     setTheme(d.theme || "dark");
     setCustomPresetId(d.customPresetId || "midnight");
-    // Clean stale activeIncomes - keep only entries matching active business assets
-    const loadedAssets = d.assets || [];
-    const loadedActive = (d.activeIncomes || []).filter(ai =>
-      loadedAssets.some(a =>
-        a.classKey === "business" && a.incomeType === "active" &&
-        ("biz_" + String(a.id) === String(ai.id))
-      )
-    );
-    setActiveIncomes(loadedActive);
+    setActiveIncomes(d.activeIncomes || []);
     setInsurances(d.insurances || []);
     setMonthlyExpense(d.monthlyExpense || "");
     setMonthlyFixedIncome(d.monthlyFixedIncome || "");
@@ -200,15 +192,7 @@ function WealthCompassV7() {
         });
         setTheme(cloud.theme || "dark");
         setCustomPresetId(cloud.customPresetId || "midnight");
-        // Clean stale activeIncomes from cloud data too
-        const cloudAssets = cloud.assets || [];
-        const cleanCloudActive = (cloud.activeIncomes || []).filter(ai =>
-          cloudAssets.some(a =>
-            a.classKey === "business" && a.incomeType === "active" &&
-            ("biz_" + String(a.id) === String(ai.id))
-          )
-        );
-        setActiveIncomes(cleanCloudActive);
+        setActiveIncomes(cloud.activeIncomes || []);
         setInsurances(cloud.insurances || []);
         setMonthlyExpense(cloud.monthlyExpense || "");
         setMonthlyFixedIncome(cloud.monthlyFixedIncome || "");
@@ -271,11 +255,23 @@ function WealthCompassV7() {
     setCustomPresetId("midnight");
   };
 
-  const handleUpgrade = (tierChoice = "pro", durationDays = 30) => {
+  const handleUpgrade = (tierChoice = "pro", planId = "monthly") => {
+    const planDays = { monthly: 30, biannual: 180, annual: 365 };
+    const durationDays = planDays[planId] || 30;
+    const months = Math.max(1, Math.round(durationDays / 30));
+
+    // Pro → Pro+ upgrade: keep the same expiry, only add incremental Pulse
+    if (tierChoice === "proplus" && isPro && !isProPlus && proExpiry?.expiryDate) {
+      const msLeft = new Date(proExpiry.expiryDate) - Date.now();
+      const remainingMonths = Math.max(1, Math.ceil(msLeft / (30 * 24 * 60 * 60 * 1000)));
+      // Pro+ gives 100/mo, Pro gives 25/mo → user already has Pro Pulse, add only the 75/mo difference
+      setPulseCredits(prev => prev + 75 * remainingMonths);
+      setIsProPlus(true);
+      return; // keep same expiry date
+    }
+
     setIsPro(true);
     if (tierChoice === "proplus") setIsProPlus(true);
-    // Allocate Pulse Credits upfront for the full subscription period
-    const months = Math.max(1, Math.round(durationDays / 30));
     const pulsePerMonth = tierChoice === "proplus" ? 100 : 25;
     setPulseCredits(prev => prev + pulsePerMonth * months);
     const expDate = new Date();
@@ -1249,6 +1245,9 @@ function WealthCompassV7() {
         show={showUpgrade}
         onClose={() => setShowUpgrade(false)}
         onUpgrade={handleUpgrade}
+        isPro={isPro}
+        isProPlus={isProPlus}
+        proExpiry={proExpiry}
         T={T}
       />
     </div>

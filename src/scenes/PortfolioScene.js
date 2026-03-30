@@ -84,6 +84,7 @@ function PortfolioScene({
     inputMode: "amount",
     metalType: "gold",
     metalPricePerGram: "",
+    pricePerCoin: "",
   });
   const [editId, setEditId] = useState(null);
   const [editState, setEditState] = useState({
@@ -106,7 +107,6 @@ function PortfolioScene({
     form.classKey === "mixed" && form.metalType && form.metalType !== "none";
   const canUseUnits = isCrypto || isEquity || isMetal;
   const coinInfo = CRYPTO_COINS.find((c) => c.id === form.coinId);
-  const livePrice = isCrypto ? livePrices.crypto?.[form.coinId]?.idr ?? 0 : 0;
 
   const addAsset = () => {
     if (!canAdd) return; // tier gate
@@ -114,8 +114,10 @@ function PortfolioScene({
       extra = {};
     if (isCrypto && form.inputMode === "units" && form.quantity) {
       const qty = parseVal(form.quantity);
-      valueIDR = qty * livePrice;
-      extra = { coinId: form.coinId, quantity: qty };
+      const ppc = parseVal(form.pricePerCoin);
+      if (!ppc) return;
+      valueIDR = qty * ppc;
+      extra = { coinId: form.coinId, quantity: qty, pricePerCoin: ppc };
     } else if (isEquity && form.inputMode === "units" && form.quantity) {
       const lots = parseVal(form.quantity);
       const pricePerShare = parseVal(form.amount);
@@ -124,11 +126,8 @@ function PortfolioScene({
     } else if (isMetal && form.inputMode === "units" && form.quantity) {
       const grams = parseVal(form.quantity);
       const metal = PRECIOUS_METALS.find((m) => m.id === form.metalType);
-      let pricePerGram = 0;
-      if (form.metalType === "gold") pricePerGram = livePrices.gold || 1500000;
-      else if (form.metalType === "silver")
-        pricePerGram = livePrices.silver || 20000;
-      else pricePerGram = parseVal(form.metalPricePerGram);
+      const pricePerGram = parseVal(form.metalPricePerGram);
+      if (!pricePerGram) return;
       valueIDR = grams * pricePerGram;
       extra = {
         metalType: form.metalType,
@@ -153,7 +152,7 @@ function PortfolioScene({
         ...extra,
       },
     ]);
-    setForm((p) => ({ ...p, name: "", amount: "", quantity: "" }));
+    setForm((p) => ({ ...p, name: "", amount: "", quantity: "", pricePerCoin: "", metalPricePerGram: "" }));
     setSubTab("list");
   };
 
@@ -166,6 +165,8 @@ function PortfolioScene({
       val: String(
         asset.lots
           ? asset.pricePerShare || Math.round(idrVal / (asset.lots * 100))
+          : asset.coinId
+          ? asset.pricePerCoin || (asset.quantity ? Math.round(idrVal / asset.quantity) : Math.round(idrVal))
           : asset.sourceAmount || Math.round(idrVal)
       ),
       cur: asset.sourceCurrency || "IDR",
@@ -185,9 +186,9 @@ function PortfolioScene({
         ) {
           const qty = parseVal(editState.qty);
           if (a.coinId) {
-            const pr = livePrices.crypto?.[a.coinId]?.idr || 0;
-            newIDR = qty * pr;
-            return { ...a, quantity: qty, liveValue: newIDR, valueIDR: newIDR };
+            const ppc = parseVal(editState.val);
+            newIDR = qty * ppc;
+            return { ...a, quantity: qty, pricePerCoin: ppc, valueIDR: newIDR, liveValue: undefined };
           }
           if (a.lots) {
             const pps = parseVal(editState.val);
@@ -545,7 +546,7 @@ function PortfolioScene({
                   {!isCollapsedSection &&
                     ac.items.map((asset) => {
                       const idrV = getIDR(asset);
-                      const isLive = asset.coinId;
+                      const isLive = false; // crypto is now manual, no live badge
                       const isEditing = editId === asset.id;
                       const editClass = ASSET_CLASSES.find(
                         (c) => c.key === asset.classKey
@@ -635,27 +636,25 @@ function PortfolioScene({
                                     }
                                     style={{ marginBottom: 8 }}
                                   />
-                                  {asset.coinId &&
-                                    livePrices.crypto?.[asset.coinId] && (
-                                      <div
-                                        style={{
-                                          fontSize: 10,
-                                          color: T.green,
-                                          marginBottom: 8,
-                                        }}
-                                      >
-                                        Harga live:{" "}
-                                        {fMoney(
-                                          livePrices.crypto[asset.coinId].idr
-                                        )}{" "}
-                                        → Nilai:{" "}
-                                        {fMoney(
-                                          parseVal(editState.qty) *
-                                            livePrices.crypto[asset.coinId].idr,
-                                          dispCur
-                                        )}
-                                      </div>
-                                    )}
+                                  {asset.coinId && (
+                                    <div>
+                                      <TInput
+                                        T={T}
+                                        value={editState.val}
+                                        onChange={(e) =>
+                                          setEditState((p) => ({ ...p, val: e.target.value }))
+                                        }
+                                        placeholder="Harga per koin (IDR)"
+                                        style={{ marginBottom: 8 }}
+                                      />
+                                      {editState.qty && editState.val && parseVal(editState.val) > 0 && (
+                                        <div style={{ fontSize: 10, color: T.blue, marginBottom: 8 }}>
+                                          {parseVal(editState.qty)} koin × {fMoney(parseVal(editState.val))} ={" "}
+                                          {fMoney(parseVal(editState.qty) * parseVal(editState.val))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                   {asset.lots && (
                                     <TInput
                                       T={T}
@@ -1043,38 +1042,31 @@ function PortfolioScene({
                     setForm((p) => ({ ...p, quantity: e.target.value }))
                   }
                 />
-                {form.metalType === "other" && (
-                  <div style={{ marginTop: 8 }}>
-                    <div
-                      style={{
-                        color: "#9aa3b0",
-                        fontSize: 10,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Harga per gram (IDR)
-                    </div>
-                    <TInput
-                      T={T}
-                      placeholder="Input manual harga/gram"
-                      value={form.metalPricePerGram}
-                      onChange={(e) =>
-                        setForm((p) => ({
-                          ...p,
-                          metalPricePerGram: e.target.value,
-                        }))
-                      }
-                    />
+                <div style={{ marginTop: 8 }}>
+                  <div
+                    style={{
+                      color: "#9aa3b0",
+                      fontSize: 10,
+                      marginBottom: 4,
+                    }}
+                  >
+                    Harga per gram (IDR)
                   </div>
-                )}
+                  <TInput
+                    T={T}
+                    placeholder={`Input harga ${form.metalType === "gold" ? "emas" : form.metalType === "silver" ? "perak" : "logam"}/gram`}
+                    value={form.metalPricePerGram}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        metalPricePerGram: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
                 {(() => {
                   const grams = parseVal(form.quantity);
-                  const ppg =
-                    form.metalType === "gold"
-                      ? livePrices.gold || 1500000
-                      : form.metalType === "silver"
-                      ? livePrices.silver || 20000
-                      : parseVal(form.metalPricePerGram);
+                  const ppg = parseVal(form.metalPricePerGram);
                   return grams > 0 && ppg > 0 ? (
                     <div
                       style={{
@@ -1088,12 +1080,6 @@ function PortfolioScene({
                     >
                       {grams}g × {fMoney(ppg)}/gram ={" "}
                       <b>{fMoney(grams * ppg)}</b>
-                      {form.metalType !== "other" && (
-                        <span style={{ color: "#4d5866", fontSize: 10 }}>
-                          {" "}
-                          · harga live
-                        </span>
-                      )}
                     </div>
                   ) : null;
                 })()}
@@ -1101,7 +1087,7 @@ function PortfolioScene({
             )}
 
             {form.inputMode === "units" && isCrypto && (
-              <div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <TInput
                   T={T}
                   placeholder={`Jumlah koin (contoh: 0.05)`}
@@ -1110,25 +1096,27 @@ function PortfolioScene({
                     setForm((p) => ({ ...p, quantity: e.target.value }))
                   }
                 />
-                {livePrice > 0 && form.quantity && (
+                <TInput
+                  T={T}
+                  placeholder="Harga per koin (IDR)"
+                  value={form.pricePerCoin}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, pricePerCoin: e.target.value }))
+                  }
+                />
+                {form.quantity && form.pricePerCoin && parseVal(form.pricePerCoin) > 0 && (
                   <div
                     style={{
                       fontSize: 11,
-                      color: T.green,
-                      marginTop: 6,
+                      color: T.blue,
                       padding: "7px 10px",
-                      background: T.greenDim,
+                      background: T.blueDim,
                       borderRadius: 7,
                     }}
                   >
                     {parseVal(form.quantity)} {coinInfo?.symbol} ×{" "}
-                    {fM(livePrice, "IDR", hideValues)} ={" "}
-                    <b>{fV(parseVal(form.quantity) * livePrice, dispCur)}</b>
-                  </div>
-                )}
-                {livePrice === 0 && (
-                  <div style={{ fontSize: 10, color: T.orange, marginTop: 5 }}>
-                    ⚠ Harga live belum tersedia. Coba refresh.
+                    {fMoney(parseVal(form.pricePerCoin))} ={" "}
+                    <b>{fV(parseVal(form.quantity) * parseVal(form.pricePerCoin), dispCur)}</b>
                   </div>
                 )}
               </div>
