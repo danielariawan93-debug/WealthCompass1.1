@@ -72,7 +72,7 @@ function NetWorthTrackerScene({
     }
     setSnapshots(newSnaps);
     try { localStorage.setItem(snapKey, JSON.stringify(newSnaps)); } catch {}
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // only run on mount
 
   // Trim to tier's max history days
   const tierCutoff = Date.now() - maxDays * 86400000;
