@@ -121,6 +121,7 @@ function WealthCompassV7() {
 
   // -- AUTH HANDLERS (safe to reference state now) ----------------------------
   const handleLogin = (userData) => {
+    isLoggingOut.current = false; // reset logout flag so onAuthStateChanged works after re-login
     cloudLoadDone.current = false; // block auto-save until cloud load done
     // Load from localStorage immediately (fast, works offline)
     const localSaved = loadAccountData(userData.email);
@@ -161,17 +162,28 @@ function WealthCompassV7() {
     setMonthlyExpense(d.monthlyExpense || "");
     setMonthlyFixedIncome(d.monthlyFixedIncome || "");
 
-    // Then try Firestore (async - overwrites local if cloud data exists)
+    // Then try Firestore (async - only overwrites local if cloud data is newer)
     if (userData.uid) {
-      loadAccountDataCloud(userData.uid).then(cloud => {
-        if (!cloud) {
+      loadAccountDataCloud(userData.uid).then(cloudResult => {
+        if (!cloudResult || !cloudResult.data) {
           // Firestore empty - push local data up so other devices can sync
           const localData = loadAccountData(userData.email);
           if (localData) saveAccountDataCloud(userData.uid, localData).catch(() => {});
           setTimeout(() => { cloudLoadDone.current = true; }, 300);
           return;
         }
-        // Use cloud data (more up to date across devices)
+        const cloud = cloudResult.data;
+        const cloudUpdatedAt = cloudResult.updatedAt || 0;
+        const localSavedAt = localSaved?._savedAt || 0;
+        if (cloudUpdatedAt <= localSavedAt) {
+          // Local data is newer (e.g. logout save completed locally but not yet in Firestore)
+          // Push local data up to sync cloud, keep current state
+          const localData = loadAccountData(userData.email);
+          if (localData) saveAccountDataCloud(userData.uid, localData).catch(() => {});
+          setTimeout(() => { cloudLoadDone.current = true; }, 300);
+          return;
+        }
+        // Cloud is newer - use it (multi-device sync scenario)
         setAssets(cloud.assets?.length ? cloud.assets : []);
         setDebts(cloud.debts || []);
         setGoals(cloud.goals || []);
