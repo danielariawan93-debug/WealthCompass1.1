@@ -69,6 +69,8 @@ function WealthCompassV7() {
   const [user, setUser] = useState(null);
   const cloudLoadDone = React.useRef(false);
   const isLoggingOut = React.useRef(false);
+  // Always-current ref for logout save — avoids stale closure capturing old state
+  const latestSaveState = React.useRef({});
   const [logoutSaving, setLogoutSaving] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [keepSignIn] = useState(() => localStorage.getItem('wc_keep_signin') !== 'false');
@@ -122,6 +124,15 @@ function WealthCompassV7() {
   const [assets, setAssets] = useState([]);
   const [activeIncomes, setActiveIncomes] = useState([]);
   const [insurances, setInsurances] = useState([]);
+
+  // -- ALWAYS-CURRENT STATE REF (updated synchronously on every render) --------
+  // This prevents stale-closure bugs in async handlers like handleLogout
+  latestSaveState.current = {
+    assets, debts, goals, riskProfile,
+    isPro, isProPlus, uploadCount, monthlyUploadCount, monthlyUploadMonth,
+    pulseCredits, proExpiry, dispCur, settings, theme, customPresetId,
+    activeIncomes, insurances, monthlyExpense, monthlyFixedIncome,
+  };
 
   // -- AUTH HANDLERS (safe to reference state now) ----------------------------
   const handleLogin = (userData) => {
@@ -208,24 +219,20 @@ function WealthCompassV7() {
 
   const handleLogout = async () => {
     isLoggingOut.current = true;
-    if (user?.uid) {
-      const savePayload = {
-        assets, debts, goals, riskProfile,
-        isPro, isProPlus, uploadCount, monthlyUploadCount, monthlyUploadMonth,
-        pulseCredits, proExpiry,
-        dispCur, settings, theme, customPresetId,
-        activeIncomes, insurances,
-        monthlyExpense, monthlyFixedIncome,
-      };
+    // Read from the always-current ref — avoids stale closure capturing old state
+    const currentUser = user;
+    if (currentUser?.uid) {
+      // latestSaveState.current is updated on every render, so it's always fresh
+      const savePayload = { ...latestSaveState.current };
       // Await Firestore save so data is committed before the next login loads it
       setLogoutSaving(true);
       try {
-        await saveAccountDataCloud(user.uid, savePayload);
+        await saveAccountDataCloud(currentUser.uid, savePayload);
       } catch (e) {
         console.error("[WC] Logout cloud save failed:", e.message);
       }
       // Keep localStorage in sync as offline cache
-      if (user?.email) saveAccountData(user.email, savePayload);
+      if (currentUser?.email) saveAccountData(currentUser.email, savePayload);
     }
     localStorage.removeItem("wc_session");
     localStorage.removeItem("wc_theme");
@@ -536,18 +543,27 @@ function WealthCompassV7() {
     monthlyFixedIncome,
   ]);
 
+  // handleLoginRef: always points to the latest handleLogin so onAuthStateChanged
+  // (which runs inside a useEffect([], []) closure) never calls a stale version.
+  const handleLoginRef = React.useRef(null);
+  handleLoginRef.current = handleLogin;
+
   // -- Firebase session check on mount ----------------------------------------
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser && !isLoggingOut.current) {
         const isGoogle = firebaseUser.providerData?.some(p => p.providerId === 'google.com');
         if (firebaseUser.emailVerified || isGoogle) {
+          // Guard: if cloud data is already loaded for this user, skip re-init.
+          // Firebase can re-fire onAuthStateChanged for token refresh etc., and
+          // calling handleLogin again resets cloudLoadDone.current which blocks saves.
+          if (cloudLoadDone.current) return;
           const cached = (() => { try { return JSON.parse(localStorage.getItem('wc_session') || 'null'); } catch { return null; } })();
           if (cached?.email === firebaseUser.email) {
-            handleLogin(cached);
+            handleLoginRef.current(cached);
           } else {
             const userData = { email: firebaseUser.email, name: firebaseUser.displayName || firebaseUser.email.split('@')[0], photo: firebaseUser.photoURL, uid: firebaseUser.uid };
-            handleLogin(userData);
+            handleLoginRef.current(userData);
           }
         }
       }
