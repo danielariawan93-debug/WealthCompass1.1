@@ -679,6 +679,12 @@ function BusinessForm({ onSave, onCancel, T, editData, hideValues = false, prope
         }
       : null;
 
+    // Firestore rejects undefined values — use conditional spread so the
+    // "income" key is completely absent (not undefined) for active businesses.
+    const incomeField =
+      incomeMonthly > 0 && f.incomeType !== "active"
+        ? { income: { amount: incomeMonthly, frequency: "monthly", type: "business" } }
+        : {};
     onSave({
       classKey: "business",
       name: f.name,
@@ -686,9 +692,7 @@ function BusinessForm({ onSave, onCancel, T, editData, hideValues = false, prope
       businessData: f,
       // Active businesses: income stored in activeIncomes state, NOT in asset.income
       // Passive businesses: income stored in asset.income for passive tracker
-      income: (incomeMonthly > 0 && f.incomeType !== "active")
-        ? { amount: incomeMonthly, frequency: "monthly", type: "business" }
-        : undefined,
+      ...incomeField,
       activeAmount: f.incomeType === "active" ? incomeMonthly : 0,
       incomeType: f.incomeType,
       newPropertyData,
@@ -1063,7 +1067,14 @@ function RealAssetsScene({
     if (editAsset) {
       savedId = editAsset.id;
       setAssets((p) =>
-        p.map((a) => (a.id === editAsset.id ? { ...a, ...assetData } : a))
+        p.map((a) => {
+          if (a.id !== editAsset.id) return a;
+          const updated = { ...a, ...assetData };
+          // If switching to active income, remove the old passive "income" field.
+          // Keeping income:undefined would cause Firestore to reject the write.
+          if (updated.incomeType === "active") delete updated.income;
+          return updated;
+        })
       );
       // Update linked debt if exists
       if (kprSync && setDebts) {
