@@ -8,7 +8,7 @@ import {
   RATES,
   RISK_PROFILES,
 } from "./constants/data";
-import { TIERS, getAIUsage, getTier } from "./constants/tiers";
+import { TIERS, getTier, PULSE_PACKAGES } from "./constants/tiers";
 import {
   fMoney,
   fM,
@@ -69,6 +69,9 @@ function WealthCompassV7() {
   const [user, setUser] = useState(null);
   const cloudLoadDone = React.useRef(false);
   const isLoggingOut = React.useRef(false);
+  // Always-current ref for logout save — avoids stale closure capturing old state
+  const latestSaveState = React.useRef({});
+  const [logoutSaving, setLogoutSaving] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [keepSignIn] = useState(() => localStorage.getItem('wc_keep_signin') !== 'false');
   const [theme, setTheme] = useState(() => {
@@ -91,9 +94,12 @@ function WealthCompassV7() {
   const [isPro, setIsPro] = useState(false);
   const [isProPlus, setIsProPlus] = useState(false);
   const [uploadCount, setUploadCount] = useState(0);
+  const [monthlyUploadCount, setMonthlyUploadCount] = useState(0);
+  const [monthlyUploadMonth, setMonthlyUploadMonth] = useState("");
+  const [pulseCredits, setPulseCredits] = useState(5);
   const [debts, setDebts] = useState([]);
   const [goals, setGoals] = useState([]);
-  const [aiTokensUsed, setAiTokensUsed] = useState(() => getAIUsage());
+  const [showBuyPulse, setShowBuyPulse] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -119,8 +125,18 @@ function WealthCompassV7() {
   const [activeIncomes, setActiveIncomes] = useState([]);
   const [insurances, setInsurances] = useState([]);
 
+  // -- ALWAYS-CURRENT STATE REF (updated synchronously on every render) --------
+  // This prevents stale-closure bugs in async handlers like handleLogout
+  latestSaveState.current = {
+    assets, debts, goals, riskProfile,
+    isPro, isProPlus, uploadCount, monthlyUploadCount, monthlyUploadMonth,
+    pulseCredits, proExpiry, dispCur, settings, theme, customPresetId,
+    activeIncomes, insurances, monthlyExpense, monthlyFixedIncome,
+  };
+
   // -- AUTH HANDLERS (safe to reference state now) ----------------------------
   const handleLogin = (userData) => {
+    isLoggingOut.current = false; // reset logout flag so onAuthStateChanged works after re-login
     cloudLoadDone.current = false; // block auto-save until cloud load done
     // Load from localStorage immediately (fast, works offline)
     const localSaved = loadAccountData(userData.email);
@@ -133,6 +149,9 @@ function WealthCompassV7() {
     setIsPro(d.isPro || false);
     setIsProPlus(d.isProPlus || false);
     setUploadCount(d.uploadCount || 0);
+    setMonthlyUploadCount(d.monthlyUploadCount || 0);
+    setMonthlyUploadMonth(d.monthlyUploadMonth || "");
+    setPulseCredits(d.pulseCredits ?? 5);
     setProExpiry(d.proExpiry || null);
     setDispCur(d.dispCur || "IDR");
     setSettings({
@@ -148,20 +167,12 @@ function WealthCompassV7() {
     setTab("profile");
     setTheme(d.theme || "dark");
     setCustomPresetId(d.customPresetId || "midnight");
-    // Clean stale activeIncomes - keep only entries matching active business assets
-    const loadedAssets = d.assets || [];
-    const loadedActive = (d.activeIncomes || []).filter(ai =>
-      loadedAssets.some(a =>
-        a.classKey === "business" && a.incomeType === "active" &&
-        ("biz_" + String(a.id) === String(ai.id))
-      )
-    );
-    setActiveIncomes(loadedActive);
+    setActiveIncomes(d.activeIncomes || []);
     setInsurances(d.insurances || []);
     setMonthlyExpense(d.monthlyExpense || "");
     setMonthlyFixedIncome(d.monthlyFixedIncome || "");
 
-    // Then try Firestore (async - overwrites local if cloud data exists)
+    // Then try Firestore (async - always authoritative source of truth)
     if (userData.uid) {
       loadAccountDataCloud(userData.uid).then(cloud => {
         if (!cloud) {
@@ -171,7 +182,7 @@ function WealthCompassV7() {
           setTimeout(() => { cloudLoadDone.current = true; }, 300);
           return;
         }
-        // Use cloud data (more up to date across devices)
+        // Use cloud data (single source of truth)
         setAssets(cloud.assets?.length ? cloud.assets : []);
         setDebts(cloud.debts || []);
         setGoals(cloud.goals || []);
@@ -179,6 +190,9 @@ function WealthCompassV7() {
         setIsPro(cloud.isPro || false);
         setIsProPlus(cloud.isProPlus || false);
         setUploadCount(cloud.uploadCount || 0);
+        setMonthlyUploadCount(cloud.monthlyUploadCount || 0);
+        setMonthlyUploadMonth(cloud.monthlyUploadMonth || "");
+        setPulseCredits(cloud.pulseCredits ?? 5);
         setProExpiry(cloud.proExpiry || null);
         setDispCur(cloud.dispCur || "IDR");
         setSettings({
@@ -189,19 +203,11 @@ function WealthCompassV7() {
         });
         setTheme(cloud.theme || "dark");
         setCustomPresetId(cloud.customPresetId || "midnight");
-        // Clean stale activeIncomes from cloud data too
-        const cloudAssets = cloud.assets || [];
-        const cleanCloudActive = (cloud.activeIncomes || []).filter(ai =>
-          cloudAssets.some(a =>
-            a.classKey === "business" && a.incomeType === "active" &&
-            ("biz_" + String(a.id) === String(ai.id))
-          )
-        );
-        setActiveIncomes(cleanCloudActive);
+        setActiveIncomes(cloud.activeIncomes || []);
         setInsurances(cloud.insurances || []);
         setMonthlyExpense(cloud.monthlyExpense || "");
         setMonthlyFixedIncome(cloud.monthlyFixedIncome || "");
-        // Also update localStorage with cloud data
+        // Mirror cloud data to localStorage as offline cache
         saveAccountData(userData.email, cloud);
         // Delay cloudLoadDone agar React flush semua setState sebelum auto-save
         setTimeout(() => { cloudLoadDone.current = true; }, 300);
@@ -211,23 +217,30 @@ function WealthCompassV7() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     isLoggingOut.current = true;
-    if (user?.email) {
-      const savePayload = {
-        assets, debts, goals, riskProfile,
-        isPro, isProPlus, uploadCount, proExpiry,
-        dispCur, settings, theme, customPresetId,
-        activeIncomes, insurances,
-        monthlyExpense, monthlyFixedIncome,
-      };
-      saveAccountData(user.email, savePayload);
-      if (user?.uid) saveAccountDataCloud(user.uid, savePayload).catch(() => {});
+    // Read from the always-current ref — avoids stale closure capturing old state
+    const currentUser = user;
+    if (currentUser?.uid) {
+      // latestSaveState.current is updated on every render, so it's always fresh
+      const savePayload = { ...latestSaveState.current };
+      // Await Firestore save so data is committed before the next login loads it
+      setLogoutSaving(true);
+      try {
+        await saveAccountDataCloud(currentUser.uid, savePayload);
+      } catch (e) {
+        console.error("[WC] Logout cloud save failed:", e.message);
+      }
+      // Keep localStorage in sync as offline cache
+      if (currentUser?.email) saveAccountData(currentUser.email, savePayload);
     }
     localStorage.removeItem("wc_session");
     localStorage.removeItem("wc_theme");
     localStorage.removeItem("wc_custom_theme");
-    signOut(auth).catch(() => {});
+    // Sign out from Firebase FIRST — LoginScreen mounts an onAuthStateChanged listener
+    // and will immediately re-login the user if Firebase still shows them authenticated.
+    try { await signOut(auth); } catch {}
+    setLogoutSaving(false);
     setUser(null);
     setAssets([]);
     setDebts([]);
@@ -236,6 +249,9 @@ function WealthCompassV7() {
     setIsPro(false);
     setIsProPlus(false);
     setUploadCount(0);
+    setMonthlyUploadCount(0);
+    setMonthlyUploadMonth("");
+    setPulseCredits(5);
     setProExpiry(null);
     setActiveIncomes([]);
     setInsurances([]);
@@ -246,9 +262,25 @@ function WealthCompassV7() {
     setCustomPresetId("midnight");
   };
 
-  const handleUpgrade = (tierChoice = "pro", durationDays = 30) => {
+  const handleUpgrade = (tierChoice = "pro", planId = "monthly") => {
+    const planDays = { monthly: 30, biannual: 180, annual: 365 };
+    const durationDays = planDays[planId] || 30;
+    const months = Math.max(1, Math.round(durationDays / 30));
+
+    // Pro → Pro+ upgrade: keep the same expiry, only add incremental Pulse
+    if (tierChoice === "proplus" && isPro && !isProPlus && proExpiry?.expiryDate) {
+      const msLeft = new Date(proExpiry.expiryDate) - Date.now();
+      const remainingMonths = Math.max(1, Math.ceil(msLeft / (30 * 24 * 60 * 60 * 1000)));
+      // Pro+ gives 100/mo, Pro gives 25/mo → user already has Pro Pulse, add only the 75/mo difference
+      setPulseCredits(prev => prev + 75 * remainingMonths);
+      setIsProPlus(true);
+      return; // keep same expiry date
+    }
+
     setIsPro(true);
     if (tierChoice === "proplus") setIsProPlus(true);
+    const pulsePerMonth = tierChoice === "proplus" ? 100 : 25;
+    setPulseCredits(prev => prev + pulsePerMonth * months);
     const expDate = new Date();
     expDate.setDate(expDate.getDate() + durationDays);
     setProExpiry({
@@ -289,7 +321,8 @@ function WealthCompassV7() {
         setLivePrices(p => ({ ...p, crypto: cached.crypto, gold: cached.gold, silver: cached.silver }));
         if (cached.rates) Object.assign(RATES, cached.rates);
         setAssets(prev => prev.map(a => {
-          if (a.coinId && cached.crypto?.[a.coinId])
+          // Only update liveValue for legacy assets without manual pricePerCoin
+          if (a.coinId && cached.crypto?.[a.coinId] && !a.pricePerCoin)
             return { ...a, liveValue: a.quantity * cached.crypto[a.coinId].idr };
           return a;
         }));
@@ -340,7 +373,8 @@ function WealthCompassV7() {
       setLivePrices(p => ({ ...p, crypto: cryptoData, gold: goldPerGram, silver: silverPerGram }));
       setLastUpdated(new Date().toLocaleTimeString('id-ID'));
       setAssets(prev => prev.map(a => {
-        if (a.coinId && cryptoData[a.coinId])
+        // Only update liveValue for legacy assets without manual pricePerCoin
+        if (a.coinId && cryptoData[a.coinId] && !a.pricePerCoin)
           return { ...a, liveValue: a.quantity * cryptoData[a.coinId].idr };
         return a;
       }));
@@ -440,7 +474,8 @@ function WealthCompassV7() {
             saveAccountData(user.email, {
               assets, debts, goals, riskProfile,
               isPro: false, isProPlus: false,
-              uploadCount, proExpiry: null,
+              uploadCount, monthlyUploadCount, monthlyUploadMonth,
+              pulseCredits, proExpiry: null,
               dispCur, settings, theme, customPresetId,
               activeIncomes, insurances, monthlyExpense, monthlyFixedIncome,
             });
@@ -467,6 +502,9 @@ function WealthCompassV7() {
       isPro,
       isProPlus,
       uploadCount,
+      monthlyUploadCount,
+      monthlyUploadMonth,
+      pulseCredits,
       proExpiry,
       dispCur,
       settings,
@@ -493,6 +531,9 @@ function WealthCompassV7() {
     isPro,
     isProPlus,
     uploadCount,
+    monthlyUploadCount,
+    monthlyUploadMonth,
+    pulseCredits,
     proExpiry,
     dispCur,
     settings,
@@ -502,18 +543,27 @@ function WealthCompassV7() {
     monthlyFixedIncome,
   ]);
 
+  // handleLoginRef: always points to the latest handleLogin so onAuthStateChanged
+  // (which runs inside a useEffect([], []) closure) never calls a stale version.
+  const handleLoginRef = React.useRef(null);
+  handleLoginRef.current = handleLogin;
+
   // -- Firebase session check on mount ----------------------------------------
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser && !isLoggingOut.current) {
         const isGoogle = firebaseUser.providerData?.some(p => p.providerId === 'google.com');
         if (firebaseUser.emailVerified || isGoogle) {
+          // Guard: if cloud data is already loaded for this user, skip re-init.
+          // Firebase can re-fire onAuthStateChanged for token refresh etc., and
+          // calling handleLogin again resets cloudLoadDone.current which blocks saves.
+          if (cloudLoadDone.current) return;
           const cached = (() => { try { return JSON.parse(localStorage.getItem('wc_session') || 'null'); } catch { return null; } })();
           if (cached?.email === firebaseUser.email) {
-            handleLogin(cached);
+            handleLoginRef.current(cached);
           } else {
             const userData = { email: firebaseUser.email, name: firebaseUser.displayName || firebaseUser.email.split('@')[0], photo: firebaseUser.photoURL, uid: firebaseUser.uid };
-            handleLogin(userData);
+            handleLoginRef.current(userData);
           }
         }
       }
@@ -805,6 +855,7 @@ function WealthCompassV7() {
                   monthlyExpense={monthlyExpense}
                   activeIncomes={activeIncomes}
                   monthlyFixedIncome={monthlyFixedIncome}
+                  insurances={insurances}
                 />
                 <PortfolioScene
                   {...tabProps}
@@ -814,6 +865,13 @@ function WealthCompassV7() {
                   tier={tier}
                   uploadCount={uploadCount}
                   setUploadCount={setUploadCount}
+                  monthlyUploadCount={monthlyUploadCount}
+                  setMonthlyUploadCount={setMonthlyUploadCount}
+                  monthlyUploadMonth={monthlyUploadMonth}
+                  setMonthlyUploadMonth={setMonthlyUploadMonth}
+                  pulseCredits={pulseCredits}
+                  setPulseCredits={setPulseCredits}
+                  onBuyPulse={() => setShowBuyPulse(true)}
                 />
               </>
             )}
@@ -855,6 +913,7 @@ function WealthCompassV7() {
                 setMonthlyExpense={setMonthlyExpense}
                 monthlyFixedIncome={monthlyFixedIncome}
                 setMonthlyFixedIncome={setMonthlyFixedIncome}
+                insurances={insurances}
                 setTab={handleSetTab}
               />
             )}
@@ -874,6 +933,7 @@ function WealthCompassV7() {
                 setMonthlyExpense={setMonthlyExpense}
                 monthlyFixedIncome={monthlyFixedIncome}
                 setMonthlyFixedIncome={setMonthlyFixedIncome}
+                insurances={insurances}
                 setTab={handleSetTab}
               />
             )}
@@ -961,8 +1021,9 @@ function WealthCompassV7() {
                 {...tabProps}
                 debts={debts}
                 tier={tier}
-                aiTokensUsed={aiTokensUsed}
-                setAiTokensUsed={setAiTokensUsed}
+                pulseCredits={pulseCredits}
+                setPulseCredits={setPulseCredits}
+                onBuyPulse={() => setShowBuyPulse(true)}
               />
             )}
             {tab === "insurance" && (
@@ -1061,11 +1122,41 @@ function WealthCompassV7() {
         setShowUpgrade={setShowUpgrade}
         T={T}
         onLogout={handleLogout}
+        logoutSaving={logoutSaving}
         fontScale={fontScale}
         setFontScale={setFontScale}
         customPresetId={customPresetId}
         setCustomPresetId={setCustomPresetId}
       />
+
+      {/* Buy Pulse Modal */}
+      {showBuyPulse && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={() => setShowBuyPulse(false)}>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, padding: 24, maxWidth: 380, width: "100%", position: "relative" }}
+            onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowBuyPulse(false)} style={{ position: "absolute", top: 12, right: 14, background: "none", border: "none", color: T.muted, fontSize: 18, cursor: "pointer" }}>✕</button>
+            <div style={{ fontSize: 14, fontWeight: "bold", color: T.text, marginBottom: 4 }}>⚡ Beli PULSE Credit</div>
+            <div style={{ fontSize: 11, color: T.muted, marginBottom: 18 }}>
+              Saldo saat ini: <span style={{ color: T.accent, fontWeight: "bold" }}>{pulseCredits} Pulse</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
+              {PULSE_PACKAGES.map(pkg => (
+                <div key={pkg.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: "bold", color: T.text }}>⚡ {pkg.label}</div>
+                    <div style={{ fontSize: 10, color: T.muted }}>${(pkg.price / pkg.pulse).toFixed(3)} / Pulse</div>
+                  </div>
+                  <button style={{ padding: "6px 14px", background: T.accentDim, border: `1px solid ${T.accentSoft}`, borderRadius: 8, color: T.accent, fontSize: 12, fontWeight: "bold", cursor: "pointer" }}>
+                    ${pkg.price}
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 10, color: T.muted, textAlign: "center" }}>Pembayaran via Stripe · Segera hadir</div>
+          </div>
+        </div>
+      )}
 
       {/* Floating zoom control */}
       <div
@@ -1175,6 +1266,9 @@ function WealthCompassV7() {
         show={showUpgrade}
         onClose={() => setShowUpgrade(false)}
         onUpgrade={handleUpgrade}
+        isPro={isPro}
+        isProPlus={isProPlus}
+        proExpiry={proExpiry}
         T={T}
       />
     </div>

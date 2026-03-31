@@ -56,18 +56,23 @@ function NetWorthTrackerScene({
     return false;
   };
 
-  // Auto-snapshot: once per day on open (any time)
+  // Auto-snapshot on mount: update same-day snapshot or add new one
   useEffect(() => {
-    const now = new Date();
-    const today = now.toDateString();
+    if (currentTotal === 0) return;
+    const today = new Date().toDateString();
     const lastSnap = snapshots[snapshots.length - 1];
     const lastDate = lastSnap ? new Date(lastSnap.ts).toDateString() : null;
-    if (lastDate !== today && currentTotal !== 0) {
-      const newSnaps = [...snapshots, { ts: Date.now(), val: currentTotal }];
-      setSnapshots(newSnaps);
-      try { localStorage.setItem(snapKey, JSON.stringify(newSnaps)); } catch {}
+    let newSnaps;
+    if (lastDate === today) {
+      // Update the existing today snapshot with the latest value
+      newSnaps = [...snapshots.slice(0, -1), { ts: Date.now(), val: currentTotal }];
+    } else {
+      // No snapshot for today yet — add a new one
+      newSnaps = [...snapshots, { ts: Date.now(), val: currentTotal }];
     }
-  }, []);
+    setSnapshots(newSnaps);
+    try { localStorage.setItem(snapKey, JSON.stringify(newSnaps)); } catch {}
+  }, []); // only run on mount
 
   // Trim to tier's max history days
   const tierCutoff = Date.now() - maxDays * 86400000;

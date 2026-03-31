@@ -7,11 +7,11 @@ const TIERS = {
     label: "Free",
     color: "#9aa3b0",
     badge: "FREE",
-    aiTokensPerDay: 10000, // ~5 short chats
     maxAssets: 10,
     maxDebts: 5,
     maxGoals: 2,
-    pdfUploads: 3, // lifetime
+    freeUploads: 3,        // lifetime
+    freeUploadsType: "lifetime",
     netWorthDays: 30,
     realAssetsModule: false,
     customTheme: false,
@@ -21,11 +21,11 @@ const TIERS = {
     label: "Pro",
     color: "#d4a843",
     badge: "⭐ PRO",
-    aiTokensPerDay: 50000, // ~30–40 messages
     maxAssets: 50,
     maxDebts: 15,
     maxGoals: 10,
-    pdfUploads: 7, // per month
+    freeUploads: 7,        // per month
+    freeUploadsType: "monthly",
     netWorthDays: 365,
     realAssetsModule: true,
     customTheme: true,
@@ -35,78 +35,47 @@ const TIERS = {
     label: "Pro+",
     color: "#9b7ef8",
     badge: "💎 PRO+",
-    aiTokensPerDay: 1000000,
     maxAssets: Infinity,
     maxDebts: Infinity,
     maxGoals: Infinity,
-    pdfUploads: Infinity,
+    freeUploads: 20,       // per month
+    freeUploadsType: "monthly",
     netWorthDays: Infinity,
     realAssetsModule: true,
     customTheme: true,
   },
 };
+
 const getTier = (isPro, isProPlus) =>
   isProPlus ? TIERS.proplus : isPro ? TIERS.pro : TIERS.free;
-const estimateTokens = (text) => Math.ceil((text || "").length / 4);
-// Get today's AI token usage from localStorage
-const AI_TOKEN_KEY = "wc_ai_tokens";
-function getAIUsage() {
-  try {
-    const d = JSON.parse(localStorage.getItem(AI_TOKEN_KEY) || "{}");
-    const today = new Date().toDateString();
-    return d.date === today ? d.used || 0 : 0;
-  } catch {
-    return 0;
-  }
-}
-function addAIUsage(tokens) {
-  try {
-    const today = new Date().toDateString();
-    const d = JSON.parse(localStorage.getItem(AI_TOKEN_KEY) || "{}");
-    const used = (d.date === today ? d.used || 0 : 0) + tokens;
-    localStorage.setItem(AI_TOKEN_KEY, JSON.stringify({ date: today, used }));
-  } catch {}
+
+// ─── PULSE CREDIT PACKAGES ────────────────────────────────────────────────────
+// Free accounts start with 5 Pulse (set in DEFAULT_ACCOUNT_STATE).
+// Pro subscriptions: 25 Pulse × months. Pro+: 100 Pulse × months.
+const PULSE_PACKAGES = [
+  { id: "p20",  pulse: 20,  price: 0.99, label: "20 Pulse"  },
+  { id: "p50",  pulse: 50,  price: 1.99, label: "50 Pulse"  },
+  { id: "p150", pulse: 150, price: 4.99, label: "150 Pulse" },
+  { id: "p400", pulse: 400, price: 9.99, label: "400 Pulse" },
+];
+
+// ─── UPLOAD HELPERS (use account state, not localStorage) ─────────────────────
+// Returns true if the user still has free upload quota remaining.
+function canUploadFree(tier, uploadCount, monthlyUploadCount, monthlyUploadMonth) {
+  if (!tier) return uploadCount < 3;
+  if (tier.id === "free") return uploadCount < tier.freeUploads;
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const current = monthlyUploadMonth === thisMonth ? monthlyUploadCount : 0;
+  return current < tier.freeUploads;
 }
 
-// PDF upload tracking — Free: lifetime, Pro: monthly, Pro+: unlimited
-const PDF_UPLOAD_KEY = "wc_pdf_uploads";
-function getPDFUsage() {
-  try {
-    const d = JSON.parse(localStorage.getItem(PDF_UPLOAD_KEY) || "{}");
-    const thisMonth = new Date().toISOString().slice(0, 7); // "2026-03"
-    return {
-      lifetime: d.lifetime || 0,
-      monthly: d.month === thisMonth ? d.monthly || 0 : 0,
-      month: thisMonth,
-    };
-  } catch {
-    return { lifetime: 0, monthly: 0, month: "" };
-  }
-}
-function addPDFUsage() {
-  try {
-    const d = JSON.parse(localStorage.getItem(PDF_UPLOAD_KEY) || "{}");
-    const thisMonth = new Date().toISOString().slice(0, 7);
-    const monthly = d.month === thisMonth ? (d.monthly || 0) + 1 : 1;
-    localStorage.setItem(
-      PDF_UPLOAD_KEY,
-      JSON.stringify({
-        lifetime: (d.lifetime || 0) + 1,
-        monthly,
-        month: thisMonth,
-      })
-    );
-  } catch {}
-}
-function canUploadPDF(tier, uploadCount) {
-  if (tier.id === "proplus") return true;
-  if (tier.id === "pro") return getPDFUsage().monthly < 7;
-  return uploadCount < 3; // free: lifetime
-}
-function pdfUploadsRemaining(tier, uploadCount) {
-  if (tier.id === "proplus") return Infinity;
-  if (tier.id === "pro") return Math.max(0, 7 - getPDFUsage().monthly);
-  return Math.max(0, 3 - uploadCount);
+// Returns number of free uploads remaining (ignores paid Pulse).
+function uploadsRemaining(tier, uploadCount, monthlyUploadCount, monthlyUploadMonth) {
+  if (!tier) return Math.max(0, 3 - uploadCount);
+  if (tier.id === "free") return Math.max(0, tier.freeUploads - uploadCount);
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const current = monthlyUploadMonth === thisMonth ? monthlyUploadCount : 0;
+  return Math.max(0, tier.freeUploads - current);
 }
 
 // ─── DEBT TYPES ───────────────────────────────────────────────────────────────
@@ -149,6 +118,12 @@ const DEBT_TYPES = [
   { key: "other", label: "Lainnya", icon: "📄", color: "#9aa3b0", rate: 10.0 },
 ];
 
-// ─── HEALTH SCORE ─────────────────────────────────────────────────────────────
-
-export { getTier, estimateTokens, FREE_UPLOAD_LIMIT, TIERS, AI_TOKEN_KEY, getAIUsage, addAIUsage, PDF_UPLOAD_KEY, getPDFUsage, addPDFUsage, canUploadPDF, pdfUploadsRemaining };
+export {
+  getTier,
+  FREE_UPLOAD_LIMIT,
+  TIERS,
+  PULSE_PACKAGES,
+  canUploadFree,
+  uploadsRemaining,
+  DEBT_TYPES,
+};

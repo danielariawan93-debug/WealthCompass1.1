@@ -1059,7 +1059,9 @@ function RealAssetsScene({
 
   const saveAsset = (data) => {
     const { kprSync, ...assetData } = data;
+    let savedId;
     if (editAsset) {
+      savedId = editAsset.id;
       setAssets((p) =>
         p.map((a) => (a.id === editAsset.id ? { ...a, ...assetData } : a))
       );
@@ -1083,13 +1085,13 @@ function RealAssetsScene({
         });
       }
     } else {
-      const newId = Date.now() + Math.random();
-      setAssets((p) => [...p, { id: newId, ...assetData }]);
+      savedId = Date.now() + Math.random();
+      setAssets((p) => [...p, { id: savedId, ...assetData }]);
       // Auto-create debt entry if KPR sync enabled
       if (kprSync && setDebts) {
         setDebts((p) => [
           ...p,
-          { id: Date.now(), ...kprSync, propertyId: newId },
+          { id: Date.now(), ...kprSync, propertyId: savedId },
         ]);
       }
       // Auto-add property to Real Assets if kos building not yet listed
@@ -1102,7 +1104,7 @@ function RealAssetsScene({
     if (setActiveIncomes && data.incomeType === "active" && data.activeAmount > 0) {
       const bizName = data.name || "Bisnis";
       const newEntry = {
-        id: "biz_" + (editAsset?.id || Date.now()),
+        id: "biz_" + savedId,
         label: bizName,
         amount: data.activeAmount,
         type: "biz_active",
@@ -1111,9 +1113,9 @@ function RealAssetsScene({
         const filtered = p.filter(a => a.id !== newEntry.id);
         return [...filtered, newEntry];
       });
-    } else if (setActiveIncomes && data.incomeType !== "active" && editAsset) {
-      // Remove from active incomes if changed to passive
-      setActiveIncomes(p => p.filter(a => a.id !== "biz_" + editAsset.id));
+    } else if (setActiveIncomes && data.incomeType !== "active") {
+      // Remove from active incomes if business changed to passive or removed
+      setActiveIncomes(p => p.filter(a => a.id !== "biz_" + savedId));
     }
 
     setMode("list");

@@ -27,15 +27,7 @@ import {
   LS2,
   getWealthSegment,
 } from "../utils/helpers";
-import {
-  TIERS,
-  getAIUsage,
-  addAIUsage,
-  canUploadPDF,
-  pdfUploadsRemaining,
-  addPDFUsage,
-  estimateTokens,
-} from "../constants/tiers";
+import { TIERS } from "../constants/tiers";
 import { ASSET_CLASSES, RISK_PROFILES } from "../constants/data";
 
 function AIScene({
@@ -46,8 +38,9 @@ function AIScene({
   dispCur,
   T,
   tier,
-  aiTokensUsed,
-  setAiTokensUsed,
+  pulseCredits,
+  setPulseCredits,
+  onBuyPulse,
 }) {
   const [messages, setMessages] = useState([
     {
@@ -76,16 +69,8 @@ function AIScene({
     };
   }).filter((c) => c.v > 0);
 
-  // Token system
-  const dailyLimit = tier.aiTokensPerDay;
-  const isUnlimited = dailyLimit === Infinity;
-  const tokensLeft = isUnlimited
-    ? Infinity
-    : Math.max(0, dailyLimit - aiTokensUsed);
-  const pctUsed = isUnlimited
-    ? 0
-    : Math.min(100, (aiTokensUsed / dailyLimit) * 100);
-  const blocked = !isUnlimited && tokensLeft < 50; // need at least ~50 tokens to send
+  // Pulse Credit system — 1 Pulse per chat message
+  const blocked = pulseCredits <= 0;
 
   // Model selection per tier
   const model =
@@ -140,20 +125,11 @@ Jawab max 3 paragraf. Sertakan disclaimer singkat.`;
   const send = async () => {
     if (!input.trim() || loading || blocked) return;
     const um = { role: "user", content: input };
-    const estimatedCost = estimateTokens(sys) + estimateTokens(input) + 500;
-    if (!isUnlimited && estimatedCost > tokensLeft) {
-      setMessages((p) => [
-        ...p,
-        {
-          role: "assistant",
-          content: `⚠️ Token harian tidak cukup (sisa ~${tokensLeft} token). Reset besok atau upgrade ke tier lebih tinggi.`,
-        },
-      ]);
-      return;
-    }
     setMessages((p) => [...p, um]);
     setInput("");
     setLoading(true);
+    // Deduct 1 Pulse Credit immediately on send
+    setPulseCredits(prev => Math.max(0, prev - 1));
     try {
       const res = await fetch("/api/ai", {
         method: "POST",
@@ -170,11 +146,6 @@ Jawab max 3 paragraf. Sertakan disclaimer singkat.`;
       });
       const data = await res.json();
       const reply = data.content?.[0]?.text || "Maaf, terjadi kesalahan.";
-      const tokensUsed =
-        (data.usage?.input_tokens || estimatedCost) +
-        (data.usage?.output_tokens || estimateTokens(reply));
-      addAIUsage(tokensUsed);
-      setAiTokensUsed(getAIUsage());
       setMessages((p) => [...p, { role: "assistant", content: reply }]);
     } catch {
       setMessages((p) => [
@@ -198,7 +169,7 @@ Jawab max 3 paragraf. Sertakan disclaimer singkat.`;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: 560 }}>
-      {/* Token usage bar */}
+      {/* Pulse Credit bar */}
       <div
         style={{
           padding: "8px 12px",
@@ -206,60 +177,28 @@ Jawab max 3 paragraf. Sertakan disclaimer singkat.`;
           borderRadius: 10,
           border: `1px solid ${T.border}`,
           marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: isUnlimited ? 0 : 5,
-          }}
-        >
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <span
-              style={{ fontSize: 10, color: tier.color, fontWeight: "bold" }}
-            >
-              {tier.badge || tier.label}
-            </span>
-            <span style={{ fontSize: 10, color: T.muted }}>
-              · {model.includes("haiku") ? "Claude Haiku" : "Claude Sonnet"}
-            </span>
-          </div>
-          {isUnlimited ? (
-            <span style={{ fontSize: 10, color: T.green }}>✓ Unlimited</span>
-          ) : (
-            <span
-              style={{
-                fontSize: 10,
-                color: tokensLeft < dailyLimit * 0.2 ? T.orange : T.muted,
-              }}
-            >
-              ~
-              {tokensLeft < 1000
-                ? tokensLeft
-                : Math.round(tokensLeft / 100) * 100}{" "}
-              token tersisa hari ini
-            </span>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <span style={{ fontSize: 10, color: tier.color, fontWeight: "bold" }}>{tier.badge || tier.label}</span>
+          <span style={{ fontSize: 10, color: T.muted }}>· {model.includes("haiku") ? "Claude Haiku" : "Claude Sonnet"}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 10, color: pulseCredits <= 2 ? T.red : T.muted }}>
+            ⚡ <strong style={{ color: pulseCredits <= 2 ? T.red : T.accent }}>{pulseCredits}</strong> Pulse
+          </span>
+          {onBuyPulse && (
+            <button onClick={onBuyPulse} style={{ fontSize: 9, padding: "2px 8px", background: T.accentDim, border: `1px solid ${T.accentSoft}`, borderRadius: 6, color: T.accent, cursor: "pointer", fontWeight: "bold" }}>
+              + Beli
+            </button>
           )}
         </div>
-        {!isUnlimited && (
-          <div style={{ height: 4, background: T.border, borderRadius: 2 }}>
-            <div
-              style={{
-                width: `${pctUsed}%`,
-                height: "100%",
-                background:
-                  pctUsed > 80 ? T.red : pctUsed > 50 ? T.orange : T.green,
-                borderRadius: 2,
-                transition: "width 0.4s",
-              }}
-            />
-          </div>
-        )}
       </div>
 
-      {/* Blocked state */}
+      {/* Blocked state — no Pulse */}
       {blocked && (
         <div
           style={{
@@ -273,11 +212,13 @@ Jawab max 3 paragraf. Sertakan disclaimer singkat.`;
             textAlign: "center",
           }}
         >
-          Token harian habis. Reset otomatis besok pagi.
+          PULSE Credit habis. Beli Pulse untuk melanjutkan obrolan.
           <br />
-          <span style={{ fontSize: 11, color: T.textSoft }}>
-            Upgrade Pro untuk 15.000 token/hari, Pro+ untuk unlimited.
-          </span>
+          {onBuyPulse && (
+            <button onClick={onBuyPulse} style={{ marginTop: 8, padding: "5px 16px", background: T.accentDim, border: `1px solid ${T.accentSoft}`, borderRadius: 8, color: T.accent, cursor: "pointer", fontSize: 11, fontWeight: "bold" }}>
+              ⚡ Beli Pulse
+            </button>
+          )}
         </div>
       )}
 

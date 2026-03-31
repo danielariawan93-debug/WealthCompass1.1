@@ -37,14 +37,7 @@ import {
   CRYPTO_COINS,
   CURRENCIES,
 } from "../constants/data";
-import {
-  TIERS,
-  getAIUsage,
-  addAIUsage,
-  canUploadPDF,
-  pdfUploadsRemaining,
-  addPDFUsage,
-} from "../constants/tiers";
+import { TIERS, canUploadFree, uploadsRemaining } from "../constants/tiers";
 
 function PortfolioScene({
   assets,
@@ -56,6 +49,13 @@ function PortfolioScene({
   tier,
   uploadCount,
   setUploadCount,
+  monthlyUploadCount = 0,
+  setMonthlyUploadCount,
+  monthlyUploadMonth = "",
+  setMonthlyUploadMonth,
+  pulseCredits = 0,
+  setPulseCredits,
+  onBuyPulse,
   hideValues = false,
   T,
   setTab = null,
@@ -64,8 +64,10 @@ function PortfolioScene({
   const canAdd =
     assets.length <
     (tier ? (tier.maxAssets === Infinity ? 999999 : tier.maxAssets) : 999999);
-  const pdfRemaining = tier ? pdfUploadsRemaining(tier, uploadCount) : 3;
-  const pdfAllowed = tier ? canUploadPDF(tier, uploadCount) : uploadCount < 3;
+  const pdfFreeRemaining = uploadsRemaining(tier, uploadCount, monthlyUploadCount, monthlyUploadMonth);
+  const pdfAllowed = canUploadFree(tier, uploadCount, monthlyUploadCount, monthlyUploadMonth);
+  // Can upload if free quota remains OR pulse credits available
+  const pdfAllowedWithPulse = pdfAllowed || pulseCredits > 0;
   const [subTab, setSubTab] = useState("list"); // list | add | upload
   const [collapsedClasses, setCollapsedClasses] = useState({});
   // Default: all asset detail sections hidden (true = collapsed)
@@ -82,6 +84,9 @@ function PortfolioScene({
     inputMode: "amount",
     metalType: "gold",
     metalPricePerGram: "",
+    metalPriceCurrency: "IDR",
+    pricePerCoin: "",
+    pricePerCoinCurrency: "IDR",
   });
   const [editId, setEditId] = useState(null);
   const [editState, setEditState] = useState({
@@ -104,7 +109,6 @@ function PortfolioScene({
     form.classKey === "mixed" && form.metalType && form.metalType !== "none";
   const canUseUnits = isCrypto || isEquity || isMetal;
   const coinInfo = CRYPTO_COINS.find((c) => c.id === form.coinId);
-  const livePrice = isCrypto ? livePrices.crypto?.[form.coinId]?.idr ?? 0 : 0;
 
   const addAsset = () => {
     if (!canAdd) return; // tier gate
@@ -112,8 +116,10 @@ function PortfolioScene({
       extra = {};
     if (isCrypto && form.inputMode === "units" && form.quantity) {
       const qty = parseVal(form.quantity);
-      valueIDR = qty * livePrice;
-      extra = { coinId: form.coinId, quantity: qty };
+      const ppc = parseVal(form.pricePerCoin);
+      if (!ppc) return;
+      valueIDR = toIDR(qty * ppc, form.pricePerCoinCurrency);
+      extra = { coinId: form.coinId, quantity: qty, pricePerCoin: ppc, pricePerCoinCurrency: form.pricePerCoinCurrency };
     } else if (isEquity && form.inputMode === "units" && form.quantity) {
       const lots = parseVal(form.quantity);
       const pricePerShare = parseVal(form.amount);
@@ -122,16 +128,14 @@ function PortfolioScene({
     } else if (isMetal && form.inputMode === "units" && form.quantity) {
       const grams = parseVal(form.quantity);
       const metal = PRECIOUS_METALS.find((m) => m.id === form.metalType);
-      let pricePerGram = 0;
-      if (form.metalType === "gold") pricePerGram = livePrices.gold || 1500000;
-      else if (form.metalType === "silver")
-        pricePerGram = livePrices.silver || 20000;
-      else pricePerGram = parseVal(form.metalPricePerGram);
-      valueIDR = grams * pricePerGram;
+      const pricePerGram = parseVal(form.metalPricePerGram);
+      if (!pricePerGram) return;
+      valueIDR = toIDR(grams * pricePerGram, form.metalPriceCurrency);
       extra = {
         metalType: form.metalType,
         gramWeight: grams,
         pricePerGram,
+        pricePerGramCurrency: form.metalPriceCurrency,
         metalLabel: metal?.label,
       };
     } else {
@@ -151,7 +155,7 @@ function PortfolioScene({
         ...extra,
       },
     ]);
-    setForm((p) => ({ ...p, name: "", amount: "", quantity: "" }));
+    setForm((p) => ({ ...p, name: "", amount: "", quantity: "", pricePerCoin: "", metalPricePerGram: "" , pricePerCoinCurrency: "IDR", metalPriceCurrency: "IDR" }));
     setSubTab("list");
   };
 
@@ -160,15 +164,24 @@ function PortfolioScene({
   const startEdit = (asset) => {
     const idrVal = getIDR(asset);
     setEditId(asset.id);
+    const isGram = !!asset.gramWeight;
     setEditState({
       val: String(
         asset.lots
           ? asset.pricePerShare || Math.round(idrVal / (asset.lots * 100))
+          : asset.coinId
+          ? asset.pricePerCoin || (asset.quantity ? Math.round(idrVal / asset.quantity) : Math.round(idrVal))
+          : isGram
+          ? asset.pricePerGram || (asset.gramWeight ? Math.round(idrVal / asset.gramWeight) : Math.round(idrVal))
           : asset.sourceAmount || Math.round(idrVal)
       ),
-      cur: asset.sourceCurrency || "IDR",
-      mode: asset.lots || asset.coinId ? "units" : "amount",
-      qty: String(asset.quantity || asset.lots || ""),
+      cur: asset.coinId
+        ? (asset.pricePerCoinCurrency || "IDR")
+        : isGram
+        ? (asset.pricePerGramCurrency || "IDR")
+        : (asset.sourceCurrency || "IDR"),
+      mode: (asset.lots || asset.coinId || isGram) ? "units" : "amount",
+      qty: String(asset.gramWeight || asset.quantity || asset.lots || ""),
     });
   };
   const saveEdit = (id) => {
@@ -177,26 +190,25 @@ function PortfolioScene({
         if (a.id !== id) return a;
         let newIDR;
         if (
-          (a.coinId || a.lots) &&
+          (a.coinId || a.lots || a.gramWeight) &&
           editState.mode === "units" &&
           editState.qty
         ) {
           const qty = parseVal(editState.qty);
           if (a.coinId) {
-            const pr = livePrices.crypto?.[a.coinId]?.idr || 0;
-            newIDR = qty * pr;
-            return { ...a, quantity: qty, liveValue: newIDR, valueIDR: newIDR };
+            const ppc = parseVal(editState.val);
+            newIDR = toIDR(qty * ppc, editState.cur);
+            return { ...a, quantity: qty, pricePerCoin: ppc, pricePerCoinCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
           }
           if (a.lots) {
             const pps = parseVal(editState.val);
             newIDR = toIDR(qty * 100 * pps, editState.cur);
-            return {
-              ...a,
-              lots: qty,
-              pricePerShare: pps,
-              valueIDR: newIDR,
-              liveValue: undefined,
-            };
+            return { ...a, lots: qty, pricePerShare: pps, sourceCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
+          }
+          if (a.gramWeight) {
+            const ppg = parseVal(editState.val);
+            newIDR = toIDR(qty * ppg, editState.cur);
+            return { ...a, gramWeight: qty, pricePerGram: ppg, pricePerGramCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
           }
         }
         const v = parseVal(editState.val);
@@ -220,7 +232,7 @@ function PortfolioScene({
   const [pdfError, setPdfError] = useState("");
   const [conflictMode, setConflictMode] = useState({});
   const fileRef = useRef();
-  const remaining = pdfRemaining; // from tier helper
+  const remaining = pdfFreeRemaining;
 
   const parsePDF = async () => {
     if (!pdfFile) return;
@@ -262,8 +274,21 @@ function PortfolioScene({
       const raw = data.content?.[0]?.text || "[]";
       const items = JSON.parse(raw.replace(/```json|```/g, "").trim());
       setPdfParsed(items.map((it, i) => ({ ...it, id: i, selected: true })));
-      addPDFUsage();
-      if (tier?.id === "free") setUploadCount((c) => c + 1);
+      const thisMonth = new Date().toISOString().slice(0, 7);
+      if (pdfAllowed) {
+        // Use free quota
+        if (tier?.id === "free") {
+          setUploadCount(c => c + 1);
+        } else {
+          // Pro / Pro+ — update monthly counter in account state (Firestore)
+          const newCount = monthlyUploadMonth === thisMonth ? monthlyUploadCount + 1 : 1;
+          setMonthlyUploadCount(newCount);
+          setMonthlyUploadMonth(thisMonth);
+        }
+      } else {
+        // Free quota exhausted — deduct 1 Pulse Credit
+        setPulseCredits(prev => Math.max(0, prev - 1));
+      }
     } catch (e) {
       setPdfError("Gagal parsing PDF: " + e.message);
     }
@@ -530,12 +555,12 @@ function PortfolioScene({
                   {!isCollapsedSection &&
                     ac.items.map((asset) => {
                       const idrV = getIDR(asset);
-                      const isLive = asset.coinId;
+                      const isLive = false; // crypto is now manual, no live badge
                       const isEditing = editId === asset.id;
                       const editClass = ASSET_CLASSES.find(
                         (c) => c.key === asset.classKey
                       );
-                      const canUnitEdit = asset.coinId || asset.lots;
+                      const canUnitEdit = asset.coinId || asset.lots || asset.gramWeight;
                       return (
                         <Card
                           T={T}
@@ -568,6 +593,8 @@ function PortfolioScene({
                                       "units",
                                       asset.coinId
                                         ? "Jumlah Koin"
+                                        : asset.gramWeight
+                                        ? "Berat (gram)"
                                         : "Jumlah Lot",
                                     ],
                                   ].map(([m, l]) => (
@@ -620,27 +647,72 @@ function PortfolioScene({
                                     }
                                     style={{ marginBottom: 8 }}
                                   />
-                                  {asset.coinId &&
-                                    livePrices.crypto?.[asset.coinId] && (
-                                      <div
-                                        style={{
-                                          fontSize: 10,
-                                          color: T.green,
-                                          marginBottom: 8,
-                                        }}
-                                      >
-                                        Harga live:{" "}
-                                        {fMoney(
-                                          livePrices.crypto[asset.coinId].idr
-                                        )}{" "}
-                                        → Nilai:{" "}
-                                        {fMoney(
-                                          parseVal(editState.qty) *
-                                            livePrices.crypto[asset.coinId].idr,
-                                          dispCur
-                                        )}
+                                  {asset.coinId && (
+                                    <div>
+                                      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                                        <TInput
+                                          T={T}
+                                          value={editState.val}
+                                          onChange={(e) =>
+                                            setEditState((p) => ({ ...p, val: e.target.value }))
+                                          }
+                                          placeholder="Harga per koin"
+                                          style={{ flex: 1 }}
+                                        />
+                                        <TSelect
+                                          T={T}
+                                          value={editState.cur}
+                                          onChange={(e) =>
+                                            setEditState((p) => ({ ...p, cur: e.target.value }))
+                                          }
+                                          style={{ width: 80 }}
+                                        >
+                                          {CURRENCIES.map((c) => (
+                                            <option key={c.code} value={c.code}>{c.code}</option>
+                                          ))}
+                                        </TSelect>
                                       </div>
-                                    )}
+                                      {editState.qty && editState.val && parseVal(editState.val) > 0 && (
+                                        <div style={{ fontSize: 10, color: T.blue, marginBottom: 8 }}>
+                                          {parseVal(editState.qty)} koin × {fMoney(parseVal(editState.val))} {editState.cur} ={" "}
+                                          {fMoney(toIDR(parseVal(editState.qty) * parseVal(editState.val), editState.cur))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {asset.gramWeight && (
+                                    <div>
+                                      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                                        <TInput
+                                          T={T}
+                                          value={editState.val}
+                                          onChange={(e) =>
+                                            setEditState((p) => ({ ...p, val: e.target.value }))
+                                          }
+                                          placeholder="Harga per gram"
+                                          style={{ flex: 1 }}
+                                        />
+                                        <TSelect
+                                          T={T}
+                                          value={editState.cur}
+                                          onChange={(e) =>
+                                            setEditState((p) => ({ ...p, cur: e.target.value }))
+                                          }
+                                          style={{ width: 80 }}
+                                        >
+                                          {CURRENCIES.map((c) => (
+                                            <option key={c.code} value={c.code}>{c.code}</option>
+                                          ))}
+                                        </TSelect>
+                                      </div>
+                                      {editState.qty && editState.val && parseVal(editState.val) > 0 && (
+                                        <div style={{ fontSize: 10, color: T.blue, marginBottom: 8 }}>
+                                          {parseVal(editState.qty)} gram × {fMoney(parseVal(editState.val))} {editState.cur} ={" "}
+                                          {fMoney(toIDR(parseVal(editState.qty) * parseVal(editState.val), editState.cur))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                   {asset.lots && (
                                     <TInput
                                       T={T}
@@ -1028,20 +1100,20 @@ function PortfolioScene({
                     setForm((p) => ({ ...p, quantity: e.target.value }))
                   }
                 />
-                {form.metalType === "other" && (
-                  <div style={{ marginTop: 8 }}>
-                    <div
-                      style={{
-                        color: "#9aa3b0",
-                        fontSize: 10,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Harga per gram (IDR)
-                    </div>
+                <div style={{ marginTop: 8 }}>
+                  <div
+                    style={{
+                      color: "#9aa3b0",
+                      fontSize: 10,
+                      marginBottom: 4,
+                    }}
+                  >
+                    Harga per gram
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
                     <TInput
                       T={T}
-                      placeholder="Input manual harga/gram"
+                      placeholder={`Harga ${form.metalType === "gold" ? "emas" : form.metalType === "silver" ? "perak" : "logam"}/gram`}
                       value={form.metalPricePerGram}
                       onChange={(e) =>
                         setForm((p) => ({
@@ -1049,17 +1121,25 @@ function PortfolioScene({
                           metalPricePerGram: e.target.value,
                         }))
                       }
+                      style={{ flex: 1 }}
                     />
+                    <TSelect
+                      T={T}
+                      value={form.metalPriceCurrency}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, metalPriceCurrency: e.target.value }))
+                      }
+                      style={{ width: 80 }}
+                    >
+                      {CURRENCIES.map((c) => (
+                        <option key={c.code} value={c.code}>{c.code}</option>
+                      ))}
+                    </TSelect>
                   </div>
-                )}
+                </div>
                 {(() => {
                   const grams = parseVal(form.quantity);
-                  const ppg =
-                    form.metalType === "gold"
-                      ? livePrices.gold || 1500000
-                      : form.metalType === "silver"
-                      ? livePrices.silver || 20000
-                      : parseVal(form.metalPricePerGram);
+                  const ppg = parseVal(form.metalPricePerGram);
                   return grams > 0 && ppg > 0 ? (
                     <div
                       style={{
@@ -1071,14 +1151,8 @@ function PortfolioScene({
                         borderRadius: 7,
                       }}
                     >
-                      {grams}g × {fMoney(ppg)}/gram ={" "}
-                      <b>{fMoney(grams * ppg)}</b>
-                      {form.metalType !== "other" && (
-                        <span style={{ color: "#4d5866", fontSize: 10 }}>
-                          {" "}
-                          · harga live
-                        </span>
-                      )}
+                      {grams}g × {fMoney(ppg)} {form.metalPriceCurrency}/gram ={" "}
+                      <b>{fMoney(toIDR(grams * ppg, form.metalPriceCurrency))}</b>
                     </div>
                   ) : null;
                 })()}
@@ -1086,7 +1160,7 @@ function PortfolioScene({
             )}
 
             {form.inputMode === "units" && isCrypto && (
-              <div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <TInput
                   T={T}
                   placeholder={`Jumlah koin (contoh: 0.05)`}
@@ -1095,25 +1169,42 @@ function PortfolioScene({
                     setForm((p) => ({ ...p, quantity: e.target.value }))
                   }
                 />
-                {livePrice > 0 && form.quantity && (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <TInput
+                    T={T}
+                    placeholder="Harga per koin"
+                    value={form.pricePerCoin}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, pricePerCoin: e.target.value }))
+                    }
+                    style={{ flex: 1 }}
+                  />
+                  <TSelect
+                    T={T}
+                    value={form.pricePerCoinCurrency}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, pricePerCoinCurrency: e.target.value }))
+                    }
+                    style={{ width: 80 }}
+                  >
+                    {CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>{c.code}</option>
+                    ))}
+                  </TSelect>
+                </div>
+                {form.quantity && form.pricePerCoin && parseVal(form.pricePerCoin) > 0 && (
                   <div
                     style={{
                       fontSize: 11,
-                      color: T.green,
-                      marginTop: 6,
+                      color: T.blue,
                       padding: "7px 10px",
-                      background: T.greenDim,
+                      background: T.blueDim,
                       borderRadius: 7,
                     }}
                   >
                     {parseVal(form.quantity)} {coinInfo?.symbol} ×{" "}
-                    {fM(livePrice, "IDR", hideValues)} ={" "}
-                    <b>{fV(parseVal(form.quantity) * livePrice, dispCur)}</b>
-                  </div>
-                )}
-                {livePrice === 0 && (
-                  <div style={{ fontSize: 10, color: T.orange, marginTop: 5 }}>
-                    ⚠ Harga live belum tersedia. Coba refresh.
+                    {fMoney(parseVal(form.pricePerCoin))} {form.pricePerCoinCurrency} ={" "}
+                    <b>{fV(toIDR(parseVal(form.quantity) * parseVal(form.pricePerCoin), form.pricePerCoinCurrency), dispCur)}</b>
                   </div>
                 )}
               </div>
@@ -1256,27 +1347,20 @@ function PortfolioScene({
               </div>
               <div style={{ textAlign: "right" }}>
                 <Chip
-                  color={
-                    pdfAllowed
-                      ? tier?.id === "proplus"
-                        ? "#9b7ef8"
-                        : T.accent
-                      : T.red
-                  }
+                  color={pdfAllowed ? (tier?.id === "proplus" ? "#9b7ef8" : T.accent) : pulseCredits > 0 ? T.orange : T.red}
                   T={T}
                 >
-                  {tier?.id === "proplus"
-                    ? "💎 20x/bulan"
-                    : tier?.id === "pro"
-                    ? `⭐ ${pdfRemaining}x / bulan`
-                    : `${pdfRemaining}x tersisa`}
+                  {pdfAllowed
+                    ? tier?.id === "proplus" ? "💎 20x/bulan" : tier?.id === "pro" ? `⭐ ${remaining}x / bulan` : `${remaining}x tersisa`
+                    : `⚡ ${pulseCredits} Pulse`}
                 </Chip>
                 <div style={{ color: T.muted, fontSize: 10, marginTop: 3 }}>
                   {tier?.id === "proplus"
-                    ? "Pro+ - tidak terbatas"
+                    ? "Pro+ — 20x/bulan gratis"
                     : tier?.id === "pro"
-                    ? "Pro - 7x per bulan, reset tiap bulan"
-                    : "Free - 3x seumur hidup"}
+                    ? "Pro — 7x/bulan gratis"
+                    : "Free — 3x seumur hidup"}
+                  {!pdfAllowed && ` · 1 Pulse/upload`}
                 </div>
               </div>
             </div>
@@ -1328,15 +1412,29 @@ function PortfolioScene({
                 />
               </div>
               {pdfFile && (
-                <TBtn
-                  T={T}
-                  variant="primary"
-                  onClick={parsePDF}
-                  disabled={pdfParsing || !pdfAllowed}
-                  style={{ width: "100%", padding: 13 }}
-                >
-                  {pdfParsing ? "⏳ AI membaca PDF..." : "🔍 Analisa dengan AI"}
-                </TBtn>
+                <>
+                  <TBtn
+                    T={T}
+                    variant="primary"
+                    onClick={parsePDF}
+                    disabled={pdfParsing || !pdfAllowedWithPulse}
+                    style={{ width: "100%", padding: 13 }}
+                  >
+                    {pdfParsing
+                      ? "⏳ AI membaca PDF..."
+                      : pdfAllowed
+                      ? "🔍 Analisa dengan AI"
+                      : `🔍 Analisa (1 Pulse)`}
+                  </TBtn>
+                  {!pdfAllowedWithPulse && (
+                    <div style={{ marginTop: 8, textAlign: "center" }}>
+                      <span style={{ fontSize: 11, color: T.red }}>PULSE Credit habis. </span>
+                      {onBuyPulse && (
+                        <button onClick={onBuyPulse} style={{ fontSize: 11, background: "none", border: "none", color: T.accent, cursor: "pointer", textDecoration: "underline" }}>Beli Pulse</button>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
               {pdfError && (
                 <div
