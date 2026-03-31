@@ -843,15 +843,19 @@ function InsuranceAITab({ T, dispCur, fV, insurances, totalAssets, totalDebt, pa
     const ctx = `Data keuangan:\n- Total aset: ${(totalAssets/1e6).toFixed(1)}jt\n- Aset likuid: ${(liquidAssets/1e6).toFixed(1)}jt\n- Total hutang: ${(totalDebt/1e6).toFixed(1)}jt\n- Passive income/thn: ${(passiveAnnual/1e6).toFixed(1)}jt\n- Total premi/thn: ${(totalAnnualPremium/1e6).toFixed(1)}jt\n- Rasio premi/aset: ${totalAssets>0?((totalAnnualPremium/totalAssets)*100).toFixed(2):0}%\n\nPolis per kategori:\n${polisDetail}`;
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/ai', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000,
+        body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000,
           system:'Kamu konsultan proteksi keuangan independen Indonesia. Analisa singkat dalam Bahasa Indonesia: 1) Status Proteksi per kategori, 2) Kategori yang kritis/kekurangan, 3) Rekomendasi prioritas max 3 poin dengan angka konkret. Maksimal 300 kata.',
           messages:[{role:'user',content:`Analisa proteksi:\n${ctx}`}] }),
       });
       const data = await res.json();
-      setAnalysis(data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'Tidak ada respons.');
-    } catch { setAnalysis('Gagal terhubung ke AI. Periksa koneksi.'); }
+      if (!res.ok) {
+        setAnalysis('Error: ' + (data?.error?.message || data?.error || `HTTP ${res.status}`));
+      } else {
+        setAnalysis(data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'Tidak ada respons.');
+      }
+    } catch (e) { setAnalysis('Gagal terhubung ke server: ' + e.message); }
     setLoading(false); setDone(true);
   };
 
