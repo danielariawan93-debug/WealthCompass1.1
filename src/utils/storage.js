@@ -38,11 +38,25 @@ function loadAccountData(email) {
   }
 }
 
+// Recursively remove undefined values — Firestore rejects any undefined field
+function stripUndefined(obj) {
+  if (Array.isArray(obj)) return obj.map(stripUndefined);
+  if (obj !== null && typeof obj === "object") {
+    const result = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v !== undefined) result[k] = stripUndefined(v);
+    }
+    return result;
+  }
+  return obj;
+}
+
 // Save to Firestore (async, cloud sync)
 async function saveAccountDataCloud(uid, data) {
   if (!uid) return;
   try {
-    await setDoc(doc(db, "users", uid), { data, updatedAt: Date.now() }, { merge: true });
+    const clean = stripUndefined(data);
+    await setDoc(doc(db, "users", uid), { data: clean, updatedAt: Date.now() }, { merge: true });
   } catch (e) {
     console.warn("Firestore save failed:", e.message);
   }
