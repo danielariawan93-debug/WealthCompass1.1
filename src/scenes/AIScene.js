@@ -76,7 +76,7 @@ function AIScene({
   const model =
     tier.id === "free"
       ? "claude-haiku-4-5-20251001"
-      : "claude-sonnet-4-5-20250514";
+      : "claude-sonnet-4-6";
 
   const totalDebts = debts.reduce((s, d) => s + parseVal(d.outstanding), 0);
   const totalMonthlyDebt = debts.reduce(
@@ -145,15 +145,19 @@ Jawab max 3 paragraf. Sertakan disclaimer singkat.`;
         }),
       });
       const data = await res.json();
-      const reply = data.content?.[0]?.text || "Maaf, terjadi kesalahan.";
-      setMessages((p) => [...p, { role: "assistant", content: reply }]);
-    } catch {
+      if (!res.ok) {
+        const errMsg = data?.error?.message || data?.error || `HTTP ${res.status}`;
+        setMessages((p) => [...p, { role: "assistant", content: `⚠️ Error: ${errMsg}` }]);
+      } else {
+        const reply = data.content?.[0]?.text || "Maaf, terjadi kesalahan.";
+        setMessages((p) => [...p, { role: "assistant", content: reply }]);
+      }
+    } catch (e) {
       setMessages((p) => [
         ...p,
         {
           role: "assistant",
-          content:
-            "⚠️ AI Advisor memerlukan koneksi backend. Fitur ini aktif setelah deploy production.",
+          content: `⚠️ Gagal terhubung ke server: ${e.message}`,
         },
       ]);
     }
