@@ -8,7 +8,7 @@ const PLANS = {
     { id: "annual",   label: "Tahunan",  price: "$19.99", sub: "/tahun",  saving: "Hemat 16%",pulse: 250, days: 365, popular: true },
   ],
   proplus: [
-    { id: "monthly",  label: "Bulanan",  price: "$4.99",  sub: "/bulan",  saving: "",          pulse: 80,   days: 30  },
+    { id: "monthly",  label: "Bulanan",  price: "$4.99",  sub: "/bulan",  saving: "",          pulse: 80,  days: 30  },
     { id: "biannual", label: "6 Bulan",  price: "$26.99", sub: "/6 bln",  saving: "Hemat 10%", pulse: 480,  days: 180 },
     { id: "annual",   label: "Tahunan",  price: "$47.99", sub: "/tahun",  saving: "Hemat 20%", pulse: 1000, days: 365, popular: true },
   ],
