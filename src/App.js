@@ -545,6 +545,20 @@ function WealthCompassV7() {
     monthlyFixedIncome,
   ]);
 
+  // Reconcile activeIncomes with assets — auto-remove stale "biz_*" entries when
+  // a business asset is deleted so Finance Tools never shows a ghost entry.
+  useEffect(() => {
+    if (!activeIncomes.length) return;
+    const assetIds = new Set(assets.map(a => String(a.id)));
+    const valid = activeIncomes.filter(ai => {
+      if (!ai.id?.startsWith("biz_")) return true; // non-biz entries (salary, etc.) keep
+      return assetIds.has(ai.id.slice(4)); // remove if matching asset no longer exists
+    });
+    if (valid.length !== activeIncomes.length) {
+      setActiveIncomes(valid);
+    }
+  }, [assets]); // eslint-disable-line
+
   // handleLoginRef: always points to the latest handleLogin so onAuthStateChanged
   // (which runs inside a useEffect([], []) closure) never calls a stale version.
   const handleLoginRef = React.useRef(null);

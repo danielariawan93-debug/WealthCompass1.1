@@ -20,7 +20,7 @@ function Sidebar({ tab, setTab, T, isPro = false, isProPlus = false, sideOpen, s
   const W = sideOpen ? 180 : 52;
 
   const handleNav = (item) => {
-    if (item.comingSoon) return;
+    // Coming Soon: allow click to show the preview scene (not blocked)
     if (item.proGate && !isPro && !isProPlus) {
       if (setShowUpgrade) setShowUpgrade(true);
       return;
@@ -53,7 +53,7 @@ function Sidebar({ tab, setTab, T, isPro = false, isProPlus = false, sideOpen, s
               key={n.id}
               onClick={() => handleNav(n)}
               title={soon ? n.label + " (Segera Hadir)" : n.label}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: sideOpen ? "10px 14px" : "10px 0", justifyContent: sideOpen ? "flex-start" : "center", background: active ? n.color + "22" : "none", border: "none", borderLeft: "3px solid " + (active ? n.color : "transparent"), color: active ? n.color : T.muted, cursor: soon ? "default" : "pointer", transition: "all 0.15s", whiteSpace: "nowrap", overflow: "hidden", opacity: soon ? 0.45 : 1 }}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: sideOpen ? "10px 14px" : "10px 0", justifyContent: sideOpen ? "flex-start" : "center", background: active ? n.color + "22" : "none", border: "none", borderLeft: "3px solid " + (active ? n.color : "transparent"), color: active ? n.color : T.muted, cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", overflow: "hidden", opacity: soon ? 0.55 : 1 }}
             >
               <span style={{ fontSize: 17, flexShrink: 0, lineHeight: 1 }}>{n.icon}</span>
               {sideOpen && (
