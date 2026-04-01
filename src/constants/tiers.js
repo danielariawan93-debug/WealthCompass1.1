@@ -53,10 +53,10 @@ const getTier = (isPro, isProPlus) =>
 // Free accounts start with 3 Pulse (set in DEFAULT_ACCOUNT_STATE).
 // Pro subscriptions: 20 Pulse × months. Pro+: 80 Pulse × months.
 const PULSE_PACKAGES = [
-  { id: "p15",  pulse: 15,  price: 0.99, label: "15 Pulse"  },
-  { id: "p40",  pulse: 40,  price: 1.99, label: "40 Pulse"  },
-  { id: "p125", pulse: 125, price: 4.99, label: "125 Pulse" },
-  { id: "p350", pulse: 350, price: 9.99, label: "350 Pulse" },
+  { id: "p15",  pulse: 15,  price: 0.99, idrPrice: 15000,  label: "15 Pulse"  },
+  { id: "p40",  pulse: 40,  price: 1.99, idrPrice: 29000,  label: "40 Pulse"  },
+  { id: "p125", pulse: 125, price: 4.99, idrPrice: 75000,  label: "125 Pulse" },
+  { id: "p350", pulse: 350, price: 9.99, idrPrice: 149000, label: "350 Pulse" },
 ];
 
 // ─── UPLOAD HELPERS (use account state, not localStorage) ─────────────────────
