@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { id: "real-assets",   label: "Properti & Bisnis",  icon: "🏡", color: "#f87239", alwaysShow: true, proGate: true },
   { id: "insurance",     label: "Asuransi",           icon: "🛡️", color: "#818cf8", alwaysShow: true, proGate: true },
   { id: "peers",         label: "Peer Benchmark",     icon: "👥", color: "#5b9cf6", comingSoon: true },
+  { id: "family",        label: "Family Wealth",      icon: "👨‍👩‍👧", color: "#ec4899", comingSoon: true },
   { id: "community",     label: "Komunitas",          icon: "🤝", color: "#f59e0b", comingSoon: true },
   { id: "risk",          label: "Profil Risiko",      icon: "🎲", color: "#9b7ef8", hidden: true },
 ];

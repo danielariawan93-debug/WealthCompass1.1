@@ -1094,6 +1094,42 @@ function WealthCompassV7() {
                 ]}
               />
             )}
+            {tab === "family" && (
+              <ComingSoonScene
+                T={T}
+                title="Family Wealth"
+                icon="👨‍👩‍👧"
+                proPlus={true}
+                description="Kelola keuangan keluarga bersama. Lihat total Net Worth gabungan, pantau aset & hutang anggota keluarga, dan capai tujuan finansial bersama."
+                features={[
+                  {
+                    icon: "👥",
+                    label: "Multi-Member (Pro: 2 · Pro+: 5)",
+                    desc: "Undang pasangan atau anggota keluarga. Masing-masing member minimal berlangganan Pro.",
+                  },
+                  {
+                    icon: "📊",
+                    label: "Net Worth Gabungan",
+                    desc: "Hitung total kekayaan keluarga: jumlahkan aset & hutang semua member yang disepakati.",
+                  },
+                  {
+                    icon: "🔒",
+                    label: "Data Sharing Selektif",
+                    desc: "Setiap member kontrol data mana yang dibagikan ke keluarga — aset, hutang, atau tujuan tertentu saja.",
+                  },
+                  {
+                    icon: "👁️",
+                    label: "View Only untuk Member",
+                    desc: "Anggota keluarga hanya bisa melihat data yang di-share, tidak bisa mengedit.",
+                  },
+                  {
+                    icon: "🎯",
+                    label: "Tujuan Keuangan Bersama",
+                    desc: "Buat goal bersama (beli rumah, dana pendidikan anak, pensiun) dan pantau progress kontribusi masing-masing.",
+                  },
+                ]}
+              />
+            )}
             {tab === "community" && (
               <ComingSoonScene
                 T={T}

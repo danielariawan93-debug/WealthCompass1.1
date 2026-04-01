@@ -64,13 +64,19 @@ const EMPTY_FORM = {
   // Mode A fields
   monthlyPayment: '',
   endYearMonth: '',
+  installmentDay: '',   // day of month angsuran jatuh (1-31)
   // Mode B fields
   outstanding: '',
   interestRate: '',
   tenorMonths: '',
-  // Revolving / Mode C
+  // Revolving / Mode C — renewal date split for day precision
   plafon: '',
-  renewalDate: '',
+  renewalDay: '',
+  renewalMonth: '',
+  renewalYear: '',
+  // Notification settings
+  notifyEnabled: false,
+  notifyDaysBefore: '3',
   // Shared
   notes: '',
   linkedAssetId: '',
@@ -79,7 +85,16 @@ const EMPTY_FORM = {
 function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, isProPlus = false }) {
   const allTypes = [...KONSUMTIF, ...PRODUKTIF];
   const [f, setF] = useState(() => {
-    if (editData) return { ...EMPTY_FORM, ...editData };
+    if (editData) {
+      const state = { ...EMPTY_FORM, ...editData, renewalDay:'', renewalMonth:'', renewalYear:'' };
+      if (editData.renewalDate) {
+        const parts = editData.renewalDate.split('-');
+        state.renewalYear  = parts[0] || '';
+        state.renewalMonth = parts[1] || '';
+        state.renewalDay   = parts[2] || '';
+      }
+      return state;
+    }
     return EMPTY_FORM;
   });
   const setFF = (k, v) => setF(p => ({ ...p, [k]: v }));
@@ -87,7 +102,8 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
   const typeList  = f.category === 'konsumtif' ? KONSUMTIF : PRODUKTIF;
   const typeDef   = allTypes.find(t => t.key === f.key) || allTypes[0];
   const isRevolving = typeDef.mode === 'revolving';
-  const effectiveRate = parseVal(f.interestRate) || DEFAULT_RATE[f.key] || 10;
+  // Bug fix: explicit 0 from user must not fall back to DEFAULT_RATE
+  const effectiveRate = f.interestRate !== '' ? parseVal(f.interestRate) : (DEFAULT_RATE[f.key] ?? 10);
 
   // Derived calculations
   const derivedOutstanding = useMemo(() => {
@@ -116,6 +132,9 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
 
   const handleSave = () => {
     if (!canSave) return;
+    const renewalDate = (f.renewalYear && f.renewalMonth)
+      ? `${f.renewalYear}-${f.renewalMonth}${f.renewalDay ? '-' + String(f.renewalDay).padStart(2,'0') : ''}`
+      : '';
     onSave({
       id: editData?.id || Date.now().toString(),
       category: f.category,
@@ -125,17 +144,21 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
       monthlyPayment: String(Math.round(derivedMonthlyPayment)),
       interestRate: String(effectiveRate),
       plafon: f.plafon || '0',
-      renewalDate: f.renewalDate || '',
+      renewalDate,
       linkedAssetId: f.linkedAssetId || '',
       notes: f.notes || '',
       inputMode: f.inputMode,
       endYearMonth: f.endYearMonth || '',
       tenorMonths: f.tenorMonths || '',
+      installmentDay: f.installmentDay || '',
+      notifyEnabled: f.notifyEnabled || false,
+      notifyDaysBefore: f.notifyDaysBefore || '3',
     });
   };
 
   const fV = v => fM(v, 'IDR', false);
   const inp = { width:'100%', background:T.inputBg, border:`1px solid ${T.border}`, color:T.text, borderRadius:9, padding:'10px 12px', fontSize:12, outline:'none', boxSizing:'border-box' };
+  const DAYS   = Array.from({length:31},(_,i)=>String(i+1).padStart(2,'0'));
   const MONTHS = Array.from({length:12},(_,i)=>({v:String(i+1).padStart(2,'0'),l:['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'][i]}));
   const YEARS  = Array.from({length:30},(_,i)=>{const y=new Date().getFullYear()+i; return {v:String(y),l:String(y)};});
 
@@ -226,9 +249,17 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
             )}
           </div>
           <div>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Tanggal Angsuran per Bulan (opsional)</div>
+            <select value={f.installmentDay} onChange={e=>setFF('installmentDay',e.target.value)} style={{...inp}}>
+              <option value="">Pilih tanggal (opsional)</option>
+              {DAYS.map(d=><option key={d} value={d}>Tanggal {parseInt(d,10)}</option>)}
+            </select>
+            {f.installmentDay && <div style={{ color:T.muted, fontSize:9, marginTop:3 }}>Cicilan jatuh setiap tanggal {parseInt(f.installmentDay,10)} tiap bulan</div>}
+          </div>
+          <div>
             <div style={{ color:T.muted, fontSize:10, marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
               Suku Bunga / Thn (%) - opsional
-              <InfoBtn T={T} content={`Jika tidak diisi, digunakan asumsi default ${DEFAULT_RATE[f.key]||10}% untuk estimasi outstanding.`} />
+              <InfoBtn T={T} content={`Jika tidak diisi, digunakan asumsi default ${DEFAULT_RATE[f.key]||10}% untuk estimasi outstanding. Isi 0 untuk hutang tanpa bunga.`} />
             </div>
             <input value={f.interestRate} onChange={e=>setFF('interestRate',e.target.value)} placeholder={String(DEFAULT_RATE[f.key]||10)} style={inp} />
           </div>
@@ -288,7 +319,20 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
             </div>
             <div>
               <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Jatuh Tempo Renewal</div>
-              <input type="month" value={f.renewalDate} onChange={e=>setFF('renewalDate',e.target.value)} style={{...inp}} />
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:5 }}>
+                <select value={f.renewalDay} onChange={e=>setFF('renewalDay',e.target.value)} style={{...inp,padding:'10px 6px'}}>
+                  <option value="">Tgl</option>
+                  {DAYS.map(d=><option key={d} value={d}>{parseInt(d,10)}</option>)}
+                </select>
+                <select value={f.renewalMonth} onChange={e=>setFF('renewalMonth',e.target.value)} style={{...inp,padding:'10px 6px'}}>
+                  <option value="">Bln</option>
+                  {MONTHS.map(m=><option key={m.v} value={m.v}>{m.l}</option>)}
+                </select>
+                <select value={f.renewalYear} onChange={e=>setFF('renewalYear',e.target.value)} style={{...inp,padding:'10px 6px'}}>
+                  <option value="">Thn</option>
+                  {YEARS.map(y=><option key={y.v} value={y.v}>{y.l}</option>)}
+                </select>
+              </div>
             </div>
           </div>
         </>
@@ -315,6 +359,44 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
         <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Catatan (opsional)</div>
         <input value={f.notes} onChange={e=>setFF('notes',e.target.value)} placeholder="Bank, no. rekening, dll" style={inp} />
       </div>
+
+      {/* Notification settings — Pro & Pro+ only, requires installmentDay or renewalDate */}
+      {isPro && (isRevolving ? (f.renewalYear && f.renewalMonth) : f.installmentDay) && (
+        <div style={{ padding:'12px 14px', background:T.surface, borderRadius:10, border:`1px solid ${T.border}` }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: f.notifyEnabled ? 10 : 0 }}>
+            <div>
+              <div style={{ color:T.text, fontSize:12, fontWeight:'bold' }}>🔔 Notifikasi Jatuh Tempo</div>
+              <div style={{ color:T.muted, fontSize:10 }}>{isProPlus ? 'Pro+: pilih H-1 hingga H-7' : 'Pro: default H-3'}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFF('notifyEnabled', !f.notifyEnabled)}
+              style={{ width:40, height:22, borderRadius:11, border:'none', cursor:'pointer', background:f.notifyEnabled?T.accent:T.border, position:'relative', transition:'all 0.2s', flexShrink:0 }}
+            >
+              <span style={{ position:'absolute', top:2, width:18, height:18, borderRadius:9, background:'#fff', transition:'all 0.2s', left:f.notifyEnabled?20:2 }} />
+            </button>
+          </div>
+          {f.notifyEnabled && (
+            isProPlus ? (
+              <div>
+                <div style={{ color:T.muted, fontSize:10, marginBottom:6 }}>Ingatkan berapa hari sebelum:</div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
+                  {['7','6','5','4','3','2','1'].map(d=>(
+                    <button key={d} type="button" onClick={()=>setFF('notifyDaysBefore',d)}
+                      style={{ padding:'6px 2px', borderRadius:7, border:`1px solid ${f.notifyDaysBefore===d?T.accent:T.border}`, background:f.notifyDaysBefore===d?T.accentDim:T.surface, color:f.notifyDaysBefore===d?T.accent:T.muted, cursor:'pointer', fontSize:10, fontWeight:'bold' }}>
+                      H-{d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding:'7px 10px', background:T.accentDim, borderRadius:8, fontSize:11, color:T.accent, fontWeight:'bold' }}>
+                ⚡ H-3 · Notifikasi 3 hari sebelum jatuh tempo
+              </div>
+            )
+          )}
+        </div>
+      )}
 
       {/* Live preview */}
       {derivedOutstanding > 0 && (
@@ -350,6 +432,34 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
       </div>
     </div>
   );
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function getNextInstallmentDate(dayStr) {
+  const day = parseInt(dayStr, 10);
+  if (!day || day < 1 || day > 31) return null;
+  const now = new Date();
+  let target = new Date(now.getFullYear(), now.getMonth(), day);
+  if (target <= now) target = new Date(now.getFullYear(), now.getMonth() + 1, day);
+  return target;
+}
+
+function formatRenewalDate(dateStr) {
+  if (!dateStr) return null;
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+    const m = parseInt(parts[1], 10) - 1;
+    return `${parseInt(parts[2],10)} ${MONTH_NAMES[m]} ${parts[0]}`;
+  }
+  if (parts.length === 2) {
+    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+    const m = parseInt(parts[1], 10) - 1;
+    return `${MONTH_NAMES[m]} ${parts[0]}`;
+  }
+  return dateStr;
 }
 
 // ============================================================
@@ -503,8 +613,14 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
             const outstanding = parseVal(d.outstanding);
             const utilisasi = isRev && plafon > 0 ? (outstanding / plafon) * 100 : 0;
             const renewalDaysLeft = d.renewalDate
-              ? Math.ceil((new Date(d.renewalDate+'-01') - new Date()) / (1000*60*60*24))
+              ? (() => {
+                  const s = d.renewalDate.length === 7 ? d.renewalDate + '-01' : d.renewalDate;
+                  return Math.ceil((new Date(s) - new Date()) / (1000*60*60*24));
+                })()
               : null;
+            const nextInstallDate = d.installmentDay ? getNextInstallmentDate(d.installmentDay) : null;
+            const installmentDaysLeft = nextInstallDate ? Math.ceil((nextInstallDate - new Date()) / (1000*60*60*24)) : null;
+            const notifyThreshold = d.notifyEnabled ? parseInt(d.notifyDaysBefore || '3', 10) : null;
 
             return (
               <Card key={d.id} T={T} style={{ marginBottom:10 }} glow={utilisasi > 80 && isProPlus ? T.red : undefined}>
@@ -571,10 +687,47 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
                   </div>
                 )}
 
+                {/* Renewal date chip */}
+                {isRev && d.renewalDate && (
+                  <div style={{ marginBottom:6, display:'flex', alignItems:'center', gap:6 }}>
+                    <span style={{ fontSize:9, padding:'2px 8px', borderRadius:6, background:T.surface, color:T.muted, border:`1px solid ${T.border}` }}>
+                      📅 Renewal: {formatRenewalDate(d.renewalDate)}
+                    </span>
+                    {d.notifyEnabled && <span style={{ fontSize:9, padding:'2px 8px', borderRadius:6, background:T.accentDim, color:T.accent, border:`1px solid ${T.accentSoft}` }}>🔔 H-{d.notifyDaysBefore||3}</span>}
+                  </div>
+                )}
+
+                {/* Installment date chip — non-revolving */}
+                {!isRev && d.installmentDay && (
+                  <div style={{ marginBottom:6, display:'flex', alignItems:'center', gap:6 }}>
+                    <span style={{ fontSize:9, padding:'2px 8px', borderRadius:6, background:T.surface, color:T.muted, border:`1px solid ${T.border}` }}>
+                      📅 Cicilan tgl {parseInt(d.installmentDay,10)}{installmentDaysLeft !== null ? ` · ${installmentDaysLeft} hari lagi` : ''}
+                    </span>
+                    {d.notifyEnabled && <span style={{ fontSize:9, padding:'2px 8px', borderRadius:6, background:T.accentDim, color:T.accent, border:`1px solid ${T.accentSoft}` }}>🔔 H-{d.notifyDaysBefore||3}</span>}
+                  </div>
+                )}
+
                 {/* Renewal warning */}
-                {renewalDaysLeft !== null && renewalDaysLeft <= 60 && (
-                  <div style={{ marginBottom:8, padding:'6px 10px', background:renewalDaysLeft<=14?T.redDim:T.accentDim, borderRadius:7, fontSize:10, color:renewalDaysLeft<=14?T.red:T.accent }}>
-                    {renewalDaysLeft <= 0 ? '⚠ Renewal sudah jatuh tempo!' : `⏰ Renewal dalam ${renewalDaysLeft} hari`}
+                {isRev && renewalDaysLeft !== null && renewalDaysLeft <= 60 && (
+                  <div style={{ marginBottom:8, padding:'6px 10px', background:renewalDaysLeft<=14?T.redDim:T.accentDim, borderRadius:7, fontSize:10, color:renewalDaysLeft<=14?T.red:T.accent, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span>{renewalDaysLeft <= 0 ? '⚠ Renewal sudah jatuh tempo!' : `⏰ Renewal dalam ${renewalDaysLeft} hari`}</span>
+                    {isProPlus && renewalDaysLeft > 0 && d.renewalDate && d.renewalDate.length === 10 && (
+                      <a href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent('Renewal: '+d.name)}&dates=${d.renewalDate.replace(/-/g,'')}/${d.renewalDate.replace(/-/g,'')}&details=${encodeURIComponent('Jatuh tempo renewal '+d.name)}`} target="_blank" rel="noopener noreferrer" style={{ color:T.blue||T.accent, fontSize:9, textDecoration:'underline', whiteSpace:'nowrap' }}>
+                        + GCal
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Installment alert — non-revolving */}
+                {!isRev && notifyThreshold !== null && installmentDaysLeft !== null && installmentDaysLeft <= notifyThreshold && (
+                  <div style={{ marginBottom:8, padding:'6px 10px', background:installmentDaysLeft<=3?T.redDim:T.accentDim, borderRadius:7, fontSize:10, color:installmentDaysLeft<=3?T.red:T.accent, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span>{installmentDaysLeft <= 0 ? '⚠ Angsuran jatuh tempo hari ini!' : `⏰ Angsuran dalam ${installmentDaysLeft} hari (tgl ${d.installmentDay})`}</span>
+                    {isProPlus && nextInstallDate && (
+                      <a href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent('Cicilan: '+d.name)}&dates=${nextInstallDate.toISOString().slice(0,10).replace(/-/g,'')}/${nextInstallDate.toISOString().slice(0,10).replace(/-/g,'')}&details=${encodeURIComponent('Angsuran bulanan '+d.name)}`} target="_blank" rel="noopener noreferrer" style={{ color:T.blue||T.accent, fontSize:9, textDecoration:'underline', whiteSpace:'nowrap' }}>
+                        + GCal
+                      </a>
+                    )}
                   </div>
                 )}
 
