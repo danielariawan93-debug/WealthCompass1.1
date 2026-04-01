@@ -12,8 +12,16 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (!process.env.WealthCompass_API_KEY) {
-    return res.status(500).json({ error: 'WealthCompass_API_KEY not configured on server' });
+  // Try all possible env var names the user may have configured in Vercel
+  const apiKey =
+    process.env.WealthCompass_API_KEY   ||   // primary
+    process.env.WealthCompasss_API_KEY  ||   // typo variant (3 s)
+    process.env.ANTHROPIC_API_KEY;           // standard fallback
+
+  if (!apiKey) {
+    return res.status(500).json({
+      error: 'API key not configured. Set WealthCompass_API_KEY in Vercel Environment Variables.',
+    });
   }
 
   try {
@@ -21,7 +29,7 @@ module.exports = async function handler(req, res) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.WealthCompass_API_KEY,
+        'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
         'anthropic-beta': 'pdfs-2024-09-25',
       },
