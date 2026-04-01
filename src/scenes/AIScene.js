@@ -364,7 +364,7 @@ Jawab max 3 paragraf. Sertakan disclaimer singkat.`;
             onKeyDown={(e) => e.key === "Enter" && send()}
             placeholder={
               blocked
-                ? "Token habis — reset besok"
+                ? "Pulse Kredit ands habis silahkan upgrade subcription atau beli extra Pulse"
                 : "Tanya tentang investasi kamu..."
             }
             style={{ flex: 1, padding: "11px 15px" }}
