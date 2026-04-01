@@ -9,7 +9,7 @@ const TIERS = {
     badge: "FREE",
     maxAssets: 10,
     maxDebts: 5,
-    maxGoals: 2,
+    maxGoals: 3,
     freeUploads: 3,        // lifetime
     freeUploadsType: "lifetime",
     netWorthDays: 30,
