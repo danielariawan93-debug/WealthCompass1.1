@@ -182,13 +182,36 @@ function PortfolioScene({
         : (asset.sourceCurrency || "IDR"),
       mode: (asset.lots || asset.coinId || isGram) ? "units" : "amount",
       qty: String(asset.gramWeight || asset.quantity || asset.lots || ""),
+      coinId: asset.coinId || "",
+      metalType: asset.metalType || "gold",
+      classKey: asset.classKey,
     });
   };
   const saveEdit = (id) => {
     setAssets((p) =>
       p.map((a) => {
         if (a.id !== id) return a;
+        const ck = editState.classKey || a.classKey;
         let newIDR;
+        // First-time unit assignment for PDF-parsed assets
+        if (editState.mode === "units" && editState.qty && !a.coinId && !a.lots && !a.gramWeight) {
+          const qty = parseVal(editState.qty);
+          const price = parseVal(editState.val);
+          if (ck === 'crypto') {
+            const coinId = editState.coinId || 'bitcoin';
+            newIDR = toIDR(qty * price, editState.cur);
+            return { ...a, classKey: ck, coinId, quantity: qty, pricePerCoin: price, pricePerCoinCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
+          }
+          if (ck === 'equity') {
+            newIDR = toIDR(qty * 100 * price, editState.cur);
+            return { ...a, classKey: ck, lots: qty, pricePerShare: price, sourceCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
+          }
+          if (ck === 'mixed') {
+            const metalType = editState.metalType || 'gold';
+            newIDR = toIDR(qty * price, editState.cur);
+            return { ...a, classKey: ck, metalType, gramWeight: qty, pricePerGram: price, pricePerGramCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
+          }
+        }
         if (
           (a.coinId || a.lots || a.gramWeight) &&
           editState.mode === "units" &&
@@ -198,23 +221,24 @@ function PortfolioScene({
           if (a.coinId) {
             const ppc = parseVal(editState.val);
             newIDR = toIDR(qty * ppc, editState.cur);
-            return { ...a, quantity: qty, pricePerCoin: ppc, pricePerCoinCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
+            return { ...a, classKey: ck, quantity: qty, pricePerCoin: ppc, pricePerCoinCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
           }
           if (a.lots) {
             const pps = parseVal(editState.val);
             newIDR = toIDR(qty * 100 * pps, editState.cur);
-            return { ...a, lots: qty, pricePerShare: pps, sourceCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
+            return { ...a, classKey: ck, lots: qty, pricePerShare: pps, sourceCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
           }
           if (a.gramWeight) {
             const ppg = parseVal(editState.val);
             newIDR = toIDR(qty * ppg, editState.cur);
-            return { ...a, gramWeight: qty, pricePerGram: ppg, pricePerGramCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
+            return { ...a, classKey: ck, gramWeight: qty, pricePerGram: ppg, pricePerGramCurrency: editState.cur, valueIDR: newIDR, liveValue: undefined };
           }
         }
         const v = parseVal(editState.val);
         newIDR = toIDR(v, editState.cur);
         return {
           ...a,
+          classKey: ck,
           valueIDR: newIDR,
           liveValue: undefined,
           sourceAmount: v,
@@ -564,7 +588,8 @@ function PortfolioScene({
                       const editClass = ASSET_CLASSES.find(
                         (c) => c.key === asset.classKey
                       );
-                      const canUnitEdit = asset.coinId || asset.lots || asset.gramWeight;
+                      const canUnitEdit = asset.coinId || asset.lots || asset.gramWeight ||
+                        ['equity', 'crypto', 'mixed'].includes(asset.classKey);
                       return (
                         <Card
                           T={T}
@@ -583,6 +608,16 @@ function PortfolioScene({
                                 Edit:{" "}
                                 <b style={{ color: T.accent }}>{asset.name}</b>
                               </div>
+                              {/* Category swap */}
+                              <div style={{ marginBottom: 10 }}>
+                                <div style={{ color: T.muted, fontSize: 10, marginBottom: 4 }}>Kategori Aset</div>
+                                <TSelect T={T} value={editState.classKey || asset.classKey}
+                                  onChange={e => setEditState(p => ({ ...p, classKey: e.target.value, mode: 'amount' }))}>
+                                  {ASSET_CLASSES.map(c => (
+                                    <option key={c.key} value={c.key}>{c.icon} {c.label}</option>
+                                  ))}
+                                </TSelect>
+                              </div>
                               {canUnitEdit && (
                                 <div
                                   style={{
@@ -595,9 +630,9 @@ function PortfolioScene({
                                     ["amount", "Nominal"],
                                     [
                                       "units",
-                                      asset.coinId
+                                      asset.coinId || asset.classKey === 'crypto'
                                         ? "Jumlah Koin"
-                                        : asset.gramWeight
+                                        : asset.gramWeight || asset.classKey === 'mixed'
                                         ? "Berat (gram)"
                                         : "Jumlah Lot",
                                     ],
@@ -645,8 +680,10 @@ function PortfolioScene({
                                       }))
                                     }
                                     placeholder={
-                                      asset.coinId
+                                      (asset.coinId || asset.classKey === 'crypto')
                                         ? "Jumlah koin"
+                                        : (asset.gramWeight || asset.classKey === 'mixed')
+                                        ? "Berat (gram)"
                                         : "Jumlah lot"
                                     }
                                     style={{ marginBottom: 8 }}
@@ -730,6 +767,76 @@ function PortfolioScene({
                                       placeholder="Harga per saham"
                                       style={{ marginBottom: 8 }}
                                     />
+                                  )}
+                                  {/* PDF-parsed crypto: no coinId yet */}
+                                  {asset.classKey === 'crypto' && !asset.coinId && editState.mode === "units" && (
+                                    <div>
+                                      <TSelect T={T} value={editState.coinId || ''}
+                                        onChange={e => setEditState(p => ({ ...p, coinId: e.target.value }))}
+                                        style={{ marginBottom: 8 }}>
+                                        {CRYPTO_COINS.map(c => <option key={c.id} value={c.id}>{c.symbol} — {c.label}</option>)}
+                                      </TSelect>
+                                      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                                        <TInput T={T} value={editState.val}
+                                          onChange={e => setEditState(p => ({ ...p, val: e.target.value }))}
+                                          placeholder="Harga per koin" style={{ flex: 1 }} />
+                                        <TSelect T={T} value={editState.cur}
+                                          onChange={e => setEditState(p => ({ ...p, cur: e.target.value }))}
+                                          style={{ width: 80 }}>
+                                          {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                                        </TSelect>
+                                      </div>
+                                      {editState.qty && editState.val && parseVal(editState.val) > 0 && (
+                                        <div style={{ fontSize: 10, color: T.blue, marginBottom: 8 }}>
+                                          {parseVal(editState.qty)} koin × {fMoney(parseVal(editState.val))} {editState.cur} = {fMoney(toIDR(parseVal(editState.qty) * parseVal(editState.val), editState.cur))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {/* PDF-parsed mixed/commodity: no gramWeight yet */}
+                                  {asset.classKey === 'mixed' && !asset.gramWeight && editState.mode === "units" && (
+                                    <div>
+                                      <TSelect T={T} value={editState.metalType || 'gold'}
+                                        onChange={e => setEditState(p => ({ ...p, metalType: e.target.value }))}
+                                        style={{ marginBottom: 8 }}>
+                                        {PRECIOUS_METALS.map(m => <option key={m.id} value={m.id}>{m.icon} {m.label}</option>)}
+                                      </TSelect>
+                                      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                                        <TInput T={T} value={editState.val}
+                                          onChange={e => setEditState(p => ({ ...p, val: e.target.value }))}
+                                          placeholder="Harga per gram" style={{ flex: 1 }} />
+                                        <TSelect T={T} value={editState.cur}
+                                          onChange={e => setEditState(p => ({ ...p, cur: e.target.value }))}
+                                          style={{ width: 80 }}>
+                                          {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                                        </TSelect>
+                                      </div>
+                                      {editState.qty && editState.val && parseVal(editState.val) > 0 && (
+                                        <div style={{ fontSize: 10, color: T.blue, marginBottom: 8 }}>
+                                          {parseVal(editState.qty)} gram × {fMoney(parseVal(editState.val))} {editState.cur} = {fMoney(toIDR(parseVal(editState.qty) * parseVal(editState.val), editState.cur))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {/* PDF-parsed equity: no lots yet */}
+                                  {asset.classKey === 'equity' && !asset.lots && editState.mode === "units" && (
+                                    <div>
+                                      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                                        <TInput T={T} value={editState.val}
+                                          onChange={e => setEditState(p => ({ ...p, val: e.target.value }))}
+                                          placeholder="Harga per saham" style={{ flex: 1 }} />
+                                        <TSelect T={T} value={editState.cur}
+                                          onChange={e => setEditState(p => ({ ...p, cur: e.target.value }))}
+                                          style={{ width: 80 }}>
+                                          {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                                        </TSelect>
+                                      </div>
+                                      {editState.qty && editState.val && parseVal(editState.val) > 0 && (
+                                        <div style={{ fontSize: 10, color: T.blue, marginBottom: 8 }}>
+                                          {parseVal(editState.qty)} lot × 100 × {fMoney(parseVal(editState.val))} {editState.cur} = {fMoney(toIDR(parseVal(editState.qty) * 100 * parseVal(editState.val), editState.cur))}
+                                        </div>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               ) : (

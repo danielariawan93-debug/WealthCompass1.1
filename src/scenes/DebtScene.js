@@ -338,18 +338,24 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
         </>
       )}
 
-      {/* Link to asset - Pro & Pro+ only */}
-      {isPro && f.category === 'produktif' && (
+      {/* Link to asset - Pro & Pro+ only (produktif + KPR konsumtif) */}
+      {isPro && (f.category === 'produktif' || f.key === 'kpr') && (
         <div>
           <div style={{ color:T.muted, fontSize:10, marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
-            {isProPlus ? 'Link ke Aset (mempengaruhi ROI)' : 'Referensi Aset'}
-            <InfoBtn T={T} content={isProPlus ? "Pro+: bunga hutang ini akan mengurangi ROI aset terkait secara otomatis." : "Pro: catatan referensi saja, tidak mempengaruhi kalkulasi."} />
+            {isProPlus
+              ? (f.key === 'kpr' ? 'Link ke Properti (ekuitas bersih)' : 'Link ke Aset (mempengaruhi ROI)')
+              : 'Referensi Aset'}
+            <InfoBtn T={T} content={isProPlus
+              ? (f.key === 'kpr'
+                ? "Pro+: saldo KPR ini akan mengurangi ekuitas bersih properti terkait secara otomatis."
+                : "Pro+: bunga hutang ini akan mengurangi ROI aset terkait secara otomatis.")
+              : "Pro: catatan referensi saja, tidak mempengaruhi kalkulasi."} />
           </div>
           <select value={f.linkedAssetId} onChange={e=>setFF('linkedAssetId',e.target.value)} style={{...inp}}>
             <option value="">Pilih aset (opsional)</option>
-            {assets.filter(a=>['property','business'].includes(a.classKey)).map(a=>(
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
+            {assets
+              .filter(a => f.key === 'kpr' ? a.classKey === 'property' : ['property','business'].includes(a.classKey))
+              .map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         </div>
       )}

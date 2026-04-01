@@ -52,30 +52,47 @@ const LS2 = (T) => ({ color: T.textSoft, fontSize: 10, marginBottom: 4 });
 // -----------------------------------------------------------------------------
 function calcHealthScore(assets, riskProfile) {
   if (!assets?.length)
-    return { score: 0, diversification: 0, liquidity: 0, alignment: 0 };
+    return { score: 0, diversification: 0, liquidity: 0, alignment: 0, concentration: 0 };
   const getIDRLocal = (a) => a.liveValue ?? a.valueIDR ?? 0;
-  const total       = assets.reduce((s, a) => s + getIDRLocal(a), 0);
-  const classSet    = new Set(assets.map((a) => a.classKey));
-  const diversification = Math.min((classSet.size / 6) * 100, 100);
-  const liquidity   = assets
+  const total = assets.reduce((s, a) => s + getIDRLocal(a), 0);
+
+  // Diversification: 8 asset classes total
+  const classSet = new Set(assets.map((a) => a.classKey));
+  const diversification = Math.min((classSet.size / 8) * 100, 100);
+
+  // Concentration: penalize when top class > 60% of portfolio
+  const classValues = {};
+  assets.forEach((a) => { classValues[a.classKey] = (classValues[a.classKey] || 0) + getIDRLocal(a); });
+  const maxPct = total > 0 ? (Math.max(...Object.values(classValues)) / total) * 100 : 0;
+  const concentration = maxPct > 60 ? Math.max(0, 100 - (maxPct - 60) * 2.5) : 100;
+
+  // Liquidity: bell-curve optimal range 10–30% (penalise too low OR too high)
+  const liquidityAmt = assets
     .filter((a) => ["cash", "bond"].includes(a.classKey))
     .reduce((s, a) => s + getIDRLocal(a), 0);
-  const liquidityPct = total > 0 ? (liquidity / total) * 100 : 0;
-  const riskTarget  = RISK_PROFILES[riskProfile]?.alloc || {};
+  const liquidityPct = total > 0 ? (liquidityAmt / total) * 100 : 0;
+  const liquidityScore = liquidityPct < 5
+    ? liquidityPct * 8
+    : liquidityPct <= 30
+    ? 40 + (liquidityPct - 5) * 2.4
+    : Math.max(0, 100 - (liquidityPct - 30) * 1.5);
+
+  // Risk alignment (0 when no profile set)
+  const riskTarget = RISK_PROFILES[riskProfile]?.alloc || {};
   let diff = 0;
   Object.entries(riskTarget).forEach(([k, v]) => {
     const val = assets.filter((a) => a.classKey === k).reduce((s, a) => s + getIDRLocal(a), 0);
-    const pct = total > 0 ? (val / total) * 100 : 0;
-    diff += Math.abs(pct - v);
+    diff += Math.abs((total > 0 ? (val / total) * 100 : 0) - v);
   });
-  const alignment = riskProfile ? Math.max(0, 100 - diff / 2) : 50;
+  const alignment = riskProfile ? Math.max(0, 100 - diff / 2) : 0;
+
   const score = Math.round(
-    diversification * 0.3 +
-    alignment * 0.4 +
-    liquidityPct * 0.15 +
-    Math.min(diversification + liquidityPct, 100) * 0.15
+    diversification * 0.25 +
+    alignment      * 0.35 +
+    liquidityScore * 0.20 +
+    concentration  * 0.20
   );
-  return { score, diversification, liquidity: liquidityPct, alignment };
+  return { score, diversification, liquidity: liquidityPct, alignment, concentration };
 }
 
 // -----------------------------------------------------------------------------
