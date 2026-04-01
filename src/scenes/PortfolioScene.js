@@ -1355,15 +1355,15 @@ function PortfolioScene({
                   T={T}
                 >
                   {pdfAllowed
-                    ? tier?.id === "proplus" ? "💎 20x/bulan" : tier?.id === "pro" ? `⭐ ${remaining}x / bulan` : `${remaining}x tersisa`
+                    ? tier?.id === "proplus" ? `💎 ${remaining}x / bulan` : tier?.id === "pro" ? `⭐ ${remaining}x / bulan` : `${remaining}x tersisa`
                     : `⚡ ${pulseCredits} Pulse`}
                 </Chip>
                 <div style={{ color: T.muted, fontSize: 10, marginTop: 3 }}>
                   {tier?.id === "proplus"
-                    ? "Pro+ — 20x/bulan gratis"
+                    ? `Pro+ — 20x/bulan · sisa ${remaining}x`
                     : tier?.id === "pro"
-                    ? "Pro — 7x/bulan gratis"
-                    : "Free — 3x seumur hidup"}
+                    ? `Pro — 7x/bulan · sisa ${remaining}x`
+                    : `Free — sisa ${remaining}x seumur hidup`}
                   {!pdfAllowed && ` · 1 Pulse/upload`}
                 </div>
               </div>
