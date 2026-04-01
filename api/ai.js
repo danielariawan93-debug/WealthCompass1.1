@@ -37,6 +37,12 @@ module.exports = async function handler(req, res) {
     });
 
     const data = await response.json();
+    // Anthropic 401 → invalid key value (key found but wrong)
+    if (response.status === 401) {
+      return res.status(401).json({
+        error: 'invalid x-api-key — API key value is incorrect. Update WealthCompass_API_KEY in Vercel → Settings → Environment Variables, then redeploy.',
+      });
+    }
     return res.status(response.status).json(data);
   } catch (error) {
     return res.status(500).json({ error: 'Proxy error', message: error.message });
