@@ -236,6 +236,10 @@ function PortfolioScene({
 
   const parsePDF = async () => {
     if (!pdfFile) return;
+    if (pdfFile.size > 5 * 1024 * 1024) {
+      setPdfError("File terlalu besar. Maksimal 5MB.");
+      return;
+    }
     setPdfParsing(true);
     setPdfError("");
     try {
@@ -1408,7 +1412,16 @@ function PortfolioScene({
                   type="file"
                   accept=".pdf"
                   style={{ display: "none" }}
-                  onChange={(e) => setPdfFile(e.target.files[0])}
+                  onChange={(e) => {
+                    const f = e.target.files[0];
+                    if (f && f.size > 5 * 1024 * 1024) {
+                      setPdfError("File terlalu besar. Maksimal 5MB.");
+                      e.target.value = "";
+                    } else {
+                      setPdfFile(f || null);
+                      setPdfError("");
+                    }
+                  }}
                 />
               </div>
               {pdfFile && (
