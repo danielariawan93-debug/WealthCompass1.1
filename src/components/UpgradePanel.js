@@ -37,7 +37,7 @@ const TIER_META = {
       "Net Worth 5 tahun / MAX",
       "AI Advisor Claude Sonnet (1 Pulse/chat)",
       "Peer Benchmarking",
-      "Export laporan PDF",
+      "Export PDF Laporan Portofolio (3 Pulse)",
     ],
   },
 };
@@ -56,7 +56,7 @@ function UpgradePanel({ show, onClose, onUpgrade, isPro, isProPlus, proExpiry, T
     : 0;
   // Price difference per month: Pro+ $4.99 - Pro $1.99 = $3.00/month
   const upgradeDiffPrice = isUpgradeFromPro ? (3.0 * remainingMonths).toFixed(2) : null;
-  const upgradeExtraPulse = isUpgradeFromPro ? 75 * remainingMonths : 0;
+  const upgradeExtraPulse = isUpgradeFromPro ? 60 * remainingMonths : 0;
 
   return (
     <>

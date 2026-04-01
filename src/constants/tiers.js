@@ -50,13 +50,13 @@ const getTier = (isPro, isProPlus) =>
   isProPlus ? TIERS.proplus : isPro ? TIERS.pro : TIERS.free;
 
 // ─── PULSE CREDIT PACKAGES ────────────────────────────────────────────────────
-// Free accounts start with 5 Pulse (set in DEFAULT_ACCOUNT_STATE).
-// Pro subscriptions: 25 Pulse × months. Pro+: 100 Pulse × months.
+// Free accounts start with 3 Pulse (set in DEFAULT_ACCOUNT_STATE).
+// Pro subscriptions: 20 Pulse × months. Pro+: 80 Pulse × months.
 const PULSE_PACKAGES = [
-  { id: "p20",  pulse: 20,  price: 0.99, label: "20 Pulse"  },
-  { id: "p50",  pulse: 50,  price: 1.99, label: "50 Pulse"  },
-  { id: "p150", pulse: 150, price: 4.99, label: "150 Pulse" },
-  { id: "p400", pulse: 400, price: 9.99, label: "400 Pulse" },
+  { id: "p15",  pulse: 15,  price: 0.99, label: "15 Pulse"  },
+  { id: "p40",  pulse: 40,  price: 1.99, label: "40 Pulse"  },
+  { id: "p125", pulse: 125, price: 4.99, label: "125 Pulse" },
+  { id: "p350", pulse: 350, price: 9.99, label: "350 Pulse" },
 ];
 
 // ─── UPLOAD HELPERS (use account state, not localStorage) ─────────────────────
