@@ -3,14 +3,14 @@ import { Card, TBtn } from "./ui";
 
 const PLANS = {
   pro: [
-    { id: "monthly",  label: "Bulanan",  price: "$1.99",  sub: "/bulan",  saving: "",         pulse: 25,  days: 30  },
-    { id: "biannual", label: "6 Bulan",  price: "$10.99", sub: "/6 bln",  saving: "Hemat 8%", pulse: 150, days: 180 },
-    { id: "annual",   label: "Tahunan",  price: "$19.99", sub: "/tahun",  saving: "Hemat 16%",pulse: 300, days: 365, popular: true },
+    { id: "monthly",  label: "Bulanan",  price: "$1.99",  sub: "/bulan",  saving: "",         pulse: 20,  days: 30  },
+    { id: "biannual", label: "6 Bulan",  price: "$10.99", sub: "/6 bln",  saving: "Hemat 8%", pulse: 120, days: 180 },
+    { id: "annual",   label: "Tahunan",  price: "$19.99", sub: "/tahun",  saving: "Hemat 16%",pulse: 250, days: 365, popular: true },
   ],
   proplus: [
-    { id: "monthly",  label: "Bulanan",  price: "$4.99",  sub: "/bulan",  saving: "",          pulse: 100,  days: 30  },
-    { id: "biannual", label: "6 Bulan",  price: "$26.99", sub: "/6 bln",  saving: "Hemat 10%", pulse: 600,  days: 180 },
-    { id: "annual",   label: "Tahunan",  price: "$47.99", sub: "/tahun",  saving: "Hemat 20%", pulse: 1200, days: 365, popular: true },
+    { id: "monthly",  label: "Bulanan",  price: "$4.99",  sub: "/bulan",  saving: "",          pulse: 80,   days: 30  },
+    { id: "biannual", label: "6 Bulan",  price: "$26.99", sub: "/6 bln",  saving: "Hemat 10%", pulse: 480,  days: 180 },
+    { id: "annual",   label: "Tahunan",  price: "$47.99", sub: "/tahun",  saving: "Hemat 20%", pulse: 1000, days: 365, popular: true },
   ],
 };
 
@@ -37,7 +37,7 @@ const TIER_META = {
       "Net Worth 5 tahun / MAX",
       "AI Advisor Claude Sonnet (1 Pulse/chat)",
       "Peer Benchmarking",
-      "Export laporan PDF",
+      "Export PDF Laporan Portofolio (3 Pulse)",
     ],
   },
 };
@@ -56,7 +56,7 @@ function UpgradePanel({ show, onClose, onUpgrade, isPro, isProPlus, proExpiry, T
     : 0;
   // Price difference per month: Pro+ $4.99 - Pro $1.99 = $3.00/month
   const upgradeDiffPrice = isUpgradeFromPro ? (3.0 * remainingMonths).toFixed(2) : null;
-  const upgradeExtraPulse = isUpgradeFromPro ? 75 * remainingMonths : 0;
+  const upgradeExtraPulse = isUpgradeFromPro ? 60 * remainingMonths : 0;
 
   return (
     <>

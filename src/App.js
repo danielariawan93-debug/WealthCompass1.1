@@ -59,6 +59,7 @@ import { DebtScene } from "./scenes/DebtScene";
 import { RealAssetsScene } from "./scenes/RealAssetsScene";
 import ComingSoonScene from "./scenes/ComingSoonScene";
 import InsuranceScene from "./scenes/InsuranceScene";
+import PdfExportModal from "./components/PdfExportModal";
 
 // CoinCap API credentials
 const CC_KEY = '29eb9eb7f921e41d70cb469c1ea9f23bddf88694c9c9873064c38c02183a5234';
@@ -100,6 +101,7 @@ function WealthCompassV7() {
   const [debts, setDebts] = useState([]);
   const [goals, setGoals] = useState([]);
   const [showBuyPulse, setShowBuyPulse] = useState(false);
+  const [showPdfExport, setShowPdfExport] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -271,15 +273,15 @@ function WealthCompassV7() {
     if (tierChoice === "proplus" && isPro && !isProPlus && proExpiry?.expiryDate) {
       const msLeft = new Date(proExpiry.expiryDate) - Date.now();
       const remainingMonths = Math.max(1, Math.ceil(msLeft / (30 * 24 * 60 * 60 * 1000)));
-      // Pro+ gives 100/mo, Pro gives 25/mo → user already has Pro Pulse, add only the 75/mo difference
-      setPulseCredits(prev => prev + 75 * remainingMonths);
+      // Pro+ gives 80/mo, Pro gives 20/mo → user already has Pro Pulse, add only the 60/mo difference
+      setPulseCredits(prev => prev + 60 * remainingMonths);
       setIsProPlus(true);
       return; // keep same expiry date
     }
 
     setIsPro(true);
     if (tierChoice === "proplus") setIsProPlus(true);
-    const pulsePerMonth = tierChoice === "proplus" ? 100 : 25;
+    const pulsePerMonth = tierChoice === "proplus" ? 80 : 20;
     setPulseCredits(prev => prev + pulsePerMonth * months);
     const expDate = new Date();
     expDate.setDate(expDate.getDate() + durationDays);
@@ -885,17 +887,35 @@ function WealthCompassV7() {
               />
             )}
             {tab === "networth" && (
-              <NetWorthTrackerScene
-                assets={assets}
-                debts={debts}
-                dispCur={dispCur}
-                isPro={isPro}
-                isProPlus={isProPlus}
-                tier={tier}
-                T={T}
-                hideValues={hideValues}
-                userEmail={user?.email || ""}
-              />
+              <>
+                <NetWorthTrackerScene
+                  assets={assets}
+                  debts={debts}
+                  dispCur={dispCur}
+                  isPro={isPro}
+                  isProPlus={isProPlus}
+                  tier={tier}
+                  T={T}
+                  hideValues={hideValues}
+                  userEmail={user?.email || ""}
+                />
+                {isProPlus && (
+                  <div style={{ padding: "0 16px 24px" }}>
+                    <button
+                      onClick={() => setShowPdfExport(true)}
+                      style={{
+                        width: "100%", padding: "13px 16px", borderRadius: 12,
+                        border: `1px solid #9b7ef844`, background: "#9b7ef811",
+                        color: "#9b7ef8", cursor: "pointer", fontWeight: "bold",
+                        fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      }}
+                    >
+                      📄 Export Laporan Portofolio
+                      <span style={{ fontSize: 10, background: "#9b7ef822", borderRadius: 6, padding: "2px 8px" }}>3 Pulse</span>
+                    </button>
+                  </div>
+                )}
+              </>
             )}
             {tab === "finance-tools" && (
               <FinanceToolsScene
@@ -1128,6 +1148,22 @@ function WealthCompassV7() {
         customPresetId={customPresetId}
         setCustomPresetId={setCustomPresetId}
       />
+
+      {/* PDF Export Modal */}
+      {showPdfExport && (
+        <PdfExportModal
+          assets={assets}
+          debts={debts || []}
+          insurances={insurances || []}
+          dispCur={dispCur}
+          pulseCredits={pulseCredits}
+          setPulseCredits={setPulseCredits}
+          T={T}
+          userEmail={user?.email || ""}
+          userName={settings?.userName || user?.email || ""}
+          onClose={() => setShowPdfExport(false)}
+        />
+      )}
 
       {/* Buy Pulse Modal */}
       {showBuyPulse && (
