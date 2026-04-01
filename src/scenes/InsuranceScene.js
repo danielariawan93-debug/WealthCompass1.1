@@ -503,6 +503,7 @@ function InsuranceScene({
   T, hideValues = false,
   isPro = false, isProPlus = false,
   setShowUpgrade, insurances = [], setInsurances,
+  pulseCredits = 0, setPulseCredits = null,
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
 
@@ -816,7 +817,8 @@ function InsuranceScene({
       {/* ===== AI (Pro+) ===== */}
       {subTab==='ai' && isProPlus && (
         <InsuranceAITab T={T} dispCur={dispCur} fV={fV} insurances={insurances}
-          totalAssets={totalAssets} totalDebt={totalDebt} passiveAnnual={passiveAnnual} liquidAssets={liquidAssets} />
+          totalAssets={totalAssets} totalDebt={totalDebt} passiveAnnual={passiveAnnual} liquidAssets={liquidAssets}
+          pulseCredits={pulseCredits} setPulseCredits={setPulseCredits} />
       )}
     </div>
   );
@@ -825,14 +827,18 @@ function InsuranceScene({
 // =========================================================
 // AI TAB (Pro+ only)
 // =========================================================
-function InsuranceAITab({ T, dispCur, fV, insurances, totalAssets, totalDebt, passiveAnnual, liquidAssets }) {
+function InsuranceAITab({ T, dispCur, fV, insurances, totalAssets, totalDebt, passiveAnnual, liquidAssets, pulseCredits = 0, setPulseCredits = null }) {
   const [analysis, setAnalysis] = useState('');
   const [loading, setLoading]   = useState(false);
   const [done, setDone]         = useState(false);
 
   const totalAnnualPremium = insurances.reduce((s,i)=>s+parseVal(i.premium)*(FREQ_MULT[i.premiumFreq]||1),0);
+  const blocked = pulseCredits <= 0;
 
   const runAnalysis = async () => {
+    if (blocked) { setAnalysis('PULSE Credit habis. Beli Pulse untuk melanjutkan.'); setDone(true); return; }
+    // Deduct 1 Pulse before calling API
+    if (setPulseCredits) setPulseCredits(p => Math.max(0, p - 1));
     setLoading(true); setAnalysis(''); setDone(false);
     const polisDetail = INSURANCE_TYPES.map(t=>{
       const polis = insurances.filter(i=>i.type===t.key);
@@ -862,8 +868,14 @@ function InsuranceAITab({ T, dispCur, fV, insurances, totalAssets, totalDebt, pa
   return (
     <Card T={T}>
       <SL T={T}>Analisa AI - Proteksi Kekayaan</SL>
-      <div style={{ color:T.textSoft, fontSize:12, lineHeight:1.7, marginBottom:16 }}>AI menganalisa semua polis dan profil keuangan kamu, lalu memberikan rekomendasi prioritas per kategori.</div>
-      {!done&&!loading&&<TBtn T={T} variant="primary" onClick={runAnalysis} style={{ width:'100%', padding:'12px 0' }}>🤖 Jalankan Analisa AI</TBtn>}
+      <div style={{ color:T.textSoft, fontSize:12, lineHeight:1.7, marginBottom:10 }}>AI menganalisa semua polis dan profil keuangan kamu, lalu memberikan rekomendasi prioritas per kategori.</div>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, padding:'7px 12px', background:T.surface, borderRadius:9, border:`1px solid ${T.border}` }}>
+        <span style={{ fontSize:11, color:T.muted }}>Biaya: 1 Pulse per analisa</span>
+        <span style={{ fontSize:11, color: pulseCredits <= 2 ? T.red : T.muted }}>
+          ⚡ <strong style={{ color: pulseCredits <= 2 ? T.red : T.accent }}>{pulseCredits}</strong> Pulse tersisa
+        </span>
+      </div>
+      {!done&&!loading&&<TBtn T={T} variant={blocked ? 'default' : 'primary'} onClick={runAnalysis} style={{ width:'100%', padding:'12px 0', opacity: blocked ? 0.6 : 1 }}>🤖 Jalankan Analisa AI (1 Pulse)</TBtn>}
       {loading&&<div style={{ textAlign:'center', padding:'24px 0', color:T.muted, fontSize:13 }}><div style={{ fontSize:28, marginBottom:8 }}>🤖</div>Menganalisa...</div>}
       {done&&analysis&&(
         <>

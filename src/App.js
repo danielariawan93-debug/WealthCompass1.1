@@ -1059,6 +1059,8 @@ function WealthCompassV7() {
                 setShowUpgrade={setShowUpgrade}
                 insurances={insurances}
                 setInsurances={setInsurances}
+                pulseCredits={pulseCredits}
+                setPulseCredits={setPulseCredits}
               />
             )}
             {tab === "peers" && (
