@@ -8,7 +8,7 @@ import {
   RATES,
   RISK_PROFILES,
 } from "./constants/data";
-import { TIERS, getTier, PULSE_PACKAGES } from "./constants/tiers";
+import { TIERS, getTier } from "./constants/tiers";
 import {
   fMoney,
   fM,
@@ -100,8 +100,8 @@ function WealthCompassV7() {
   const [pulseCredits, setPulseCredits] = useState(5);
   const [debts, setDebts] = useState([]);
   const [goals, setGoals] = useState([]);
-  const [showBuyPulse, setShowBuyPulse] = useState(false);
   const [showPdfExport, setShowPdfExport] = useState(false);
+  const [upgradePanelTab, setUpgradePanelTab] = useState("subscription");
   const [sideOpen, setSideOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -873,7 +873,7 @@ function WealthCompassV7() {
                   setMonthlyUploadMonth={setMonthlyUploadMonth}
                   pulseCredits={pulseCredits}
                   setPulseCredits={setPulseCredits}
-                  onBuyPulse={() => setShowBuyPulse(true)}
+                  onBuyPulse={() => { setUpgradePanelTab("pulse"); setShowUpgrade(true); }}
                 />
               </>
             )}
@@ -1043,7 +1043,7 @@ function WealthCompassV7() {
                 tier={tier}
                 pulseCredits={pulseCredits}
                 setPulseCredits={setPulseCredits}
-                onBuyPulse={() => setShowBuyPulse(true)}
+                onBuyPulse={() => { setUpgradePanelTab("pulse"); setShowUpgrade(true); }}
               />
             )}
             {tab === "insurance" && (
@@ -1167,35 +1167,6 @@ function WealthCompassV7() {
         />
       )}
 
-      {/* Buy Pulse Modal */}
-      {showBuyPulse && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-          onClick={() => setShowBuyPulse(false)}>
-          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, padding: 24, maxWidth: 380, width: "100%", position: "relative" }}
-            onClick={e => e.stopPropagation()}>
-            <button onClick={() => setShowBuyPulse(false)} style={{ position: "absolute", top: 12, right: 14, background: "none", border: "none", color: T.muted, fontSize: 18, cursor: "pointer" }}>✕</button>
-            <div style={{ fontSize: 14, fontWeight: "bold", color: T.text, marginBottom: 4 }}>⚡ Beli PULSE Credit</div>
-            <div style={{ fontSize: 11, color: T.muted, marginBottom: 18 }}>
-              Saldo saat ini: <span style={{ color: T.accent, fontWeight: "bold" }}>{pulseCredits} Pulse</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
-              {PULSE_PACKAGES.map(pkg => (
-                <div key={pkg.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: "bold", color: T.text }}>⚡ {pkg.label}</div>
-                    <div style={{ fontSize: 10, color: T.muted }}>${(pkg.price / pkg.pulse).toFixed(3)} / Pulse</div>
-                  </div>
-                  <button style={{ padding: "6px 14px", background: T.accentDim, border: `1px solid ${T.accentSoft}`, borderRadius: 8, color: T.accent, fontSize: 12, fontWeight: "bold", cursor: "pointer" }}>
-                    ${pkg.price}
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div style={{ fontSize: 10, color: T.muted, textAlign: "center" }}>Pembayaran via Stripe · Segera hadir</div>
-          </div>
-        </div>
-      )}
-
       {/* Floating zoom control */}
       <div
         style={{
@@ -1307,7 +1278,11 @@ function WealthCompassV7() {
         isPro={isPro}
         isProPlus={isProPlus}
         proExpiry={proExpiry}
+        pulseCredits={pulseCredits}
+        setPulseCredits={setPulseCredits}
+        user={user}
         T={T}
+        initialTab={upgradePanelTab}
       />
     </div>
   );
