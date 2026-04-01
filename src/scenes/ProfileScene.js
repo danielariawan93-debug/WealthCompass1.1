@@ -78,8 +78,9 @@ function ProfileScene({
   // Health score: weakest dimension recommendation
   const metrics = [
     { key: 'diversification', val: health.diversification, label: 'Diversifikasi', action: 'Tambah kelas aset baru di Portofolio', tab: 'portfolio' },
-    { key: 'liquidity', val: health.liquidity, label: 'Likuiditas', action: 'Tingkatkan alokasi Dana Tunai & Setara', tab: 'portfolio' },
+    { key: 'liquidity', val: health.liquidity, label: 'Likuiditas', action: 'Tingkatkan alokasi Dana Tunai & Setara (10–30% ideal)', tab: 'portfolio' },
     { key: 'alignment', val: health.alignment, label: 'Kesesuaian', action: 'Jalankan Rebalancing portofolio', tab: 'rebalance' },
+    { key: 'concentration', val: health.concentration, label: 'Konsentrasi', action: 'Kurangi konsentrasi pada satu kelas aset', tab: 'portfolio' },
   ];
   const weakest = [...metrics].sort((a, b) => a.val - b.val)[0];
 
@@ -457,6 +458,7 @@ function ProfileScene({
               },
               { label: "Likuiditas", val: health.liquidity, color: T.green },
               { label: "Kesesuaian", val: health.alignment, color: T.purple },
+              { label: "Konsentrasi", val: health.concentration, color: T.orange },
             ].map((m) => (
               <div key={m.label} style={{ marginBottom: 8 }}>
                 <div

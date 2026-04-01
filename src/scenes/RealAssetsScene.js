@@ -54,7 +54,7 @@ const BUSINESS_TYPES = [
   { value: "lainnya", label: "Lainnya", icon: "📦", multiplier: 1.0 },
 ];
 
-function PropertyForm({ onSave, onCancel, T, editData }) {
+function PropertyForm({ onSave, onCancel, T, editData, debts = [] }) {
   const thisYear = new Date().getFullYear();
   const [f, setF] = useState(
     editData || {
@@ -66,6 +66,7 @@ function PropertyForm({ onSave, onCancel, T, editData }) {
       kprOutstanding: "0",
       kprBank: "",
       kprRate: "9.5",
+      kprType: "konsumtif",
       rentalIncome: "0",
       rentalFreq: "monthly",
       appreciationRate: "8",
@@ -248,6 +249,17 @@ function PropertyForm({ onSave, onCancel, T, editData }) {
         {f.hasKPR && parseVal(f.kprOutstanding) > 0 && (
           <>
             <div>
+              <div style={LS}>Jenis KPR</div>
+              <select
+                value={f.kprType || 'konsumtif'}
+                onChange={(e) => setF((p) => ({ ...p, kprType: e.target.value }))}
+                style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.accent}`, color: T.text, borderRadius: 9, padding: "10px 12px", fontSize: 12, outline: "none" }}
+              >
+                <option value="konsumtif">🏠 Konsumtif (Rumah Tinggal)</option>
+                <option value="produktif">🏢 Produktif (Investasi/Sewa)</option>
+              </select>
+            </div>
+            <div>
               <div style={LS}>Bank / Lembaga KPR</div>
               <input
                 value={f.kprBank || ""}
@@ -288,18 +300,15 @@ function PropertyForm({ onSave, onCancel, T, editData }) {
                 }}
               />
             </div>
-            <div
-              style={{
-                gridColumn: "span 2",
-                padding: "8px 12px",
-                background: T.accentDim,
-                borderRadius: 8,
-                fontSize: 11,
-                color: T.accent,
-              }}
-            >
-              ✓ KPR akan otomatis tercatat di Debt Tracker saat disimpan
-            </div>
+            {editData && debts?.find(d => d.propertyId === editData.id) ? (
+              <div style={{ gridColumn: "span 2", padding: "8px 12px", background: "#3ecf8e22", borderRadius: 8, fontSize: 11, color: "#3ecf8e" }}>
+                ✓ Tersinkron dengan Debt Tracker · Update otomatis saat disimpan
+              </div>
+            ) : (
+              <div style={{ gridColumn: "span 2", padding: "8px 12px", background: T.accentDim, borderRadius: 8, fontSize: 11, color: T.accent }}>
+                ✓ KPR akan otomatis tercatat di Debt Tracker saat disimpan
+              </div>
+            )}
           </>
         )}
         <div>
@@ -470,6 +479,8 @@ function PropertyForm({ onSave, onCancel, T, editData }) {
                       name: `KPR ${f.name}${
                         f.kprBank ? " - " + f.kprBank : ""
                       }`,
+                      key: (f.kprType || 'konsumtif') === 'produktif' ? 'kpr_invest' : 'kpr',
+                      category: (f.kprType || 'konsumtif') === 'produktif' ? 'produktif' : 'konsumtif',
                       type: "kpr",
                       outstanding: String(parseVal(f.kprOutstanding)),
                       interestRate: f.kprRate || "9.5",
@@ -1265,6 +1276,7 @@ function RealAssetsScene({
             T={T}
             onSave={saveAsset}
             onCancel={() => setMode("list")}
+            debts={debts}
           />
         </div>
       )}
@@ -1326,6 +1338,7 @@ function RealAssetsScene({
               setEditAsset(null);
             }}
             editData={editAsset.propertyData}
+            debts={debts}
           />
         </div>
       )}
