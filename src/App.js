@@ -47,6 +47,8 @@ import CalcScene from "./scenes/CalcScene";
 import GoalScene from "./scenes/GoalScene";
 import AIScene from "./scenes/AIScene";
 import SettingsPopup from "./scenes/SettingsPopup";
+import AppSelector from "./components/AppSelector";
+import ArthaJourneyApp from "./scenes/ArthaJourneyApp";
 import NetWorthTrackerScene from "./scenes/NetWorthScene";
 import {
   DebtIncomeCard,
@@ -126,6 +128,7 @@ function WealthCompassV7() {
   const [assets, setAssets] = useState([]);
   const [activeIncomes, setActiveIncomes] = useState([]);
   const [insurances, setInsurances] = useState([]);
+  const [activeApp, setActiveApp] = useState(null); // null | 'wealthcompass' | 'arthajourney'
 
   // -- ALWAYS-CURRENT STATE REF (updated synchronously on every render) --------
   // This prevents stale-closure bugs in async handlers like handleLogout
@@ -173,6 +176,8 @@ function WealthCompassV7() {
     setInsurances(d.insurances || []);
     setMonthlyExpense(d.monthlyExpense || "");
     setMonthlyFixedIncome(d.monthlyFixedIncome || "");
+    const lastApp = localStorage.getItem("wc_active_app");
+    setActiveApp(lastApp || null);
 
     // Then try Firestore (async - always authoritative source of truth)
     if (userData.uid) {
@@ -262,6 +267,7 @@ function WealthCompassV7() {
     setHideValues(false);
     setTheme("dark");
     setCustomPresetId("midnight");
+    setActiveApp(null);
   };
 
   const handleUpgrade = (tierChoice = "pro", planId = "monthly") => {
@@ -595,6 +601,54 @@ function WealthCompassV7() {
     </div>
   );
   if (!user) return <LoginScreen onLogin={handleLogin} T={T} />;
+
+  // App selector — shown when no app is chosen yet
+  const handleSetActiveApp = (app) => {
+    localStorage.setItem("wc_active_app", app);
+    setActiveApp(app);
+  };
+
+  if (!activeApp) {
+    return (
+      <AppSelector
+        user={user}
+        T={T}
+        onSelect={handleSetActiveApp}
+        onLogout={handleLogout}
+        logoutSaving={logoutSaving}
+      />
+    );
+  }
+
+  // Artha Journey shell
+  if (activeApp === "arthajourney") {
+    return (
+      <ArthaJourneyApp
+        user={user}
+        T={T}
+        isPro={isPro}
+        isProPlus={isProPlus}
+        pulseCredits={pulseCredits}
+        assets={assets}
+        debts={debts}
+        settings={settings}
+        setSettings={setSettings}
+        theme={theme}
+        setTheme={handleSetTheme}
+        dispCur={dispCur}
+        setDispCur={setDispCur}
+        fontScale={fontScale}
+        setFontScale={setFontScale}
+        customPresetId={customPresetId}
+        setCustomPresetId={setCustomPresetId}
+        setShowUpgrade={setShowUpgrade}
+        activeApp={activeApp}
+        setActiveApp={handleSetActiveApp}
+        onLogout={handleLogout}
+        logoutSaving={logoutSaving}
+      />
+    );
+  }
 
   return (
     <div
@@ -1199,6 +1253,8 @@ function WealthCompassV7() {
         setFontScale={setFontScale}
         customPresetId={customPresetId}
         setCustomPresetId={setCustomPresetId}
+        activeApp={activeApp}
+        setActiveApp={handleSetActiveApp}
       />
 
       {/* PDF Export Modal */}
