@@ -4,14 +4,14 @@ import { PULSE_PACKAGES } from "../constants/tiers";
 
 const PLANS = {
   pro: [
-    { id: "monthly",  label: "Bulanan",  price: "$1.99",  priceUSD: 1.99,  sub: "/bulan",  saving: "",         pulse: 20,  days: 30  },
-    { id: "biannual", label: "6 Bulan",  price: "$10.99", priceUSD: 10.99, sub: "/6 bln",  saving: "Hemat 8%", pulse: 120, days: 180 },
-    { id: "annual",   label: "Tahunan",  price: "$19.99", priceUSD: 19.99, sub: "/tahun",  saving: "Hemat 16%",pulse: 250, days: 365, popular: true },
+    { id: "monthly",  label: "Bulanan",  price: "$1.99",  idrPrice: 33000,  sub: "/bulan",  saving: "",          pulse: 20,  days: 30  },
+    { id: "biannual", label: "6 Bulan",  price: "$10.99", idrPrice: 184000, sub: "/6 bln",  saving: "Hemat 8%",  pulse: 120, days: 180 },
+    { id: "annual",   label: "Tahunan",  price: "$19.99", idrPrice: 335000, sub: "/tahun",  saving: "Hemat 16%", pulse: 250, days: 365, popular: true },
   ],
   proplus: [
-    { id: "monthly",  label: "Bulanan",  price: "$4.99",  priceUSD: 4.99,  sub: "/bulan",  saving: "",          pulse: 80,  days: 30  },
-    { id: "biannual", label: "6 Bulan",  price: "$26.99", priceUSD: 26.99, sub: "/6 bln",  saving: "Hemat 10%", pulse: 480,  days: 180 },
-    { id: "annual",   label: "Tahunan",  price: "$47.99", priceUSD: 47.99, sub: "/tahun",  saving: "Hemat 20%", pulse: 1000, days: 365, popular: true },
+    { id: "monthly",  label: "Bulanan",  price: "$4.99",  idrPrice: 84000,  sub: "/bulan",  saving: "",           pulse: 80,   days: 30  },
+    { id: "biannual", label: "6 Bulan",  price: "$26.99", idrPrice: 453000, sub: "/6 bln",  saving: "Hemat 10%",  pulse: 480,  days: 180 },
+    { id: "annual",   label: "Tahunan",  price: "$47.99", idrPrice: 806000, sub: "/tahun",  saving: "Hemat 20%",  pulse: 1000, days: 365, popular: true },
   ],
 };
 
@@ -187,7 +187,7 @@ function PulseTab({ pulseCredits, setPulseCredits, user, T }) {
                   minWidth: 80, textAlign: "center",
                 }}
               >
-                {isLoading ? "..." : `Rp ${(pkg.idrPrice / 1000).toFixed(0)}rb`}
+                {isLoading ? "..." : `$${pkg.price.toFixed(2)}`}
               </button>
             </div>
           );
@@ -202,9 +202,12 @@ function PulseTab({ pulseCredits, setPulseCredits, user, T }) {
   );
 }
 
-function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, T }) {
+function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, user, T }) {
+  useSnapScript();
   const [tierChoice, setTierChoice] = useState("pro");
   const [selected, setSelected] = useState("annual");
+  const [loading, setLoading] = useState(false);
+  const [statusMsg, setStatusMsg] = useState(null);
 
   const activePlans = PLANS[tierChoice];
   const meta = TIER_META[tierChoice];
@@ -216,12 +219,80 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, T })
   const upgradeDiffPrice = isUpgradeFromPro ? (3.0 * remainingMonths).toFixed(2) : null;
   const upgradeExtraPulse = isUpgradeFromPro ? 60 * remainingMonths : 0;
 
+  const selectedPlan = activePlans.find(p => p.id === selected) || activePlans[activePlans.length - 1];
+  const upgradePlan = PLANS.proplus.find(p => p.id === "monthly");
+
+  const handleBuySubscription = async () => {
+    if (!user?.uid) {
+      setStatusMsg({ type: "error", text: "Silakan login terlebih dahulu." });
+      return;
+    }
+    const plan = isUpgradeFromPro ? upgradePlan : selectedPlan;
+    const tier = isUpgradeFromPro ? "proplus" : tierChoice;
+    const idrAmount = isUpgradeFromPro
+      ? Math.round(3.0 * remainingMonths * 16800)
+      : plan.idrPrice;
+
+    setLoading(true);
+    setStatusMsg(null);
+    try {
+      const res = await fetch("/api/create-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tierChoice: tier,
+          planId: plan.id,
+          priceIDR: idrAmount,
+          pulse: isUpgradeFromPro ? upgradeExtraPulse : plan.pulse,
+          days: plan.days,
+          userEmail: user.email || "",
+          uid: user.uid,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.token) {
+        setStatusMsg({ type: "error", text: data.error || "Gagal membuat transaksi." });
+        setLoading(false);
+        return;
+      }
+
+      if (!window.snap) {
+        setStatusMsg({ type: "error", text: "Midtrans Snap belum siap. Coba lagi." });
+        setLoading(false);
+        return;
+      }
+
+      window.snap.pay(data.token, {
+        onSuccess: () => {
+          setLoading(false);
+          onUpgrade(tier, plan.id);
+          setStatusMsg({ type: "success", text: `Selamat! ${meta.badge} aktif.` });
+          setTimeout(onClose, 1200);
+        },
+        onPending: () => {
+          setLoading(false);
+          setStatusMsg({ type: "info", text: "Pembayaran pending. Subscription akan aktif otomatis setelah terkonfirmasi." });
+        },
+        onError: () => {
+          setLoading(false);
+          setStatusMsg({ type: "error", text: "Pembayaran gagal. Silakan coba lagi." });
+        },
+        onClose: () => { setLoading(false); },
+      });
+    } catch (err) {
+      setLoading(false);
+      setStatusMsg({ type: "error", text: "Koneksi error: " + err.message });
+    }
+  };
+
+  const msgColors = { success: "#3ecf8e", error: "#f26b6b", info: T.accent };
+
   return (
     <div>
       {/* Tier toggle */}
       <div style={{ display: "flex", background: T.surface, borderRadius: 10, padding: 4, marginBottom: 18 }}>
         {[["pro", "⭐ Pro", "#d4a843"], ["proplus", "💎 Pro+", "#9b7ef8"]].map(([id, label, color]) => (
-          <button key={id} onClick={() => { setTierChoice(id); setSelected("annual"); }}
+          <button key={id} onClick={() => { setTierChoice(id); setSelected("annual"); setStatusMsg(null); }}
             style={{
               flex: 1, padding: "9px 0", borderRadius: 8, border: "none",
               background: tierChoice === id ? color + "22" : "none",
@@ -232,6 +303,18 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, T })
           </button>
         ))}
       </div>
+
+      {/* Status message */}
+      {statusMsg && (
+        <div style={{
+          background: msgColors[statusMsg.type] + "22",
+          border: `1px solid ${msgColors[statusMsg.type]}44`,
+          borderRadius: 8, padding: "8px 12px", marginBottom: 14,
+          fontSize: 11, color: msgColors[statusMsg.type], lineHeight: 1.5,
+        }}>
+          {statusMsg.text}
+        </div>
+      )}
 
       {/* Pro→Pro+ upgrade banner */}
       {isUpgradeFromPro && (
@@ -270,6 +353,7 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, T })
               <div style={{ color: T.text, fontSize: 13, fontWeight: "bold" }}>{p.label}</div>
               {p.saving && <div style={{ color: T.green, fontSize: 10 }}>{p.saving}</div>}
               <div style={{ color: T.accent, fontSize: 10, marginTop: 3 }}>⚡ +{p.pulse} Pulse Credit</div>
+              <div style={{ color: T.muted, fontSize: 10 }}>≈ Rp {p.idrPrice.toLocaleString("id-ID")}</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ color: meta.color, fontSize: 18, fontWeight: "bold" }}>{p.price}</div>
@@ -281,22 +365,20 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, T })
 
       {/* CTA */}
       <button
-        onClick={() => {
-          if (isUpgradeFromPro) {
-            onUpgrade("proplus", "monthly");
-          } else {
-            onUpgrade(tierChoice, selected);
-          }
-          onClose();
-        }}
+        disabled={loading}
+        onClick={handleBuySubscription}
         style={{
           width: "100%", padding: 14, borderRadius: 9, border: "none",
-          background: meta.color, color: "#000", cursor: "pointer",
+          background: loading ? T.surface : meta.color,
+          color: loading ? T.muted : "#000",
+          cursor: loading ? "not-allowed" : "pointer",
           fontWeight: "bold", fontSize: 13, marginTop: 8,
         }}>
-        {isUpgradeFromPro
-          ? `Upgrade ke Pro+ — $${upgradeDiffPrice}`
-          : `Mulai ${meta.badge} — ${activePlans.find(p => p.id === selected)?.price}`}
+        {loading
+          ? "Memproses..."
+          : isUpgradeFromPro
+            ? `Upgrade ke Pro+ — $${upgradeDiffPrice}`
+            : `Mulai ${meta.badge} — ${selectedPlan?.price}`}
       </button>
 
       {/* Referral */}
@@ -368,6 +450,7 @@ function UpgradePanel({ show, onClose, onUpgrade, isPro, isProPlus, proExpiry, p
             proExpiry={proExpiry}
             onUpgrade={onUpgrade}
             onClose={onClose}
+            user={user}
             T={T}
           />
         ) : (
