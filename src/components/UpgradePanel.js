@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Card, TBtn } from "./ui";
 import { PULSE_PACKAGES } from "../constants/tiers";
+import TnCModal from "./TnCModal";
 
 const PLANS = {
   pro: [
@@ -582,6 +583,7 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, user
 
 function UpgradePanel({ show, onClose, onUpgrade, isPro, isProPlus, proExpiry, pulseCredits, setPulseCredits, user, T, initialTab, bonusPulse = [], activeBonusPulse = 0, referralCode = "", referrals = [], addBonusPulse }) {
   const [panelTab, setPanelTab] = useState(initialTab || "subscription");
+  const [showTnC, setShowTnC] = useState(false);
 
   // Sync initialTab when panel opens
   useEffect(() => {
@@ -648,7 +650,27 @@ function UpgradePanel({ show, onClose, onUpgrade, isPro, isProPlus, proExpiry, p
             T={T}
           />
         )}
+        {/* T&C footer link */}
+        <div style={{ textAlign: "center", color: T.muted, fontSize: 10, padding: "10px 24px 16px" }}>
+          Dengan melakukan pembayaran, Anda menyetujui{" "}
+          <span
+            onClick={() => setShowTnC(true)}
+            style={{ color: T.accent, cursor: "pointer", textDecoration: "underline" }}
+          >
+            Syarat & Ketentuan
+          </span>
+          {" "}termasuk{" "}
+          <span
+            onClick={() => setShowTnC(true)}
+            style={{ color: T.accent, cursor: "pointer", textDecoration: "underline" }}
+          >
+            Kebijakan Refund
+          </span>
+          {" "}WealthCompass.
+        </div>
       </div>
+
+      <TnCModal show={showTnC} onClose={() => setShowTnC(false)} T={T} />
     </>
   );
 }

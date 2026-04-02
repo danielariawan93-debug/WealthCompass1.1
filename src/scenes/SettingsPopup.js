@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
+import TnCModal from "../components/TnCModal";
 import {
   Card,
   SL,
@@ -61,6 +62,7 @@ function SettingsPopup({
   activeApp,
   setActiveApp,
 }) {
+  const [showTnC, setShowTnC] = useState(false);
   return (
     <>
       {show && (
@@ -660,10 +662,14 @@ function SettingsPopup({
         >
           WEALTH◎COMPASS · Portfolio Intelligence v9
           <br />
-          <span style={{ color: T.blue, cursor: "pointer" }}>
-            Referral: Dapatkan $0.99/subscription →
+          <span
+            onClick={() => setShowTnC(true)}
+            style={{ color: T.blue, cursor: "pointer", textDecoration: "underline" }}
+          >
+            Syarat & Ketentuan · Kebijakan Refund →
           </span>
         </div>
+        <TnCModal show={showTnC} onClose={() => setShowTnC(false)} T={T} />
         {onLogout && (
           <button
             disabled={logoutSaving}
