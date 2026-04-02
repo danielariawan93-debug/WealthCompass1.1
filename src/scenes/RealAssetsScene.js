@@ -57,8 +57,10 @@ const BUSINESS_TYPES = [
 function PropertyForm({ onSave, onCancel, T, editData, editAssetId = null, debts = [] }) {
   const thisYear = new Date().getFullYear();
 
-  // Find debt already linked to this property asset
-  const alreadyLinked = editAssetId ? debts.find(d => d.propertyId === editAssetId) : null;
+  // Find debt already linked to this property — check both propertyId and linkedAssetId
+  const isLinkedToProperty = (d, assetId) =>
+    d.propertyId === assetId || String(d.linkedAssetId) === String(assetId);
+  const alreadyLinked = editAssetId ? debts.find(d => isLinkedToProperty(d, editAssetId)) : null;
 
   const [f, setF] = useState(
     editData
@@ -81,7 +83,10 @@ function PropertyForm({ onSave, onCancel, T, editData, editAssetId = null, debts
 
   // KPR computed values
   const kprKey = (f.kprType || 'konsumtif') === 'produktif' ? 'kpr_invest' : 'kpr';
-  const kprDebts = debts.filter(d => d.key === kprKey);
+  const kprDebts = debts.filter(d =>
+    d.key === kprKey ||
+    (editAssetId && isLinkedToProperty(d, editAssetId))
+  );
   const selectedDebt = kprDebts.find(d => String(d.id) === String(f.linkedKprDebtId)) || null;
   const kprAmount = selectedDebt ? parseVal(selectedDebt.outstanding || 0) : 0;
 
@@ -1069,14 +1074,16 @@ function RealAssetsScene({
       );
       if (setDebts) {
         if (linkedKprDebtId) {
-          // Link an existing debt to this property
+          // Link an existing debt to this property (stamp both fields)
           setDebts((p) => p.map((d) =>
-            String(d.id) === linkedKprDebtId ? { ...d, propertyId: editAsset.id } : d
+            String(d.id) === linkedKprDebtId
+              ? { ...d, propertyId: editAsset.id, linkedAssetId: String(editAsset.id) }
+              : d
           ));
         } else if (kprSync) {
-          // Create or update the auto-generated debt
+          // Create or update the auto-generated debt (check both link fields)
           setDebts((p) => {
-            const linkedIdx = p.findIndex((d) => d.propertyId === editAsset.id);
+            const linkedIdx = p.findIndex((d) => isLinkedToProperty(d, editAsset.id));
             if (linkedIdx >= 0) {
               const updated = [...p];
               updated[linkedIdx] = { ...updated[linkedIdx], ...kprSync, propertyId: editAsset.id };
@@ -1091,13 +1098,25 @@ function RealAssetsScene({
       setAssets((p) => [...p, { id: savedId, ...assetData }]);
       if (setDebts) {
         if (linkedKprDebtId) {
-          // Link existing debt to new property asset
+          // Link existing debt to new property asset (stamp both fields)
           setDebts((p) => p.map((d) =>
-            String(d.id) === linkedKprDebtId ? { ...d, propertyId: savedId } : d
+            String(d.id) === linkedKprDebtId
+              ? { ...d, propertyId: savedId, linkedAssetId: String(savedId) }
+              : d
           ));
         } else if (kprSync) {
-          // Auto-create new debt entry
-          setDebts((p) => [...p, { id: Date.now(), ...kprSync, propertyId: savedId }]);
+          // Auto-create new debt, but skip if one is already linked via linkedAssetId
+          setDebts((p) => {
+            const existingLinked = p.find(d => String(d.linkedAssetId) === String(savedId));
+            if (existingLinked) {
+              // Debt was entered from Hutang first — just stamp propertyId onto it
+              return p.map(d => String(d.linkedAssetId) === String(savedId)
+                ? { ...d, propertyId: savedId }
+                : d
+              );
+            }
+            return [...p, { id: Date.now(), ...kprSync, propertyId: savedId }];
+          });
         }
       }
       // Auto-add property to Real Assets if kos building not yet listed
