@@ -4,14 +4,14 @@ import { PULSE_PACKAGES } from "../constants/tiers";
 
 const PLANS = {
   pro: [
-    { id: "monthly",  label: "Bulanan",  price: "$1.99",  idrPrice: 33000,  sub: "/bulan",  saving: "",          pulse: 20,  days: 30  },
-    { id: "biannual", label: "6 Bulan",  price: "$10.99", idrPrice: 184000, sub: "/6 bln",  saving: "Hemat 8%",  pulse: 120, days: 180 },
-    { id: "annual",   label: "Tahunan",  price: "$19.99", idrPrice: 335000, sub: "/tahun",  saving: "Hemat 16%", pulse: 250, days: 365, popular: true },
+    { id: "monthly",  label: "Bulanan",  price: "$1.99",  idrPrice: 34000,  sub: "/bulan",  saving: "",          pulse: 20,  days: 30  },
+    { id: "biannual", label: "6 Bulan",  price: "$10.99", idrPrice: 187000, sub: "/6 bln",  saving: "Hemat 8%",  pulse: 120, days: 180 },
+    { id: "annual",   label: "Tahunan",  price: "$19.99", idrPrice: 340000, sub: "/tahun",  saving: "Hemat 16%", pulse: 250, days: 365, popular: true },
   ],
   proplus: [
-    { id: "monthly",  label: "Bulanan",  price: "$4.99",  idrPrice: 84000,  sub: "/bulan",  saving: "",           pulse: 80,   days: 30  },
-    { id: "biannual", label: "6 Bulan",  price: "$26.99", idrPrice: 453000, sub: "/6 bln",  saving: "Hemat 10%",  pulse: 480,  days: 180 },
-    { id: "annual",   label: "Tahunan",  price: "$47.99", idrPrice: 806000, sub: "/tahun",  saving: "Hemat 20%",  pulse: 1000, days: 365, popular: true },
+    { id: "monthly",  label: "Bulanan",  price: "$4.99",  idrPrice: 85000,  sub: "/bulan",  saving: "",           pulse: 80,   days: 30  },
+    { id: "biannual", label: "6 Bulan",  price: "$26.99", idrPrice: 459000, sub: "/6 bln",  saving: "Hemat 10%",  pulse: 480,  days: 180 },
+    { id: "annual",   label: "Tahunan",  price: "$47.99", idrPrice: 816000, sub: "/tahun",  saving: "Hemat 20%",  pulse: 1000, days: 365, popular: true },
   ],
 };
 
@@ -230,7 +230,7 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, user
     const plan = isUpgradeFromPro ? upgradePlan : selectedPlan;
     const tier = isUpgradeFromPro ? "proplus" : tierChoice;
     const idrAmount = isUpgradeFromPro
-      ? Math.round(3.0 * remainingMonths * 16800)
+      ? Math.round(3.0 * remainingMonths * 17000)
       : plan.idrPrice;
 
     setLoading(true);
