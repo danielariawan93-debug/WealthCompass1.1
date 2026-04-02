@@ -171,7 +171,7 @@ function PulseTab({ pulseCredits, setPulseCredits, user, T }) {
               <div>
                 <div style={{ fontSize: 13, fontWeight: "bold", color: T.text }}>⚡ {pkg.label}</div>
                 <div style={{ fontSize: 10, color: T.muted }}>
-                  Rp {pkg.idrPrice.toLocaleString("id-ID")} · ${(pkg.price / pkg.pulse).toFixed(3)}/Pulse
+                  ${(pkg.price / pkg.pulse).toFixed(3)}/Pulse · ≈ Rp {(pkg.idrPrice / 1000).toFixed(0)}rb
                 </div>
               </div>
               <button
@@ -251,15 +251,15 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, user
       });
       const data = await res.json();
       if (!res.ok || !data.token) {
-        setStatusMsg({ type: "error", text: data.error || "Gagal membuat transaksi." });
+        setStatusMsg({ type: "error", text: data.error || "Gagal membuat transaksi. Pastikan Midtrans dikonfigurasi di Vercel." });
         setLoading(false);
-        return;
+        return; // STOP — jangan upgrade tanpa pembayaran
       }
 
       if (!window.snap) {
-        setStatusMsg({ type: "error", text: "Midtrans Snap belum siap. Coba lagi." });
+        setStatusMsg({ type: "error", text: "Midtrans Snap.js belum termuat. Coba refresh halaman." });
         setLoading(false);
-        return;
+        return; // STOP — jangan upgrade tanpa pembayaran
       }
 
       window.snap.pay(data.token, {
