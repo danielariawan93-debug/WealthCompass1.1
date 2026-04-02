@@ -589,6 +589,7 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
         <Card T={T} style={{ marginBottom:16, border:`1px solid ${T.accentSoft}` }}>
           <SL T={T}>{mode === 'edit' ? 'Edit Hutang' : 'Tambah Hutang Baru'}</SL>
           <DebtForm
+            key={editDebt?.id || 'new'}
             T={T}
             onSave={saveDebt}
             onCancel={()=>{setMode('list');setEditDebt(null);}}

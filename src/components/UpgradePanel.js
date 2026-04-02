@@ -1,17 +1,22 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Card, TBtn } from "./ui";
 import { PULSE_PACKAGES } from "../constants/tiers";
+import { RATES } from "../constants/data";
+
+// Convert USD to IDR using live rate constant, rounded to nearest 1000
+const usdToIDR = (usd) => Math.round(usd * RATES.USD / 1000) * 1000;
+const fIDR = (idr) => `Rp ${idr.toLocaleString("id-ID")}`;
 
 const PLANS = {
   pro: [
-    { id: "monthly",  label: "Bulanan",  price: "$1.99",  sub: "/bulan",  saving: "",         pulse: 20,  days: 30  },
-    { id: "biannual", label: "6 Bulan",  price: "$10.99", sub: "/6 bln",  saving: "Hemat 8%", pulse: 120, days: 180 },
-    { id: "annual",   label: "Tahunan",  price: "$19.99", sub: "/tahun",  saving: "Hemat 16%",pulse: 250, days: 365, popular: true },
+    { id: "monthly",  label: "Bulanan",  priceUSD: 1.99,  sub: "/bulan",  saving: "",         pulse: 20,  days: 30  },
+    { id: "biannual", label: "6 Bulan",  priceUSD: 10.99, sub: "/6 bln",  saving: "Hemat 8%", pulse: 120, days: 180 },
+    { id: "annual",   label: "Tahunan",  priceUSD: 19.99, sub: "/tahun",  saving: "Hemat 16%",pulse: 250, days: 365, popular: true },
   ],
   proplus: [
-    { id: "monthly",  label: "Bulanan",  price: "$4.99",  sub: "/bulan",  saving: "",          pulse: 80,  days: 30  },
-    { id: "biannual", label: "6 Bulan",  price: "$26.99", sub: "/6 bln",  saving: "Hemat 10%", pulse: 480,  days: 180 },
-    { id: "annual",   label: "Tahunan",  price: "$47.99", sub: "/tahun",  saving: "Hemat 20%", pulse: 1000, days: 365, popular: true },
+    { id: "monthly",  label: "Bulanan",  priceUSD: 4.99,  sub: "/bulan",  saving: "",          pulse: 80,  days: 30  },
+    { id: "biannual", label: "6 Bulan",  priceUSD: 26.99, sub: "/6 bln",  saving: "Hemat 10%", pulse: 480,  days: 180 },
+    { id: "annual",   label: "Tahunan",  priceUSD: 47.99, sub: "/tahun",  saving: "Hemat 20%", pulse: 1000, days: 365, popular: true },
   ],
 };
 
@@ -213,7 +218,7 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, T })
   const remainingMonths = isUpgradeFromPro
     ? Math.max(1, Math.ceil((new Date(proExpiry.expiryDate) - Date.now()) / (30 * 24 * 60 * 60 * 1000)))
     : 0;
-  const upgradeDiffPrice = isUpgradeFromPro ? (3.0 * remainingMonths).toFixed(2) : null;
+  const upgradeDiffIDR = isUpgradeFromPro ? usdToIDR(3.0 * remainingMonths) : 0;
   const upgradeExtraPulse = isUpgradeFromPro ? 60 * remainingMonths : 0;
 
   return (
@@ -238,7 +243,7 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, T })
         <div style={{ background: "#9b7ef822", border: "1px solid #9b7ef833", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 11 }}>
           <div style={{ color: "#9b7ef8", fontWeight: "bold", marginBottom: 4 }}>💎 Upgrade dari Pro → Pro+</div>
           <div style={{ color: T.textSoft }}>
-            Sisa {remainingMonths} bulan aktif. Bayar selisih <b style={{ color: "#9b7ef8" }}>${upgradeDiffPrice}</b>, dapat tambahan <b style={{ color: T.accent }}>+{upgradeExtraPulse} Pulse</b>.
+            Sisa {remainingMonths} bulan aktif. Bayar selisih <b style={{ color: "#9b7ef8" }}>{fIDR(upgradeDiffIDR)}</b>, dapat tambahan <b style={{ color: T.accent }}>+{upgradeExtraPulse} Pulse</b>.
           </div>
         </div>
       )}
@@ -272,7 +277,7 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, T })
               <div style={{ color: T.accent, fontSize: 10, marginTop: 3 }}>⚡ +{p.pulse} Pulse Credit</div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ color: meta.color, fontSize: 18, fontWeight: "bold" }}>{p.price}</div>
+              <div style={{ color: meta.color, fontSize: 16, fontWeight: "bold" }}>{fIDR(usdToIDR(p.priceUSD))}</div>
               <div style={{ color: T.muted, fontSize: 10 }}>{p.sub}</div>
             </div>
           </div>
@@ -295,18 +300,18 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, T })
           fontWeight: "bold", fontSize: 13, marginTop: 8,
         }}>
         {isUpgradeFromPro
-          ? `Upgrade ke Pro+ — $${upgradeDiffPrice}`
-          : `Mulai ${meta.badge} — ${activePlans.find(p => p.id === selected)?.price}`}
+          ? `Upgrade ke Pro+ — ${fIDR(upgradeDiffIDR)}`
+          : `Mulai ${meta.badge} — ${fIDR(usdToIDR(activePlans.find(p => p.id === selected)?.priceUSD || 0))}`}
       </button>
 
       {/* Referral */}
       <div style={{ marginTop: 16, padding: "12px 14px", background: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
         <div style={{ color: T.accent, fontSize: 11, fontWeight: "bold", marginBottom: 6 }}>🤝 Program Referral</div>
         <div style={{ color: T.textSoft, fontSize: 11, lineHeight: 1.7, marginBottom: 8 }}>
-          Dapatkan <b style={{ color: T.green }}>$0.99</b> untuk setiap user yang subscribe via link kamu.
+          Dapatkan <b style={{ color: T.green }}>{fIDR(usdToIDR(0.99))}</b> untuk setiap user yang subscribe via link kamu.
         </div>
         <div style={{ background: T.accentDim, border: `1px solid ${T.accentSoft}`, borderRadius: 8, padding: "8px 12px", fontSize: 10, color: T.muted }}>
-          📊 Referral kamu: <b style={{ color: T.accent }}>0 user</b> · Kredit: <b style={{ color: T.green }}>$0.00</b>
+          📊 Referral kamu: <b style={{ color: T.accent }}>0 user</b> · Kredit: <b style={{ color: T.green }}>Rp 0</b>
           <br /><span style={{ color: T.blue, cursor: "pointer", marginTop: 4, display: "block" }}>Salin link referral kamu →</span>
         </div>
       </div>
