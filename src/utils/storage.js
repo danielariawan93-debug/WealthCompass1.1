@@ -86,6 +86,9 @@ const DEFAULT_ACCOUNT_STATE = {
   monthlyUploadCount: 0, // Pro/Pro+: uploads used this month
   monthlyUploadMonth: "", // "2026-03" — resets monthlyUploadCount when month changes
   pulseCredits: 3,       // All new accounts start with 3 free Pulse Credits (lifetime)
+  bonusPulse: [],        // [{id, amount, expiresAt, source, earnedAt}] — referral bonus, expires 30d
+  referrals: [],         // [{uid, name, email, date, tier}] — users referred by this account
+  referredBy: "",        // referral code this user was referred by (set once)
   settings: {
     language: "id",
     notifications: true,

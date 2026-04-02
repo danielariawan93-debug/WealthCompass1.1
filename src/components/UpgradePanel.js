@@ -61,7 +61,7 @@ function useSnapScript() {
   }, []);
 }
 
-function PulseTab({ pulseCredits, setPulseCredits, user, T }) {
+function PulseTab({ pulseCredits, setPulseCredits, user, bonusPulse = [], activeBonusPulse = 0, T }) {
   useSnapScript();
   const [loading, setLoading] = useState(null); // packageId being purchased
   const [statusMsg, setStatusMsg] = useState(null);
@@ -144,8 +144,31 @@ function PulseTab({ pulseCredits, setPulseCredits, user, T }) {
   return (
     <div>
       <div style={{ fontSize: 13, fontWeight: "bold", color: T.text, marginBottom: 4 }}>⚡ Beli Pulse Credit</div>
-      <div style={{ fontSize: 11, color: T.muted, marginBottom: 16 }}>
-        Saldo saat ini: <span style={{ color: T.accent, fontWeight: "bold" }}>{pulseCredits} Pulse</span>
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: T.muted }}>
+          Saldo reguler: <span style={{ color: T.accent, fontWeight: "bold" }}>{pulseCredits - activeBonusPulse} Pulse</span>
+        </div>
+        {activeBonusPulse > 0 && (
+          <div style={{ fontSize: 11, color: T.muted }}>
+            Bonus Pulse: <span style={{ color: "#f59e0b", fontWeight: "bold" }}>+{activeBonusPulse} ⚡</span>
+            {(() => {
+              const now = new Date();
+              const soonest = bonusPulse
+                .filter(b => new Date(b.expiresAt) > now && b.amount > 0)
+                .sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt))[0];
+              if (!soonest) return null;
+              const days = Math.ceil((new Date(soonest.expiresAt) - now) / (24*60*60*1000));
+              return (
+                <span style={{ fontSize: 9, color: days <= 7 ? "#f26b6b" : T.muted, marginLeft: 4 }}>
+                  (hangus {days <= 1 ? "besok" : `dalam ${days} hari`})
+                </span>
+              );
+            })()}
+          </div>
+        )}
+        <div style={{ fontSize: 12, color: T.text, fontWeight: "bold", marginTop: 2 }}>
+          Total: <span style={{ color: T.accent }}>{pulseCredits} Pulse</span>
+        </div>
       </div>
 
       {statusMsg && (
@@ -202,7 +225,169 @@ function PulseTab({ pulseCredits, setPulseCredits, user, T }) {
   );
 }
 
-function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, user, T }) {
+// ── Referral Section ─────────────────────────────────────────────────────────
+function ReferralSection({ referralCode, referrals, bonusPulse, activeBonusPulse, T }) {
+  const [copied, setCopied] = React.useState(false);
+
+  const referralLink = referralCode
+    ? `${window.location.origin}?ref=${referralCode}`
+    : "";
+
+  const handleCopy = () => {
+    if (!referralLink) return;
+    navigator.clipboard.writeText(referralLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      // fallback
+      const el = document.createElement("textarea");
+      el.value = referralLink;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const now = new Date();
+  const activeBonusEntries = bonusPulse
+    .filter(b => new Date(b.expiresAt) > now && b.amount > 0)
+    .sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt));
+
+  const freeReferrals  = referrals.filter(r => r.tier === "free");
+  const proReferrals   = referrals.filter(r => r.tier === "pro" || r.tier === "proplus");
+  const totalBonusEarned = referrals.reduce((s, r) => s + (r.bonusAwarded || 0), 0);
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      {/* Header */}
+      <div style={{ color: T.accent, fontSize: 11, fontWeight: "bold", marginBottom: 10 }}>
+        🤝 Program Referral
+      </div>
+
+      {/* Bonus Pulse Balance */}
+      <div style={{ background: T.accentDim, border: `1px solid ${T.accentSoft}`, borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: activeBonusEntries.length > 0 ? 8 : 0 }}>
+          <div>
+            <div style={{ fontSize: 11, color: T.muted }}>Bonus Pulse Aktif</div>
+            <div style={{ fontSize: 18, fontWeight: "bold", color: "#f59e0b" }}>
+              ⚡ {activeBonusPulse} <span style={{ fontSize: 10, color: T.muted, fontWeight: "normal" }}>Bonus Pulse</span>
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 10, color: T.muted }}>Total diperoleh</div>
+            <div style={{ fontSize: 13, fontWeight: "bold", color: T.accent }}>{totalBonusEarned} Pulse</div>
+          </div>
+        </div>
+        {activeBonusEntries.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {activeBonusEntries.map(b => {
+              const exp = new Date(b.expiresAt);
+              const daysLeft = Math.ceil((exp - now) / (24 * 60 * 60 * 1000));
+              return (
+                <div key={b.id} style={{
+                  display: "flex", justifyContent: "space-between",
+                  fontSize: 10, color: T.muted, background: T.surface,
+                  borderRadius: 6, padding: "4px 8px",
+                }}>
+                  <span>⚡ {b.amount} Pulse — {b.source || "Referral"}</span>
+                  <span style={{ color: daysLeft <= 7 ? "#f26b6b" : T.muted }}>
+                    hangus {daysLeft <= 1 ? "besok" : `${daysLeft} hari`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {activeBonusEntries.length === 0 && (
+          <div style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>
+            Belum ada Bonus Pulse aktif. Mulai referral untuk mendapatkan bonus!
+          </div>
+        )}
+      </div>
+
+      {/* Referral Link */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color: T.muted, marginBottom: 6 }}>Link referral kamu</div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <div style={{
+            flex: 1, background: T.surface, border: `1px solid ${T.border}`,
+            borderRadius: 8, padding: "7px 10px", fontSize: 10, color: T.textSoft,
+            overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+          }}>
+            {referralLink || "—"}
+          </div>
+          <button
+            onClick={handleCopy}
+            style={{
+              padding: "7px 12px", borderRadius: 8, border: "none",
+              background: copied ? "#3ecf8e22" : T.accentDim,
+              color: copied ? "#3ecf8e" : T.accent,
+              fontSize: 11, fontWeight: "bold", cursor: "pointer", whiteSpace: "nowrap",
+            }}
+          >
+            {copied ? "✓ Tersalin" : "Salin"}
+          </button>
+        </div>
+        <div style={{ fontSize: 9, color: T.muted, marginTop: 4 }}>
+          Kode: <b style={{ color: T.accent }}>{referralCode || "—"}</b>
+        </div>
+      </div>
+
+      {/* Reward Info */}
+      <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: 10 }}>
+        <div style={{ color: T.text, fontWeight: "bold", marginBottom: 6 }}>Hadiah Referral (Bonus Pulse · expire 30 hari)</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: T.textSoft }}>Teman daftar Free</span>
+            <span style={{ color: "#f59e0b", fontWeight: "bold" }}>+3 Bonus Pulse <span style={{ color: T.muted, fontWeight: "normal" }}>(maks. 15)</span></span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: T.textSoft }}>Teman subscribe Pro / Pro+</span>
+            <span style={{ color: "#f59e0b", fontWeight: "bold" }}>+10 Bonus Pulse <span style={{ color: T.muted, fontWeight: "normal" }}>(no cap)</span></span>
+          </div>
+        </div>
+      </div>
+
+      {/* Referral Stats */}
+      <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", fontSize: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ color: T.muted }}>Free referral</span>
+          <span style={{ color: T.text, fontWeight: "bold" }}>{freeReferrals.length} user</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: referrals.length > 0 ? 10 : 0 }}>
+          <span style={{ color: T.muted }}>Subscriber referral</span>
+          <span style={{ color: "#d4a843", fontWeight: "bold" }}>{proReferrals.length} user</span>
+        </div>
+        {referrals.length > 0 && (
+          <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 5, maxHeight: 120, overflowY: "auto" }}>
+            {referrals.map((r, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ color: T.textSoft }}>{r.name || r.email || "User"}</span>
+                <span style={{
+                  fontSize: 9, padding: "2px 7px", borderRadius: 6, fontWeight: "bold",
+                  background: r.tier === "free" ? T.accentDim : "#d4a84322",
+                  color: r.tier === "free" ? T.accent : "#d4a843",
+                }}>
+                  {r.tier === "free" ? "Free +3⚡" : `${r.tier === "proplus" ? "Pro+" : "Pro"} +10⚡`}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {referrals.length === 0 && (
+          <div style={{ color: T.muted, textAlign: "center", padding: "4px 0" }}>
+            Belum ada yang mendaftar via link kamu
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, user, bonusPulse, activeBonusPulse, referralCode, referrals, T }) {
   useSnapScript();
   const [tierChoice, setTierChoice] = useState("pro");
   const [selected, setSelected] = useState("annual");
@@ -381,17 +566,13 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, user
             : `Mulai ${meta.badge} — ${selectedPlan?.price}`}
       </button>
 
-      {/* Referral */}
-      <div style={{ marginTop: 16, padding: "12px 14px", background: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
-        <div style={{ color: T.accent, fontSize: 11, fontWeight: "bold", marginBottom: 6 }}>🤝 Program Referral</div>
-        <div style={{ color: T.textSoft, fontSize: 11, lineHeight: 1.7, marginBottom: 8 }}>
-          Dapatkan <b style={{ color: T.green }}>$0.99</b> untuk setiap user yang subscribe via link kamu.
-        </div>
-        <div style={{ background: T.accentDim, border: `1px solid ${T.accentSoft}`, borderRadius: 8, padding: "8px 12px", fontSize: 10, color: T.muted }}>
-          📊 Referral kamu: <b style={{ color: T.accent }}>0 user</b> · Kredit: <b style={{ color: T.green }}>$0.00</b>
-          <br /><span style={{ color: T.blue, cursor: "pointer", marginTop: 4, display: "block" }}>Salin link referral kamu →</span>
-        </div>
-      </div>
+      <ReferralSection
+        referralCode={referralCode}
+        referrals={referrals}
+        bonusPulse={bonusPulse}
+        activeBonusPulse={activeBonusPulse}
+        T={T}
+      />
       <div style={{ textAlign: "center", color: T.muted, fontSize: 10, marginTop: 10, lineHeight: 1.6 }}>
         Pembayaran aman via Midtrans · Batalkan kapan saja
       </div>
@@ -399,7 +580,7 @@ function SubscriptionTab({ isPro, isProPlus, proExpiry, onUpgrade, onClose, user
   );
 }
 
-function UpgradePanel({ show, onClose, onUpgrade, isPro, isProPlus, proExpiry, pulseCredits, setPulseCredits, user, T, initialTab }) {
+function UpgradePanel({ show, onClose, onUpgrade, isPro, isProPlus, proExpiry, pulseCredits, setPulseCredits, user, T, initialTab, bonusPulse = [], activeBonusPulse = 0, referralCode = "", referrals = [], addBonusPulse }) {
   const [panelTab, setPanelTab] = useState(initialTab || "subscription");
 
   // Sync initialTab when panel opens
@@ -451,6 +632,10 @@ function UpgradePanel({ show, onClose, onUpgrade, isPro, isProPlus, proExpiry, p
             onUpgrade={onUpgrade}
             onClose={onClose}
             user={user}
+            bonusPulse={bonusPulse}
+            activeBonusPulse={activeBonusPulse}
+            referralCode={referralCode}
+            referrals={referrals}
             T={T}
           />
         ) : (
@@ -458,6 +643,8 @@ function UpgradePanel({ show, onClose, onUpgrade, isPro, isProPlus, proExpiry, p
             pulseCredits={pulseCredits}
             setPulseCredits={setPulseCredits}
             user={user}
+            bonusPulse={bonusPulse}
+            activeBonusPulse={activeBonusPulse}
             T={T}
           />
         )}

@@ -129,6 +129,66 @@ function WealthCompassV7() {
   const [activeIncomes, setActiveIncomes] = useState([]);
   const [insurances, setInsurances] = useState([]);
   const [activeApp, setActiveApp] = useState(null); // null | 'wealthcompass' | 'arthajourney'
+  const [bonusPulse, setBonusPulse] = useState([]); // [{id,amount,expiresAt,source,earnedAt}]
+  const [referrals, setReferrals] = useState([]);   // users referred by this account
+  const [referredBy, setReferredBy] = useState(""); // referral code this user came from
+
+  // -- DERIVED PULSE VALUES ---------------------------------------------------
+  const _now = new Date();
+  const activeBonusPulse = bonusPulse
+    .filter(b => new Date(b.expiresAt) > _now && b.amount > 0)
+    .reduce((sum, b) => sum + b.amount, 0);
+  const totalAvailablePulse = pulseCredits + activeBonusPulse;
+
+  // Referral code = deterministic from uid (WC + first 6 chars of uid, no dashes)
+  const referralCode = user?.uid
+    ? ("WC" + user.uid.replace(/-/g, "").toUpperCase()).slice(0, 8)
+    : "";
+
+  // consumePulse: deducts bonus (earliest expiry first) then regular pulse
+  const consumePulse = (amount) => {
+    const now = new Date();
+    const active = bonusPulse
+      .filter(b => new Date(b.expiresAt) > now && b.amount > 0)
+      .sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt));
+    let remaining = amount;
+    const newBonus = bonusPulse.map(b => ({ ...b }));
+    for (const entry of active) {
+      if (remaining <= 0) break;
+      const item = newBonus.find(b => b.id === entry.id);
+      if (!item) continue;
+      const take = Math.min(item.amount, remaining);
+      item.amount -= take;
+      remaining -= take;
+    }
+    setBonusPulse(newBonus.filter(b => b.amount > 0));
+    if (remaining > 0) setPulseCredits(prev => Math.max(0, prev - remaining));
+  };
+
+  // addBonusPulse: create new 30-day expiry bonus entry
+  const addBonusPulse_fn = (amount, source) => {
+    const entry = {
+      id: Date.now().toString(),
+      amount,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      source,
+      earnedAt: new Date().toISOString(),
+    };
+    setBonusPulse(prev => [...prev, entry]);
+  };
+
+  // consumePulse_compat: drop-in for setPulseCredits, bonus-first on deduction
+  const consumePulse_compat = (updater) => {
+    if (typeof updater === "function") {
+      const total = pulseCredits + activeBonusPulse;
+      const newTotal = updater(total);
+      const delta = total - newTotal;
+      if (delta > 0) consumePulse(delta);
+      else if (delta < 0) setPulseCredits(prev => prev + Math.abs(delta));
+    } else {
+      setPulseCredits(updater);
+    }
+  };
 
   // -- ALWAYS-CURRENT STATE REF (updated synchronously on every render) --------
   // This prevents stale-closure bugs in async handlers like handleLogout
@@ -137,6 +197,7 @@ function WealthCompassV7() {
     isPro, isProPlus, uploadCount, monthlyUploadCount, monthlyUploadMonth,
     pulseCredits, proExpiry, dispCur, settings, theme, customPresetId,
     activeIncomes, insurances, monthlyExpense, monthlyFixedIncome,
+    bonusPulse, referrals, referredBy,
   };
 
   // -- AUTH HANDLERS (safe to reference state now) ----------------------------
@@ -176,8 +237,17 @@ function WealthCompassV7() {
     setInsurances(d.insurances || []);
     setMonthlyExpense(d.monthlyExpense || "");
     setMonthlyFixedIncome(d.monthlyFixedIncome || "");
+    setBonusPulse(d.bonusPulse || []);
+    setReferrals(d.referrals || []);
+    setReferredBy(d.referredBy || "");
     const lastApp = localStorage.getItem("wc_active_app");
     setActiveApp(lastApp || null);
+    // Capture pending referral code from ?ref= URL param (set by AppSelector/init effect)
+    const pendingRef = localStorage.getItem("wc_pending_ref");
+    if (pendingRef && !d.referredBy) {
+      setReferredBy(pendingRef);
+      localStorage.removeItem("wc_pending_ref");
+    }
 
     // Then try Firestore (async - always authoritative source of truth)
     if (userData.uid) {
@@ -214,6 +284,9 @@ function WealthCompassV7() {
         setInsurances(cloud.insurances || []);
         setMonthlyExpense(cloud.monthlyExpense || "");
         setMonthlyFixedIncome(cloud.monthlyFixedIncome || "");
+        setBonusPulse(cloud.bonusPulse || []);
+        setReferrals(cloud.referrals || []);
+        setReferredBy(cloud.referredBy || "");
         // Mirror cloud data to localStorage as offline cache
         saveAccountData(userData.email, cloud);
         // Delay cloudLoadDone agar React flush semua setState sebelum auto-save
@@ -264,6 +337,9 @@ function WealthCompassV7() {
     setInsurances([]);
     setMonthlyExpense("");
     setMonthlyFixedIncome("");
+    setBonusPulse([]);
+    setReferrals([]);
+    setReferredBy("");
     setHideValues(false);
     setTheme("dark");
     setCustomPresetId("midnight");
@@ -522,6 +598,9 @@ function WealthCompassV7() {
       insurances,
       monthlyExpense,
       monthlyFixedIncome,
+      bonusPulse,
+      referrals,
+      referredBy,
     };
     saveAccountData(user.email, payload);
     if (user?.uid) {
@@ -549,6 +628,9 @@ function WealthCompassV7() {
     insurances,
     monthlyExpense,
     monthlyFixedIncome,
+    bonusPulse,
+    referrals,
+    referredBy,
   ]);
 
   // Reconcile activeIncomes with assets — auto-remove stale "biz_*" entries when
@@ -594,6 +676,16 @@ function WealthCompassV7() {
     return () => unsub();
   }, []);
 
+  // Capture ?ref= referral code from URL before login (store in localStorage)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (ref) {
+      localStorage.setItem("wc_pending_ref", ref);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   // -- Show login if not authenticated ----------------------------------------
   if (authChecking) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.bg }}>
@@ -628,7 +720,7 @@ function WealthCompassV7() {
         T={T}
         isPro={isPro}
         isProPlus={isProPlus}
-        pulseCredits={pulseCredits}
+        pulseCredits={totalAvailablePulse}
         assets={assets}
         debts={debts}
         settings={settings}
@@ -939,8 +1031,8 @@ function WealthCompassV7() {
                   setMonthlyUploadCount={setMonthlyUploadCount}
                   monthlyUploadMonth={monthlyUploadMonth}
                   setMonthlyUploadMonth={setMonthlyUploadMonth}
-                  pulseCredits={pulseCredits}
-                  setPulseCredits={setPulseCredits}
+                  pulseCredits={totalAvailablePulse}
+                  setPulseCredits={consumePulse_compat}
                   onBuyPulse={() => { setUpgradePanelTab("pulse"); setShowUpgrade(true); }}
                 />
               </>
@@ -1109,8 +1201,8 @@ function WealthCompassV7() {
                 {...tabProps}
                 debts={debts}
                 tier={tier}
-                pulseCredits={pulseCredits}
-                setPulseCredits={setPulseCredits}
+                pulseCredits={totalAvailablePulse}
+                setPulseCredits={consumePulse_compat}
                 onBuyPulse={() => { setUpgradePanelTab("pulse"); setShowUpgrade(true); }}
               />
             )}
@@ -1127,8 +1219,8 @@ function WealthCompassV7() {
                 setShowUpgrade={setShowUpgrade}
                 insurances={insurances}
                 setInsurances={setInsurances}
-                pulseCredits={pulseCredits}
-                setPulseCredits={setPulseCredits}
+                pulseCredits={totalAvailablePulse}
+                setPulseCredits={consumePulse_compat}
               />
             )}
             {tab === "peers" && (
@@ -1264,8 +1356,8 @@ function WealthCompassV7() {
           debts={debts || []}
           insurances={insurances || []}
           dispCur={dispCur}
-          pulseCredits={pulseCredits}
-          setPulseCredits={setPulseCredits}
+          pulseCredits={totalAvailablePulse}
+          setPulseCredits={consumePulse_compat}
           T={T}
           userEmail={user?.email || ""}
           userName={settings?.userName || user?.email || ""}
@@ -1384,11 +1476,16 @@ function WealthCompassV7() {
         isPro={isPro}
         isProPlus={isProPlus}
         proExpiry={proExpiry}
-        pulseCredits={pulseCredits}
-        setPulseCredits={setPulseCredits}
+        pulseCredits={totalAvailablePulse}
+        setPulseCredits={consumePulse_compat}
         user={user}
         T={T}
         initialTab={upgradePanelTab}
+        bonusPulse={bonusPulse}
+        activeBonusPulse={activeBonusPulse}
+        referralCode={referralCode}
+        referrals={referrals}
+        addBonusPulse={addBonusPulse_fn}
       />
     </div>
   );
