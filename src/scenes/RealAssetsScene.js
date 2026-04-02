@@ -54,31 +54,40 @@ const BUSINESS_TYPES = [
   { value: "lainnya", label: "Lainnya", icon: "📦", multiplier: 1.0 },
 ];
 
-function PropertyForm({ onSave, onCancel, T, editData, debts = [] }) {
+function PropertyForm({ onSave, onCancel, T, editData, editAssetId = null, debts = [] }) {
   const thisYear = new Date().getFullYear();
+
+  // Find debt already linked to this property asset
+  const alreadyLinked = editAssetId ? debts.find(d => d.propertyId === editAssetId) : null;
+
   const [f, setF] = useState(
-    editData || {
-      name: "",
-      location: "",
-      purchasePrice: "",
-      purchaseYear: String(thisYear),
-      currentValue: "",
-      kprOutstanding: "0",
-      kprBank: "",
-      kprRate: "9.5",
-      kprType: "konsumtif",
-      rentalIncome: "0",
-      rentalFreq: "monthly",
-      appreciationRate: "8",
-      buildingDepreciation: "2",
-      hasKPR: false,
-    }
+    editData
+      ? { ...editData, kprType: editData.kprType || 'konsumtif', linkedKprDebtId: alreadyLinked ? String(alreadyLinked.id) : "" }
+      : {
+          name: "",
+          location: "",
+          purchasePrice: "",
+          purchaseYear: String(thisYear),
+          currentValue: "",
+          hasKPR: false,
+          kprType: "konsumtif",
+          linkedKprDebtId: "",
+          rentalIncome: "0",
+          rentalFreq: "monthly",
+          appreciationRate: "8",
+          buildingDepreciation: "2",
+        }
   );
+
+  // KPR computed values
+  const kprKey = (f.kprType || 'konsumtif') === 'produktif' ? 'kpr_invest' : 'kpr';
+  const kprDebts = debts.filter(d => d.key === kprKey);
+  const selectedDebt = kprDebts.find(d => String(d.id) === String(f.linkedKprDebtId)) || null;
+  const kprAmount = selectedDebt ? parseVal(selectedDebt.outstanding || 0) : 0;
 
   const purchaseVal = parseVal(f.purchasePrice);
   const currentVal = parseVal(f.currentValue) || purchaseVal;
-  const kpr = parseVal(f.kprOutstanding);
-  const netEquity = currentVal - kpr;
+  const netEquity = currentVal - kprAmount;
   const gain = currentVal - purchaseVal;
   const gainPct = purchaseVal > 0 ? (gain / purchaseVal) * 100 : 0;
   const yrs = thisYear - parseInt(f.purchaseYear || thisYear);
@@ -202,7 +211,7 @@ function PropertyForm({ onSave, onCancel, T, editData, debts = [] }) {
             }}
           >
             <span>
-              Sisa KPR / Hutang (IDR){" "}
+              Sisa KPR / Hutang{" "}
               <span style={{ color: T.muted, fontWeight: "normal" }}>
                 (opsional)
               </span>
@@ -228,87 +237,70 @@ function PropertyForm({ onSave, onCancel, T, editData, debts = [] }) {
               📋 Dalam cicilan / KPR
             </label>
           </div>
-          <input
-            value={f.kprOutstanding}
-            onChange={(e) =>
-              setF((p) => ({ ...p, kprOutstanding: e.target.value }))
-            }
-            placeholder="Contoh: 500000000"
-            style={{
-              width: "100%",
-              background: T.inputBg,
-              border: `1px solid ${f.hasKPR ? T.accent : T.border}`,
-              color: T.text,
-              borderRadius: 9,
-              padding: "10px 12px",
-              fontSize: 12,
-              outline: "none",
-            }}
-          />
+          {/* Read-only outstanding — sourced from Debt Tracker */}
+          <div style={{
+            width: "100%",
+            background: T.surface,
+            border: `1px solid ${f.hasKPR ? T.accent : T.border}`,
+            color: f.hasKPR && kprAmount > 0 ? T.text : T.muted,
+            borderRadius: 9,
+            padding: "10px 12px",
+            fontSize: 12,
+            pointerEvents: "none",
+            userSelect: "none",
+          }}>
+            {f.hasKPR
+              ? (kprAmount > 0 ? `${kprAmount.toLocaleString('id-ID')} (dari Hutang Tracker)` : "0 · Isi detail di menu Hutang")
+              : "Rp 0"}
+          </div>
         </div>
-        {f.hasKPR && parseVal(f.kprOutstanding) > 0 && (
+        {f.hasKPR && (
           <>
-            <div>
+            {/* Jenis KPR */}
+            <div style={{ gridColumn: "span 2" }}>
               <div style={LS}>Jenis KPR</div>
               <select
                 value={f.kprType || 'konsumtif'}
-                onChange={(e) => setF((p) => ({ ...p, kprType: e.target.value }))}
+                onChange={(e) => setF((p) => ({ ...p, kprType: e.target.value, linkedKprDebtId: "" }))}
                 style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.accent}`, color: T.text, borderRadius: 9, padding: "10px 12px", fontSize: 12, outline: "none" }}
               >
                 <option value="konsumtif">🏠 Konsumtif (Rumah Tinggal)</option>
                 <option value="produktif">🏢 Produktif (Investasi/Sewa)</option>
               </select>
             </div>
-            <div>
-              <div style={LS}>Bank / Lembaga KPR</div>
-              <input
-                value={f.kprBank || ""}
-                onChange={(e) =>
-                  setF((p) => ({ ...p, kprBank: e.target.value }))
-                }
-                placeholder="Contoh: BCA, BTN"
-                style={{
-                  width: "100%",
-                  background: T.inputBg,
-                  border: `1px solid ${T.accent}`,
-                  color: T.text,
-                  borderRadius: 9,
-                  padding: "10px 12px",
-                  fontSize: 12,
-                  outline: "none",
-                }}
-              />
+            {/* Existing KPR debts dropdown */}
+            <div style={{ gridColumn: "span 2" }}>
+              {kprDebts.length > 0 ? (
+                <>
+                  <div style={LS}>Pilih Hutang KPR</div>
+                  <select
+                    value={f.linkedKprDebtId || ""}
+                    onChange={(e) => setF((p) => ({ ...p, linkedKprDebtId: e.target.value }))}
+                    style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.accent}`, color: T.text, borderRadius: 9, padding: "10px 12px", fontSize: 12, outline: "none" }}
+                  >
+                    <option value="">— Buat baru (saldo 0) —</option>
+                    {kprDebts.map(d => (
+                      <option key={d.id} value={String(d.id)}>
+                        {d.name} · Rp{parseVal(d.outstanding || 0).toLocaleString('id-ID')}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedDebt ? (
+                    <div style={{ marginTop: 6, padding: "7px 10px", background: "#3ecf8e22", borderRadius: 7, fontSize: 10, color: "#3ecf8e" }}>
+                      ✓ Tersinkron · Sisa: Rp{kprAmount.toLocaleString('id-ID')} · Edit saldo di menu Hutang
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 6, padding: "7px 10px", background: T.accentDim, borderRadius: 7, fontSize: 10, color: T.accent }}>
+                      ℹ️ Pilih hutang yang ada, atau biarkan untuk membuat baru dengan saldo 0
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ padding: "8px 12px", background: T.accentDim, borderRadius: 8, fontSize: 11, color: T.accent }}>
+                  ℹ️ Belum ada hutang KPR {f.kprType === 'produktif' ? 'Produktif' : 'Konsumtif'} · Akan dibuat otomatis saat disimpan · Detail lengkap diisi di menu Hutang
+                </div>
+              )}
             </div>
-            <div>
-              <div style={LS}>Bunga KPR/thn (%)</div>
-              <input
-                value={f.kprRate || ""}
-                onChange={(e) =>
-                  setF((p) => ({ ...p, kprRate: e.target.value }))
-                }
-                type="number"
-                placeholder=""
-                style={{
-                  width: "100%",
-                  background: T.inputBg,
-                  border: `1px solid ${T.accent}`,
-                  color: T.text,
-                  borderRadius: 9,
-                  padding: "10px 12px",
-                  fontSize: 12,
-                  outline: "none",
-                }}
-              />
-            </div>
-            {editData && debts?.find(d => d.propertyId === editData.id) ? (
-              <div style={{ gridColumn: "span 2", padding: "8px 12px", background: "#3ecf8e22", borderRadius: 8, fontSize: 11, color: "#3ecf8e" }}>
-                ✓ Tersinkron dengan Debt Tracker · Update otomatis saat disimpan
-              </div>
-            ) : (
-              <div style={{ gridColumn: "span 2", padding: "8px 12px", background: T.accentDim, borderRadius: 8, fontSize: 11, color: T.accent }}>
-                ✓ KPR akan otomatis tercatat di Debt Tracker saat disimpan
-              </div>
-            )}
           </>
         )}
         <div>
@@ -473,31 +465,19 @@ function PropertyForm({ onSave, onCancel, T, editData, debts = [] }) {
               name: f.name,
               valueIDR: cv,
               propertyData: { ...f, currentValue: String(cv) },
-              kprSync:
-                f.hasKPR && parseVal(f.kprOutstanding) > 0
-                  ? {
-                      name: `KPR ${f.name}${
-                        f.kprBank ? " - " + f.kprBank : ""
-                      }`,
-                      key: (f.kprType || 'konsumtif') === 'produktif' ? 'kpr_invest' : 'kpr',
-                      category: (f.kprType || 'konsumtif') === 'produktif' ? 'produktif' : 'konsumtif',
-                      type: "kpr",
-                      outstanding: String(parseVal(f.kprOutstanding)),
-                      interestRate: f.kprRate || "9.5",
-                      monthlyPayment: String(
-                        Math.round(
-                          (parseVal(f.kprOutstanding) *
-                            (parseFloat(f.kprRate || 9.5) / 100 / 12)) /
-                            (1 -
-                              Math.pow(
-                                1 + parseFloat(f.kprRate || 9.5) / 100 / 12,
-                                -240
-                              ))
-                        )
-                      ),
-                      notes: `Auto dari properti: ${f.name}`,
-                    }
-                  : null,
+              kprSync: f.hasKPR && !f.linkedKprDebtId
+                ? {
+                    name: `KPR ${f.name}`,
+                    key: kprKey,
+                    category: f.kprType || 'konsumtif',
+                    type: "kpr",
+                    outstanding: '0',
+                    interestRate: '9.5',
+                    monthlyPayment: '0',
+                    notes: `Auto dari properti: ${f.name} · Detail diisi di menu Hutang`,
+                  }
+                : null,
+              linkedKprDebtId: f.hasKPR && f.linkedKprDebtId ? String(f.linkedKprDebtId) : null,
               income:
                 parseVal(f.rentalIncome) > 0
                   ? {
@@ -1073,7 +1053,7 @@ function RealAssetsScene({
       ) / 12;
 
   const saveAsset = (data) => {
-    const { kprSync, ...assetData } = data;
+    const { kprSync, linkedKprDebtId, ...assetData } = data;
     let savedId;
     if (editAsset) {
       savedId = editAsset.id;
@@ -1087,34 +1067,38 @@ function RealAssetsScene({
           return updated;
         })
       );
-      // Update linked debt if exists
-      if (kprSync && setDebts) {
-        setDebts((p) => {
-          const linkedIdx = p.findIndex((d) => d.propertyId === editAsset.id);
-          if (linkedIdx >= 0) {
-            const updated = [...p];
-            updated[linkedIdx] = {
-              ...updated[linkedIdx],
-              ...kprSync,
-              propertyId: editAsset.id,
-            };
-            return updated;
-          }
-          return [
-            ...p,
-            { id: Date.now(), ...kprSync, propertyId: editAsset.id },
-          ];
-        });
+      if (setDebts) {
+        if (linkedKprDebtId) {
+          // Link an existing debt to this property
+          setDebts((p) => p.map((d) =>
+            String(d.id) === linkedKprDebtId ? { ...d, propertyId: editAsset.id } : d
+          ));
+        } else if (kprSync) {
+          // Create or update the auto-generated debt
+          setDebts((p) => {
+            const linkedIdx = p.findIndex((d) => d.propertyId === editAsset.id);
+            if (linkedIdx >= 0) {
+              const updated = [...p];
+              updated[linkedIdx] = { ...updated[linkedIdx], ...kprSync, propertyId: editAsset.id };
+              return updated;
+            }
+            return [...p, { id: Date.now(), ...kprSync, propertyId: editAsset.id }];
+          });
+        }
       }
     } else {
       savedId = Date.now() + Math.random();
       setAssets((p) => [...p, { id: savedId, ...assetData }]);
-      // Auto-create debt entry if KPR sync enabled
-      if (kprSync && setDebts) {
-        setDebts((p) => [
-          ...p,
-          { id: Date.now(), ...kprSync, propertyId: savedId },
-        ]);
+      if (setDebts) {
+        if (linkedKprDebtId) {
+          // Link existing debt to new property asset
+          setDebts((p) => p.map((d) =>
+            String(d.id) === linkedKprDebtId ? { ...d, propertyId: savedId } : d
+          ));
+        } else if (kprSync) {
+          // Auto-create new debt entry
+          setDebts((p) => [...p, { id: Date.now(), ...kprSync, propertyId: savedId }]);
+        }
       }
       // Auto-add property to Real Assets if kos building not yet listed
       if (data.newPropertyData) {
@@ -1338,6 +1322,7 @@ function RealAssetsScene({
               setEditAsset(null);
             }}
             editData={editAsset.propertyData}
+            editAssetId={editAsset?.id}
             debts={debts}
           />
         </div>
