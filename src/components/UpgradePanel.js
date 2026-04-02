@@ -666,7 +666,7 @@ function UpgradePanel({ show, onClose, onUpgrade, isPro, isProPlus, proExpiry, p
           >
             Kebijakan Refund
           </span>
-          {" "}WealthCompass.
+          {" "}WealthPulse.
         </div>
       </div>
 

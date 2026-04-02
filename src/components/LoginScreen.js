@@ -155,7 +155,7 @@ function LoginScreen({ onLogin, T }) {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <div style={{ color: T.accent, fontSize: 32, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 'bold', letterSpacing: 2 }}>
-            WEALTH◎COMPASS
+            WEALTH◎PULSE
           </div>
           <div style={{ color: T.muted, fontSize: 11, letterSpacing: 3, marginTop: 4 }}>
             PORTFOLIO INTELLIGENCE

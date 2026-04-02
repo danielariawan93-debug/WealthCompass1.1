@@ -211,7 +211,7 @@ function SettingsPopup({
                         cursor: "pointer",
                       }}
                     >
-                      💎 Wealth Compass
+                      💎 Wealth Pulse
                     </button>
                     <button
                       onClick={() => { setActiveApp("arthajourney"); onClose(); }}
@@ -660,7 +660,7 @@ function SettingsPopup({
             lineHeight: 1.6,
           }}
         >
-          WEALTH◎COMPASS · Portfolio Intelligence v9
+          WEALTH◎PULSE · Portfolio Intelligence v9
           <br />
           <span
             onClick={() => setShowTnC(true)}

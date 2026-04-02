@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WealthPulse — Manajemen Kekayaan Cerdas</title>
+  <meta name="description" content="WealthPulse membantu kamu melacak portofolio, aset, hutang, dan goals keuangan secara real-time. Mulai gratis sekarang." />
+  <meta property="og:title" content="WealthPulse — Manajemen Kekayaan Cerdas" />
+  <meta property="og:description" content="Pantau kekayaan, portofolio, dan arus kasmu dalam satu aplikasi." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0f14;
+      --surface: #161a24;
+      --card: #1c2130;
+      --border: #252b3b;
+      --accent: #5b9cf6;
+      --accent2: #3ecf8e;
+      --gold: #d4a843;
+      --purple: #9b7ef8;
+      --text: #e8eaf0;
+      --muted: #6b7280;
+      --soft: #9aa3b0;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 5vw; height: 64px;
+      background: rgba(13,15,20,0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
+    .nav-logo span { color: var(--accent); }
+    .nav-links { display: flex; gap: 28px; align-items: center; }
+    .nav-links a { color: var(--soft); text-decoration: none; font-size: 14px; transition: color .2s; }
+    .nav-links a:hover { color: var(--text); }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 20px; border-radius: 9px; border: none; cursor: pointer; font-weight: 600; font-size: 14px; text-decoration: none; transition: all .2s; }
+    .btn-primary { background: var(--accent); color: #0d0f14; }
+    .btn-primary:hover { background: #7ab0ff; transform: translateY(-1px); }
+    .btn-outline { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* HERO */
+    .hero {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 100px 5vw 60px;
+      background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(91,156,246,0.15) 0%, transparent 70%);
+    }
+    .hero-inner { max-width: 720px; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(91,156,246,0.12); border: 1px solid rgba(91,156,246,0.3);
+      color: var(--accent); border-radius: 20px; padding: 5px 14px;
+      font-size: 12px; font-weight: 600; margin-bottom: 24px;
+    }
+    h1 { font-size: clamp(36px,6vw,64px); font-weight: 800; line-height: 1.15; letter-spacing: -1.5px; margin-bottom: 20px; }
+    h1 .gradient { background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero p { font-size: clamp(16px,2vw,20px); color: var(--soft); max-width: 540px; margin: 0 auto 36px; }
+    .hero-cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .hero-stat { display: flex; gap: 40px; justify-content: center; margin-top: 56px; padding-top: 40px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+    .stat-item { text-align: center; }
+    .stat-num { font-size: 28px; font-weight: 800; color: var(--text); }
+    .stat-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* SECTION */
+    section { padding: 80px 5vw; }
+    .section-label { font-size: 12px; font-weight: 600; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
+    h2 { font-size: clamp(26px,4vw,40px); font-weight: 800; letter-spacing: -0.5px; margin-bottom: 16px; }
+    .section-sub { color: var(--soft); font-size: 16px; max-width: 500px; margin-bottom: 48px; }
+
+    /* FEATURES */
+    .features { background: var(--surface); }
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+    .feature-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 24px; transition: border-color .2s, transform .2s;
+    }
+    .feature-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+    .feature-icon { font-size: 28px; margin-bottom: 14px; }
+    .feature-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { font-size: 13px; color: var(--soft); line-height: 1.7; }
+
+    /* APPS */
+    .apps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 800px; }
+    @media(max-width:600px){ .apps-grid { grid-template-columns: 1fr; } }
+    .app-card {
+      border-radius: 20px; padding: 32px; border: 1px solid var(--border);
+      background: var(--card);
+    }
+    .app-card.accent-blue { border-color: rgba(91,156,246,0.4); background: rgba(91,156,246,0.06); }
+    .app-card.accent-green { border-color: rgba(62,207,142,0.4); background: rgba(62,207,142,0.06); }
+    .app-icon { font-size: 36px; margin-bottom: 14px; }
+    .app-card h3 { font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+    .app-card .app-sub { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+    .app-card ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .app-card ul li { font-size: 13px; color: var(--soft); display: flex; align-items: center; gap: 8px; }
+    .app-card ul li::before { content: "✓"; color: var(--accent2); font-weight: 700; flex-shrink: 0; }
+
+    /* PRICING */
+    .pricing { background: var(--surface); }
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 20px; max-width: 900px; }
+    .price-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+      padding: 28px; position: relative; transition: transform .2s;
+    }
+    .price-card:hover { transform: translateY(-4px); }
+    .price-card.popular { border-color: var(--gold); background: rgba(212,168,67,0.06); }
+    .popular-badge {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--gold); color: #0d0f14; font-size: 10px; font-weight: 800;
+      padding: 3px 14px; border-radius: 20px; letter-spacing: 1px; white-space: nowrap;
+    }
+    .price-tier { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+    .price-amount { font-size: 38px; font-weight: 800; letter-spacing: -1px; }
+    .price-amount sup { font-size: 18px; vertical-align: super; font-weight: 600; }
+    .price-amount span { font-size: 14px; color: var(--muted); font-weight: 500; }
+    .price-desc { font-size: 12px; color: var(--muted); margin: 8px 0 20px; }
+    .price-features { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+    .price-features li { font-size: 13px; color: var(--soft); display: flex; align-items: flex-start; gap: 8px; }
+    .price-features li .check { color: var(--accent2); flex-shrink: 0; font-weight: 700; }
+    .price-features li .x { color: var(--muted); flex-shrink: 0; }
+    .btn-gold { background: var(--gold); color: #0d0f14; }
+    .btn-gold:hover { background: #e8be5a; }
+    .btn-purple { background: var(--purple); color: #fff; }
+    .btn-purple:hover { background: #b09aff; }
+
+    /* HOW */
+    .steps { display: flex; flex-direction: column; gap: 0; max-width: 600px; }
+    .step { display: flex; gap: 20px; padding: 0 0 32px; position: relative; }
+    .step:not(:last-child)::after {
+      content: ''; position: absolute; left: 19px; top: 40px; bottom: 0;
+      width: 2px; background: var(--border);
+    }
+    .step-num {
+      width: 40px; height: 40px; border-radius: 50%; background: var(--accent);
+      color: #0d0f14; font-weight: 800; font-size: 16px; display: flex;
+      align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .step h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .step p { font-size: 13px; color: var(--soft); }
+
+    /* CTA BANNER */
+    .cta-banner {
+      text-align: center;
+      background: radial-gradient(ellipse 80% 100% at 50% 50%, rgba(91,156,246,0.12) 0%, transparent 70%);
+      border-top: 1px solid var(--border);
+    }
+    .cta-banner h2 { margin-bottom: 12px; }
+    .cta-banner p { color: var(--soft); margin-bottom: 32px; }
+
+    /* FOOTER */
+    footer {
+      padding: 40px 5vw; border-top: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+    }
+    .footer-logo { font-size: 16px; font-weight: 800; }
+    .footer-logo span { color: var(--accent); }
+    .footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
+    .footer-links a { color: var(--muted); text-decoration: none; font-size: 13px; transition: color .2s; }
+    .footer-links a:hover { color: var(--text); }
+    .footer-copy { color: var(--muted); font-size: 12px; }
+
+    /* MOBILE */
+    @media(max-width:768px) {
+      .nav-links { display: none; }
+      .hero-stat { gap: 24px; }
+      footer { flex-direction: column; text-align: center; }
+    }
+
+    /* GLOW DOTS */
+    .glow { position: absolute; border-radius: 50%; filter: blur(80px); pointer-events: none; opacity: 0.35; }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">WEALTH<span>◎</span>PULSE</div>
+  <div class="nav-links">
+    <a href="#features">Fitur</a>
+    <a href="#apps">Aplikasi</a>
+    <a href="#pricing">Harga</a>
+    <a href="#how">Cara Pakai</a>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="/app" class="btn btn-outline">Masuk</a>
+    <a href="/app" class="btn btn-primary">Mulai Gratis →</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">⚡ Wealth Intelligence Platform</div>
+    <h1>Kelola Kekayaan Kamu<br/><span class="gradient">Lebih Cerdas</span></h1>
+    <p>Pantau portofolio, aset, hutang, dan arus kas kamu dalam satu platform. Didukung AI untuk insight keuangan yang personal.</p>
+    <div class="hero-cta">
+      <a href="/app" class="btn btn-primary" style="font-size:15px;padding:12px 28px;">Mulai Gratis Sekarang →</a>
+      <a href="#features" class="btn btn-outline" style="font-size:15px;padding:12px 28px;">Lihat Fitur</a>
+    </div>
+    <div class="hero-stat">
+      <div class="stat-item">
+        <div class="stat-num">8</div>
+        <div class="stat-label">Kelas Aset Terlacak</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">100%</div>
+        <div class="stat-label">Berbasis Cloud</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">AI</div>
+        <div class="stat-label">Advisor Personal</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">Free</div>
+        <div class="stat-label">Mulai Tanpa Biaya</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="section-label">Fitur Unggulan</div>
+  <h2>Semua yang kamu butuhkan<br/>dalam satu dashboard</h2>
+  <p class="section-sub">Dari saham hingga properti, dari hutang hingga asuransi — semuanya tersinkron secara real-time.</p>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">💼</div>
+      <h3>Portofolio Lengkap</h3>
+      <p>Lacak saham, reksa dana, crypto, emas, obligasi, dan 8 kelas aset lainnya. Update harga otomatis.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <h3>Health Score</h3>
+      <p>Skor kesehatan portofolio otomatis — diversifikasi, likuiditas, alignment dengan profil risiko, dan konsentrasi aset.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🤖</div>
+      <h3>AI Advisor</h3>
+      <p>Konsultasi keuangan personal berbasis Claude AI. Analisis portofolio, saran rebalancing, dan proyeksi kekayaan.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🎯</div>
+      <h3>Financial Goals</h3>
+      <p>Tetapkan target keuangan dan pantau kemajuannya. Dari dana darurat hingga pensiun dini.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💳</div>
+      <h3>Manajemen Hutang</h3>
+      <p>Pantau KPR, kartu kredit, cicilan kendaraan. Sinkronisasi otomatis dengan aset terkait.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🏡</div>
+      <h3>Properti & Bisnis</h3>
+      <p>Valuasi properti, bisnis, dan aset nyata lainnya. Terhubung langsung dengan data hutang KPR.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📈</div>
+      <h3>Net Worth Tracker</h3>
+      <p>Grafik pertumbuhan kekayaan bersih dari waktu ke waktu. Lihat tren dan progres finansialmu.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📄</div>
+      <h3>Upload PDF Portofolio</h3>
+      <p>Upload laporan portofolio dari broker atau bank — aset langsung ter-parse otomatis dengan AI.</p>
+    </div>
+  </div>
+</section>
+
+<!-- APPS -->
+<section id="apps" style="background:var(--bg);">
+  <div class="section-label">Ekosistem</div>
+  <h2>Dua Aplikasi, Satu Ekosistem</h2>
+  <p class="section-sub">WealthPulse hadir dalam dua modul yang saling terhubung untuk kelola kekayaan secara menyeluruh.</p>
+  <div class="apps-grid">
+    <div class="app-card accent-blue">
+      <div class="app-icon">💎</div>
+      <h3>Wealth Pulse</h3>
+      <div class="app-sub">Manajemen Kekayaan & Investasi</div>
+      <ul>
+        <li>Portofolio multi-aset</li>
+        <li>Health score & rebalancing</li>
+        <li>Goals & net worth tracker</li>
+        <li>AI Advisor personal</li>
+        <li>Properti, bisnis & asuransi</li>
+      </ul>
+    </div>
+    <div class="app-card accent-green">
+      <div class="app-icon">📒</div>
+      <h3>Artha Journey</h3>
+      <div class="app-sub">Pencatatan Keuangan & Budgeting</div>
+      <ul>
+        <li>Catat semua transaksi harian</li>
+        <li>Budgeting per kategori</li>
+        <li>Pembayaran hutang & cicilan</li>
+        <li>Laporan arus kas bulanan</li>
+        <li>Sinkron otomatis dengan WP</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing" id="pricing">
+  <div class="section-label">Harga</div>
+  <h2>Mulai gratis,<br/>upgrade kapan saja</h2>
+  <p class="section-sub">Semua paket mencakup cloud sync dan akses lintas perangkat.</p>
+  <div class="pricing-grid">
+
+    <!-- Free -->
+    <div class="price-card">
+      <div class="price-tier">Free</div>
+      <div class="price-amount">Rp <span>0</span></div>
+      <div class="price-desc">Selamanya gratis</div>
+      <ul class="price-features">
+        <li><span class="check">✓</span> 10 aset · 5 hutang · 3 goals</li>
+        <li><span class="check">✓</span> 3 upload PDF (lifetime)</li>
+        <li><span class="check">✓</span> 3 Pulse Credit awal</li>
+        <li><span class="check">✓</span> Net Worth 30 hari</li>
+        <li><span class="x">✗</span> AI Advisor</li>
+        <li><span class="x">✗</span> Properti & Bisnis</li>
+      </ul>
+      <a href="/app" class="btn btn-outline" style="width:100%;justify-content:center;">Mulai Gratis</a>
+    </div>
+
+    <!-- Pro -->
+    <div class="price-card popular">
+      <div class="popular-badge">TERPOPULER</div>
+      <div class="price-tier" style="color:var(--gold);">⭐ Pro</div>
+      <div class="price-amount" style="color:var(--gold);"><sup>$</sup>1.99 <span>/bulan</span></div>
+      <div class="price-desc">≈ Rp 34.000/bulan · Hemat 16% tahunan</div>
+      <ul class="price-features">
+        <li><span class="check">✓</span> 50 aset · 15 hutang · 10 goals</li>
+        <li><span class="check">✓</span> 7 upload PDF/bulan + Pulse</li>
+        <li><span class="check">✓</span> +20 Pulse/bulan</li>
+        <li><span class="check">✓</span> Net Worth 1 tahun</li>
+        <li><span class="check">✓</span> AI Advisor (1 Pulse/chat)</li>
+        <li><span class="check">✓</span> Properti & Bisnis</li>
+      </ul>
+      <a href="/app" class="btn btn-gold" style="width:100%;justify-content:center;">Mulai Pro →</a>
+    </div>
+
+    <!-- Pro+ -->
+    <div class="price-card">
+      <div class="price-tier" style="color:var(--purple);">💎 Pro+</div>
+      <div class="price-amount" style="color:var(--purple);"><sup>$</sup>4.99 <span>/bulan</span></div>
+      <div class="price-desc">≈ Rp 85.000/bulan · Hemat 20% tahunan</div>
+      <ul class="price-features">
+        <li><span class="check">✓</span> Aset, hutang & goals tak terbatas</li>
+        <li><span class="check">✓</span> 20 upload PDF/bulan + Pulse</li>
+        <li><span class="check">✓</span> +80 Pulse/bulan</li>
+        <li><span class="check">✓</span> Net Worth 5 tahun / MAX</li>
+        <li><span class="check">✓</span> AI Claude Sonnet (1 Pulse/chat)</li>
+        <li><span class="check">✓</span> Export PDF Laporan (3 Pulse)</li>
+      </ul>
+      <a href="/app" class="btn btn-purple" style="width:100%;justify-content:center;">Mulai Pro+ →</a>
+    </div>
+  </div>
+
+  <div style="margin-top:32px;padding:20px 24px;background:var(--card);border:1px solid var(--border);border-radius:14px;max-width:500px;display:flex;gap:16px;align-items:center;">
+    <span style="font-size:28px;">⚡</span>
+    <div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Pulse Credit</div>
+      <div style="color:var(--soft);font-size:13px;">Beli Pulse terpisah untuk fitur AI tanpa perlu subscribe. Mulai dari $0.99 · Tidak pernah hangus.</div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how" style="background:var(--bg);">
+  <div class="section-label">Cara Mulai</div>
+  <h2>Siap dalam 3 menit</h2>
+  <p class="section-sub">Tidak perlu input manual yang rumit. Mulai dari akunmu hari ini.</p>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div>
+        <h3>Daftar gratis</h3>
+        <p>Buat akun dengan email atau Google. Tidak butuh kartu kredit.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div>
+        <h3>Isi profil risiko</h3>
+        <p>Jawab beberapa pertanyaan singkat. AI akan membangun profil keuanganmu secara otomatis.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div>
+        <h3>Tambahkan aset & hutang</h3>
+        <p>Input manual atau upload PDF laporan dari brokermu. Aset ter-parse otomatis dalam hitungan detik.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div>
+        <h3>Pantau & optimalkan</h3>
+        <p>Lihat health score, rebalancing suggestion, dan chat dengan AI Advisor untuk keputusan terbaik.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA BANNER -->
+<section class="cta-banner">
+  <h2>Mulai kelola kekayaanmu<br/>hari ini — gratis</h2>
+  <p>Bergabung dan pantau semua asetmu dalam satu dashboard cerdas.</p>
+  <a href="/app" class="btn btn-primary" style="font-size:16px;padding:14px 36px;">Buat Akun Gratis →</a>
+  <div style="margin-top:20px;color:var(--muted);font-size:12px;">
+    Tidak butuh kartu kredit · Sinkron cloud otomatis · Aman & terenkripsi
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <div class="footer-logo">WEALTH<span>◎</span>PULSE</div>
+    <div style="color:var(--muted);font-size:12px;margin-top:4px;">© 2026 WealthPulse. All rights reserved.</div>
+  </div>
+  <div class="footer-links">
+    <a href="/app">Aplikasi</a>
+    <a href="#features">Fitur</a>
+    <a href="#pricing">Harga</a>
+    <a href="mailto:support@wealthpulse.app">support@wealthpulse.app</a>
+  </div>
+  <div class="footer-copy">
+    <a href="/tnc" style="color:var(--muted);text-decoration:none;margin-right:16px;">Syarat & Ketentuan</a>
+    <a href="/tnc" style="color:var(--muted);text-decoration:none;">Kebijakan Refund</a>
+  </div>
+</footer>
+
+</body>
+</html>

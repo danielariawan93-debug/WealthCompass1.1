@@ -246,8 +246,8 @@ function WalletScene({ T, isPro, isProPlus }) {
         </div>
       }
       features={[
-        { icon: "🔄", label: "Import Dana Tunai dari Wealth Compass", desc: "Sinkron otomatis aset kategori 'Dana Tunai' dari WC" },
-        { icon: "💳", label: "Import Hutang Revolving dari Wealth Compass", desc: "Kartu kredit dan pinjaman revolving tersinkron langsung" },
+        { icon: "🔄", label: "Import Dana Tunai dari Wealth Pulse", desc: "Sinkron otomatis aset kategori 'Dana Tunai' dari WC" },
+        { icon: "💳", label: "Import Hutang Revolving dari Wealth Pulse", desc: "Kartu kredit dan pinjaman revolving tersinkron langsung" },
         { icon: "➕", label: "Tambah Wallet Manual", desc: "Input dompet digital, rekening bank, atau uang tunai sendiri" },
         { icon: "📊", label: "Saldo Real-time", desc: "Saldo otomatis terupdate setiap ada transaksi dicatat" },
       ]}
@@ -320,7 +320,7 @@ function TransaksiScene({ T, pulseCredits }) {
       features={[
         { icon: "📷", label: "Upload Foto / PDF Struk", desc: "AI membaca struk otomatis dan mengisi detail transaksi (pakai Pulse Credit)" },
         { icon: "🤖", label: "AI Auto-Kategorisasi", desc: "Transaksi dikategorikan otomatis oleh AI, bisa diedit manual" },
-        { icon: "💳", label: "Catat Pembayaran Hutang", desc: "Pilih hutang mana yang dibayar — nominal hutang di Wealth Compass otomatis turun" },
+        { icon: "💳", label: "Catat Pembayaran Hutang", desc: "Pilih hutang mana yang dibayar — nominal hutang di Wealth Pulse otomatis turun" },
         { icon: "↕️", label: "Transfer Antar Dompet", desc: "Catat perpindahan saldo antar wallet tanpa mempengaruhi total kekayaan" },
       ]}
     />
@@ -340,7 +340,7 @@ function HutangScene({ T, debts }) {
         <div>
           <div style={{ fontSize: 18, fontWeight: 700, color: T.text }}>💳 Hutang</div>
           <div style={{ fontSize: 12, color: T.textSoft, marginTop: 2 }}>
-            Diimpor dari Wealth Compass · Read Only
+            Diimpor dari Wealth Pulse · Read Only
           </div>
         </div>
         <span
@@ -400,7 +400,7 @@ function HutangScene({ T, debts }) {
           <div style={{ fontSize: 36, marginBottom: 12 }}>💳</div>
           <div style={{ fontSize: 14, color: T.textSoft, marginBottom: 6 }}>Belum ada hutang tersinkron</div>
           <div style={{ fontSize: 12, color: T.muted }}>
-            Input hutang di Wealth Compass terlebih dahulu,<br />
+            Input hutang di Wealth Pulse terlebih dahulu,<br />
             lalu akan muncul di sini secara otomatis.
           </div>
         </div>
@@ -419,7 +419,7 @@ function HutangScene({ T, debts }) {
           lineHeight: 1.55,
         }}
       >
-        💡 Untuk membayar hutang, catat transaksi di menu <strong style={{ color: T.text }}>Transaksi</strong> dan pilih jenis "Bayar Hutang". Nominal hutang di Wealth Compass akan otomatis berkurang.
+        💡 Untuk membayar hutang, catat transaksi di menu <strong style={{ color: T.text }}>Transaksi</strong> dan pilih jenis "Bayar Hutang". Nominal hutang di Wealth Pulse akan otomatis berkurang.
       </div>
     </div>
   );

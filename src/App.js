@@ -67,7 +67,7 @@ import PdfExportModal from "./components/PdfExportModal";
 const CC_KEY = '29eb9eb7f921e41d70cb469c1ea9f23bddf88694c9c9873064c38c02183a5234';
 const CC_HDR = { 'Authorization': `Bearer ${CC_KEY}` };
 
-function WealthCompassV7() {
+function WealthPulseV7() {
   // -- ALL STATE DECLARATIONS FIRST (handlers reference these via closure) -----
   const [user, setUser] = useState(null);
   const cloudLoadDone = React.useRef(false);
@@ -806,7 +806,7 @@ function WealthCompassV7() {
                 : NAV_ITEMS.find((n) => n.id === tab)?.label || tab}
             </div>
             <div style={{ color: T.muted, fontSize: 9, letterSpacing: 1.5 }}>
-              WEALTH◎COMPASS · v7
+              WEALTH◎PULSE · v7
               {priceLoading
                 ? " · ↻"
                 : lastUpdated
@@ -1293,7 +1293,7 @@ function WealthCompassV7() {
             {tab === "community" && (
               <ComingSoonScene
                 T={T}
-                title="Komunitas WealthCompass"
+                title="Komunitas WealthPulse"
                 icon="🤝"
                 proPlus={true}
                 description="Jalin relasi dengan sesama investor. Diskusi strategi, share insight, dan tumbuh bersama komunitas wealth-conscious Indonesia."
@@ -1491,4 +1491,4 @@ function WealthCompassV7() {
   );
 }
 
-export default WealthCompassV7;
+export default WealthPulseV7;

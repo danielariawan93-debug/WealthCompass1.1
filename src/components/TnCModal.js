@@ -3,31 +3,31 @@ import React, { useState } from "react";
 const SECTIONS = [
   {
     title: "1. Penerimaan Syarat",
-    content: `Dengan mendaftar, mengakses, atau menggunakan layanan WealthCompass ("Layanan"), Anda menyatakan telah membaca, memahami, dan menyetujui Syarat & Ketentuan ini. Jika Anda tidak menyetujui bagian mana pun dari syarat ini, harap hentikan penggunaan Layanan.`,
+    content: `Dengan mendaftar, mengakses, atau menggunakan layanan WealthPulse ("Layanan"), Anda menyatakan telah membaca, memahami, dan menyetujui Syarat & Ketentuan ini. Jika Anda tidak menyetujui bagian mana pun dari syarat ini, harap hentikan penggunaan Layanan.`,
   },
   {
     title: "2. Deskripsi Layanan",
-    content: `WealthCompass adalah aplikasi manajemen kekayaan pribadi yang menyediakan fitur pelacakan portofolio, analisis investasi, perencanaan keuangan, dan konsultasi berbasis kecerdasan buatan (AI). Layanan tersedia dalam paket gratis (Free), berbayar (Pro dan Pro+), serta pembelian Pulse Credit untuk fitur premium.`,
+    content: `WealthPulse adalah aplikasi manajemen kekayaan pribadi yang menyediakan fitur pelacakan portofolio, analisis investasi, perencanaan keuangan, dan konsultasi berbasis kecerdasan buatan (AI). Layanan tersedia dalam paket gratis (Free), berbayar (Pro dan Pro+), serta pembelian Pulse Credit untuk fitur premium.`,
   },
   {
     title: "3. Akun Pengguna",
-    content: `Anda bertanggung jawab menjaga kerahasiaan akun dan kata sandi Anda. Anda setuju untuk segera memberitahu kami jika terjadi penggunaan akun yang tidak sah. WealthCompass tidak bertanggung jawab atas kerugian yang timbul akibat kelalaian dalam menjaga keamanan akun.`,
+    content: `Anda bertanggung jawab menjaga kerahasiaan akun dan kata sandi Anda. Anda setuju untuk segera memberitahu kami jika terjadi penggunaan akun yang tidak sah. WealthPulse tidak bertanggung jawab atas kerugian yang timbul akibat kelalaian dalam menjaga keamanan akun.`,
   },
   {
     title: "4. Harga & Pembayaran",
-    content: `• Harga berlangganan ditampilkan dalam USD dan ditagih dalam IDR menggunakan kurs yang berlaku pada saat transaksi.\n• Pembayaran diproses melalui Midtrans sebagai payment gateway terpercaya dan terdaftar di Bank Indonesia.\n• Semua transaksi bersifat final setelah konfirmasi pembayaran berhasil.\n• WealthCompass berhak mengubah harga dengan pemberitahuan 30 hari sebelumnya.`,
+    content: `• Harga berlangganan ditampilkan dalam USD dan ditagih dalam IDR menggunakan kurs yang berlaku pada saat transaksi.\n• Pembayaran diproses melalui Midtrans sebagai payment gateway terpercaya dan terdaftar di Bank Indonesia.\n• Semua transaksi bersifat final setelah konfirmasi pembayaran berhasil.\n• WealthPulse berhak mengubah harga dengan pemberitahuan 30 hari sebelumnya.`,
   },
   {
     title: "5. Kebijakan Pengembalian Dana (Refund Policy)",
-    content: `5.1 Berlangganan Pro & Pro+\n• Pengguna dapat mengajukan pengembalian dana dalam 3 × 24 jam setelah pembayaran pertama, selama fitur premium belum digunakan secara signifikan (kurang dari 3 sesi aktif).\n• Setelah 3 × 24 jam atau setelah fitur digunakan, pengembalian dana tidak dapat dilakukan.\n• Perpanjangan berlangganan dan pembelian upgrade tidak dapat di-refund.\n\n5.2 Pulse Credit\n• Pulse Credit yang telah dibeli bersifat tidak dapat dikembalikan (non-refundable) karena merupakan barang digital yang dikonsumsi secara instan.\n• Bonus Pulse dari program referral tidak memiliki nilai uang dan tidak dapat ditukar dengan uang tunai.\n\n5.3 Gangguan Teknis\n• Jika Pulse terpotong akibat gangguan teknis dari pihak WealthCompass (bukan karena koneksi internet pengguna), Pulse akan dikembalikan setelah investigasi dalam 7 hari kerja.\n• Pengajuan keluhan wajib dilakukan melalui email support dalam 7 hari kalender sejak kejadian.\n\n5.4 Cara Mengajukan Refund\n• Kirim email ke support@wealthcompass.app dengan subjek "Refund Request — [ID Pesanan]".\n• Sertakan: nama akun, email terdaftar, ID transaksi, dan alasan permohonan.\n• Proses refund diselesaikan dalam 7–14 hari kerja setelah persetujuan.\n• Dana dikembalikan ke metode pembayaran asal pengguna.`,
+    content: `5.1 Berlangganan Pro & Pro+\n• Pengguna dapat mengajukan pengembalian dana dalam 3 × 24 jam setelah pembayaran pertama, selama fitur premium belum digunakan secara signifikan (kurang dari 3 sesi aktif).\n• Setelah 3 × 24 jam atau setelah fitur digunakan, pengembalian dana tidak dapat dilakukan.\n• Perpanjangan berlangganan dan pembelian upgrade tidak dapat di-refund.\n\n5.2 Pulse Credit\n• Pulse Credit yang telah dibeli bersifat tidak dapat dikembalikan (non-refundable) karena merupakan barang digital yang dikonsumsi secara instan.\n• Bonus Pulse dari program referral tidak memiliki nilai uang dan tidak dapat ditukar dengan uang tunai.\n\n5.3 Gangguan Teknis\n• Jika Pulse terpotong akibat gangguan teknis dari pihak WealthPulse (bukan karena koneksi internet pengguna), Pulse akan dikembalikan setelah investigasi dalam 7 hari kerja.\n• Pengajuan keluhan wajib dilakukan melalui email support dalam 7 hari kalender sejak kejadian.\n\n5.4 Cara Mengajukan Refund\n• Kirim email ke support@wealthpulse.app dengan subjek "Refund Request — [ID Pesanan]".\n• Sertakan: nama akun, email terdaftar, ID transaksi, dan alasan permohonan.\n• Proses refund diselesaikan dalam 7–14 hari kerja setelah persetujuan.\n• Dana dikembalikan ke metode pembayaran asal pengguna.`,
   },
   {
     title: "6. Penggunaan yang Dilarang",
-    content: `Anda dilarang untuk:\n• Menggunakan Layanan untuk tujuan ilegal atau menyesatkan.\n• Menyalin, mendistribusikan, atau memodifikasi konten dan kode aplikasi tanpa izin tertulis.\n• Mencoba meretas, merusak, atau mengganggu sistem WealthCompass.\n• Membuat akun palsu atau menyalahgunakan program referral.`,
+    content: `Anda dilarang untuk:\n• Menggunakan Layanan untuk tujuan ilegal atau menyesatkan.\n• Menyalin, mendistribusikan, atau memodifikasi konten dan kode aplikasi tanpa izin tertulis.\n• Mencoba meretas, merusak, atau mengganggu sistem WealthPulse.\n• Membuat akun palsu atau menyalahgunakan program referral.`,
   },
   {
     title: "7. Pembatasan Tanggung Jawab",
-    content: `WealthCompass menyediakan informasi dan analisis keuangan untuk tujuan edukasi dan perencanaan pribadi semata. Konten yang tersedia bukan merupakan saran investasi profesional. WealthCompass tidak bertanggung jawab atas keputusan keuangan yang diambil berdasarkan informasi dalam aplikasi. Kerugian investasi yang timbul sepenuhnya menjadi tanggung jawab pengguna.`,
+    content: `WealthPulse menyediakan informasi dan analisis keuangan untuk tujuan edukasi dan perencanaan pribadi semata. Konten yang tersedia bukan merupakan saran investasi profesional. WealthPulse tidak bertanggung jawab atas keputusan keuangan yang diambil berdasarkan informasi dalam aplikasi. Kerugian investasi yang timbul sepenuhnya menjadi tanggung jawab pengguna.`,
   },
   {
     title: "8. Privasi Data",
@@ -35,7 +35,7 @@ const SECTIONS = [
   },
   {
     title: "9. Perubahan Layanan & Syarat",
-    content: `WealthCompass berhak mengubah, menangguhkan, atau menghentikan fitur Layanan kapan saja dengan pemberitahuan yang wajar. Perubahan Syarat & Ketentuan akan diberitahukan melalui aplikasi atau email setidaknya 14 hari sebelum berlaku. Penggunaan Layanan setelah perubahan berlaku dianggap sebagai persetujuan.`,
+    content: `WealthPulse berhak mengubah, menangguhkan, atau menghentikan fitur Layanan kapan saja dengan pemberitahuan yang wajar. Perubahan Syarat & Ketentuan akan diberitahukan melalui aplikasi atau email setidaknya 14 hari sebelum berlaku. Penggunaan Layanan setelah perubahan berlaku dianggap sebagai persetujuan.`,
   },
   {
     title: "10. Hukum yang Berlaku",
@@ -43,7 +43,7 @@ const SECTIONS = [
   },
   {
     title: "11. Kontak",
-    content: `Untuk pertanyaan, keluhan, atau pengajuan refund, silakan hubungi kami:\n• Email: support@wealthcompass.app\n• Website: wealthcompass.app\n\nKami berkomitmen merespons setiap pertanyaan dalam 2 × 24 jam pada hari kerja.`,
+    content: `Untuk pertanyaan, keluhan, atau pengajuan refund, silakan hubungi kami:\n• Email: support@wealthpulse.app\n• Website: wealthpulse.app\n\nKami berkomitmen merespons setiap pertanyaan dalam 2 × 24 jam pada hari kerja.`,
   },
 ];
 
@@ -82,7 +82,7 @@ export default function TnCModal({ show, onClose, T, initialSection = null }) {
               📋 Syarat, Ketentuan & Kebijakan Refund
             </div>
             <div style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>
-              WealthCompass · Terakhir diperbarui: April 2026
+              WealthPulse · Terakhir diperbarui: April 2026
             </div>
           </div>
           <button onClick={onClose} style={{
@@ -144,7 +144,7 @@ export default function TnCModal({ show, onClose, T, initialSection = null }) {
           flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
           <div style={{ fontSize: 10, color: T.muted }}>
-            Pertanyaan: <span style={{ color: T.accent }}>support@wealthcompass.app</span>
+            Pertanyaan: <span style={{ color: T.accent }}>support@wealthpulse.app</span>
           </div>
           <button onClick={onClose} style={{
             padding: "8px 18px", borderRadius: 9, border: "none",

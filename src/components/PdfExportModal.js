@@ -86,7 +86,7 @@ function generateHTML(assets, debts, insurances, dispCur, periodMode, monthlySna
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <title>Laporan Portofolio — WealthCompass</title>
+  <title>Laporan Portofolio — WealthPulse</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a1a2e; background: #fff; padding: 32px; }
@@ -129,7 +129,7 @@ function generateHTML(assets, debts, insurances, dispCur, periodMode, monthlySna
     <div class="meta">
       ${userName ? `<div class="name">${userName}</div>` : ""}
       <div>${dateStr}</div>
-      <div style="color:#9b7ef8;font-size:10px;">wealthcompass.app</div>
+      <div style="color:#9b7ef8;font-size:10px;">wealthpulse.app</div>
     </div>
   </div>
 
@@ -175,7 +175,7 @@ function generateHTML(assets, debts, insurances, dispCur, periodMode, monthlySna
   </div>
 
   <div class="footer">
-    Laporan ini dibuat oleh WealthCompass pada ${dateStr}.<br/>
+    Laporan ini dibuat oleh WealthPulse pada ${dateStr}.<br/>
     Data bersifat rahasia dan hanya untuk keperluan perencanaan keuangan pribadi.<br/>
     Nilai aset dapat berubah sewaktu-waktu mengikuti kondisi pasar.
   </div>

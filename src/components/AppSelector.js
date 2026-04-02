@@ -7,7 +7,7 @@ export default function AppSelector({ user, T, onSelect, onLogout, logoutSaving 
     {
       id: "wealthcompass",
       icon: "💎",
-      name: "Wealth Compass",
+      name: "Wealth Pulse",
       subtitle: "Manajemen Kekayaan & Investasi",
       desc: "Pantau portofolio, aset, hutang, dan tujuan keuanganmu dalam satu dashboard terpadu.",
       features: ["Portofolio & Rebalancing", "Tracking Hutang & Aset", "Goals & Net Worth", "AI Advisor"],
