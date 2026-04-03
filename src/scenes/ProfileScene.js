@@ -61,9 +61,7 @@ function ProfileScene({
 
   const goalsTotal    = goals.length;
   const goalsOnTrack  = goals.filter(g => {
-    const allocated = assets
-      .filter(a => a.goalId === g.id)
-      .reduce((s, a) => s + getIDR(a), 0);
+    const allocated = Object.values(g.allocations || {}).reduce((s, v) => s + v, 0);
     return g.target > 0 && allocated >= g.target * 0.5;
   }).length;
 
