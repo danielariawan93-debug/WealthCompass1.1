@@ -132,6 +132,7 @@ function WealthPulseV7() {
   const [bonusPulse, setBonusPulse] = useState([]); // [{id,amount,expiresAt,source,earnedAt}]
   const [referrals, setReferrals] = useState([]);   // users referred by this account
   const [referredBy, setReferredBy] = useState(""); // referral code this user came from
+  const [networthSnapshots, setNetworthSnapshots] = useState([]); // [{ts, val}] — cloud-synced
 
   // -- DERIVED PULSE VALUES ---------------------------------------------------
   const _now = new Date();
@@ -197,7 +198,7 @@ function WealthPulseV7() {
     isPro, isProPlus, uploadCount, monthlyUploadCount, monthlyUploadMonth,
     pulseCredits, proExpiry, dispCur, settings, theme, customPresetId,
     activeIncomes, insurances, monthlyExpense, monthlyFixedIncome,
-    bonusPulse, referrals, referredBy,
+    bonusPulse, referrals, referredBy, networthSnapshots,
   };
 
   // -- AUTH HANDLERS (safe to reference state now) ----------------------------
@@ -240,6 +241,7 @@ function WealthPulseV7() {
     setBonusPulse(d.bonusPulse || []);
     setReferrals(d.referrals || []);
     setReferredBy(d.referredBy || "");
+    setNetworthSnapshots(d.networthSnapshots || []);
     const lastApp = localStorage.getItem("wc_active_app");
     setActiveApp(lastApp || null);
     // Capture pending referral code from ?ref= URL param (set by AppSelector/init effect)
@@ -287,6 +289,7 @@ function WealthPulseV7() {
         setBonusPulse(cloud.bonusPulse || []);
         setReferrals(cloud.referrals || []);
         setReferredBy(cloud.referredBy || "");
+        setNetworthSnapshots(cloud.networthSnapshots || []);
         // Mirror cloud data to localStorage as offline cache
         saveAccountData(userData.email, cloud);
         // Delay cloudLoadDone agar React flush semua setState sebelum auto-save
@@ -344,6 +347,7 @@ function WealthPulseV7() {
     setTheme("dark");
     setCustomPresetId("midnight");
     setActiveApp(null);
+    setNetworthSnapshots([]);
   };
 
   const handleUpgrade = (tierChoice = "pro", planId = "monthly") => {
@@ -601,6 +605,7 @@ function WealthPulseV7() {
       bonusPulse,
       referrals,
       referredBy,
+      networthSnapshots,
     };
     saveAccountData(user.email, payload);
     if (user?.uid) {
@@ -631,6 +636,7 @@ function WealthPulseV7() {
     bonusPulse,
     referrals,
     referredBy,
+    networthSnapshots,
   ]);
 
   // Reconcile activeIncomes with assets — auto-remove stale "biz_*" entries when
@@ -1057,7 +1063,8 @@ function WealthPulseV7() {
                   tier={tier}
                   T={T}
                   hideValues={hideValues}
-                  userEmail={user?.email || ""}
+                  snapshots={networthSnapshots}
+                  setSnapshots={setNetworthSnapshots}
                 />
                 {isProPlus && (
                   <div style={{ padding: "0 16px 24px" }}>

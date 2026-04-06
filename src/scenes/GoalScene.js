@@ -187,6 +187,15 @@ function GoalScene({
           </TBtn>
         </div>
       </Card>
+      {goals.length === 0 && (
+        <Card T={T} style={{ border: `1px dashed ${T.border}`, textAlign: "center", padding: "36px 20px" }}>
+          <div style={{ fontSize: 38, marginBottom: 10 }}>🎯</div>
+          <div style={{ color: T.text, fontWeight: "bold", fontSize: 14, marginBottom: 6 }}>Belum ada goal keuangan</div>
+          <div style={{ color: T.muted, fontSize: 12, lineHeight: 1.7, marginBottom: 14 }}>
+            Buat goal seperti "Dana Pensiun", "DP Rumah", atau "Dana Darurat" — lalu alokasikan aset Anda untuk melacak progresnya.
+          </div>
+        </Card>
+      )}
       {goals.map((goal) => {
         const allocated = Object.values(goal.allocations || {}).reduce(
           (s, v) => s + v,

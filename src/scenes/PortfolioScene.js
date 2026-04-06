@@ -1077,15 +1077,20 @@ function PortfolioScene({
               );
             })}
           {assets.length === 0 && (
-            <div
-              style={{
-                textAlign: "center",
-                color: T.muted,
-                padding: 50,
-                fontSize: 13,
-              }}
-            >
-              Belum ada aset. Tambah manual atau upload PDF ↑
+            <div style={{ textAlign: "center", padding: "36px 20px" }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>📊</div>
+              <div style={{ color: T.text, fontWeight: "bold", fontSize: 14, marginBottom: 6 }}>Portofolio masih kosong</div>
+              <div style={{ color: T.muted, fontSize: 12, lineHeight: 1.7, marginBottom: 16 }}>
+                Tambahkan aset pertama Anda secara manual, atau upload laporan PDF portofolio untuk analisis otomatis.
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                <button onClick={() => setSubTab("add")} style={{ padding: "9px 18px", borderRadius: 9, border: `1px solid ${T.accent}`, background: T.accentDim, color: T.accent, cursor: "pointer", fontSize: 12, fontWeight: "bold" }}>
+                  + Tambah Manual
+                </button>
+                <button onClick={() => setSubTab("pdf")} style={{ padding: "9px 18px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.textSoft, cursor: "pointer", fontSize: 12 }}>
+                  📄 Upload PDF
+                </button>
+              </div>
             </div>
           )}
         </div>

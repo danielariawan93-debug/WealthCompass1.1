@@ -761,7 +761,15 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
         <div style={{ textAlign:'center', padding:'40px 24px', background:T.card, borderRadius:14, border:`1px dashed ${T.border}` }}>
           <div style={{ fontSize:40, marginBottom:12 }}>📋</div>
           <div style={{ color:T.textSoft, fontSize:14, fontWeight:'bold', marginBottom:8 }}>Belum ada catatan hutang</div>
-          <div style={{ color:T.muted, fontSize:12, lineHeight:1.6 }}>Catat hutang Anda untuk memantau kewajiban bulanan dan Net Worth yang akurat.</div>
+          <div style={{ color:T.muted, fontSize:12, lineHeight:1.6, marginBottom:16 }}>
+            Catat KPR, cicilan kendaraan, kartu kredit, atau pinjaman lainnya. Net Worth Anda akan otomatis terhitung setelah hutang dicatat.
+          </div>
+          <button
+            onClick={() => setMode('add')}
+            style={{ padding:'9px 22px', borderRadius:9, border:`1px solid ${T.accent}`, background:T.accentDim, color:T.accent, cursor:'pointer', fontSize:12, fontWeight:'bold' }}
+          >
+            + Catat Hutang Pertama
+          </button>
         </div>
       )}
     </div>
