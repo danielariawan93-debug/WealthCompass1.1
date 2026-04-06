@@ -96,6 +96,7 @@ const DEFAULT_ACCOUNT_STATE = {
   dispCur: "IDR",
   theme: "dark",
   customPresetId: "midnight",
+  networthSnapshots: [], // [{ts: timestamp, val: IDR net worth}] — synced to Firebase
 };
 
 export {

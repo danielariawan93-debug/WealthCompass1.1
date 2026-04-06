@@ -11,7 +11,8 @@ function NetWorthTrackerScene({
   tier,
   T,
   hideValues = false,
-  userEmail = "",
+  snapshots: snapshotsProp = [],
+  setSnapshots: setSnapshotsProp = null,
 }) {
   const fV = (v, c) => fM(v, c, hideValues);
   const totalAssets = assets.reduce((s, a) => s + getIDR(a), 0);
@@ -22,20 +23,14 @@ function NetWorthTrackerScene({
   const currentTotal = totalAssets - totalLiabilities; // TRUE net worth
   const seg = getWealthSegment(Math.max(0, currentTotal));
 
-  // Load or generate historical snapshots from localStorage
+  // Snapshots are cloud-synced via Firebase (passed as props from App.js)
   const maxDays = tier
     ? tier.netWorthDays === Infinity
       ? 99999
       : tier.netWorthDays
     : 30;
-  const snapKey = userEmail ? "wc_snapshots_" + btoa(userEmail).replace(/=/g,"") : "wc_snapshots";
-  const [snapshots, setSnapshots] = useState(() => {
-    try {
-      const saved = localStorage.getItem(snapKey);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [];
-  });
+  const snapshots = snapshotsProp;
+  const setSnapshots = setSnapshotsProp || (() => {});
 
   const [range, setRange] = useState("1M");
   // tierRequired: 'free'=all, 'pro'=pro+, 'proplus'=proplus only
@@ -71,7 +66,6 @@ function NetWorthTrackerScene({
       newSnaps = [...snapshots, { ts: Date.now(), val: currentTotal }];
     }
     setSnapshots(newSnaps);
-    try { localStorage.setItem(snapKey, JSON.stringify(newSnaps)); } catch {}
   }, []); // only run on mount
 
   // Trim to tier's max history days

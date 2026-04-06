@@ -129,6 +129,7 @@ function WealthCompassV7() {
   const [activeIncomes, setActiveIncomes] = useState([]);
   const [insurances, setInsurances] = useState([]);
   const [activeApp, setActiveApp] = useState(null); // null | 'wealthcompass' | 'arthajourney'
+  const [networthSnapshots, setNetworthSnapshots] = useState([]); // [{ts, val}] — cloud-synced
 
   // -- ALWAYS-CURRENT STATE REF (updated synchronously on every render) --------
   // This prevents stale-closure bugs in async handlers like handleLogout
@@ -137,6 +138,7 @@ function WealthCompassV7() {
     isPro, isProPlus, uploadCount, monthlyUploadCount, monthlyUploadMonth,
     pulseCredits, proExpiry, dispCur, settings, theme, customPresetId,
     activeIncomes, insurances, monthlyExpense, monthlyFixedIncome,
+    networthSnapshots,
   };
 
   // -- AUTH HANDLERS (safe to reference state now) ----------------------------
@@ -176,6 +178,7 @@ function WealthCompassV7() {
     setInsurances(d.insurances || []);
     setMonthlyExpense(d.monthlyExpense || "");
     setMonthlyFixedIncome(d.monthlyFixedIncome || "");
+    setNetworthSnapshots(d.networthSnapshots || []);
     const lastApp = localStorage.getItem("wc_active_app");
     setActiveApp(lastApp || null);
 
@@ -214,6 +217,7 @@ function WealthCompassV7() {
         setInsurances(cloud.insurances || []);
         setMonthlyExpense(cloud.monthlyExpense || "");
         setMonthlyFixedIncome(cloud.monthlyFixedIncome || "");
+        setNetworthSnapshots(cloud.networthSnapshots || []);
         // Mirror cloud data to localStorage as offline cache
         saveAccountData(userData.email, cloud);
         // Delay cloudLoadDone agar React flush semua setState sebelum auto-save
@@ -268,6 +272,7 @@ function WealthCompassV7() {
     setTheme("dark");
     setCustomPresetId("midnight");
     setActiveApp(null);
+    setNetworthSnapshots([]);
   };
 
   const handleUpgrade = (tierChoice = "pro", planId = "monthly") => {
@@ -522,6 +527,7 @@ function WealthCompassV7() {
       insurances,
       monthlyExpense,
       monthlyFixedIncome,
+      networthSnapshots,
     };
     saveAccountData(user.email, payload);
     if (user?.uid) {
@@ -549,6 +555,7 @@ function WealthCompassV7() {
     insurances,
     monthlyExpense,
     monthlyFixedIncome,
+    networthSnapshots,
   ]);
 
   // Reconcile activeIncomes with assets — auto-remove stale "biz_*" entries when
@@ -965,7 +972,8 @@ function WealthCompassV7() {
                   tier={tier}
                   T={T}
                   hideValues={hideValues}
-                  userEmail={user?.email || ""}
+                  snapshots={networthSnapshots}
+                  setSnapshots={setNetworthSnapshots}
                 />
                 {isProPlus && (
                   <div style={{ padding: "0 16px 24px" }}>

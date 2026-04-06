@@ -248,6 +248,29 @@ function ProfileScene({
         )}
       </Card>
 
+      {/* Empty-state onboarding — shown only when no assets yet */}
+      {assets.length === 0 && (
+        <Card T={T} style={{ border: `1px dashed ${T.accent}44`, background: T.accentSoft + "22", padding: "18px 20px" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🌱</div>
+            <div style={{ color: T.text, fontWeight: "bold", fontSize: 14, marginBottom: 6 }}>Mulai lacak kekayaan Anda</div>
+            <div style={{ color: T.muted, fontSize: 12, lineHeight: 1.7, marginBottom: 14 }}>
+              Tambahkan aset pertama Anda — saham, properti, emas, atau kripto — dan WealthPulse akan menghitung net worth &amp; health score Anda secara otomatis.
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+              <TBtn T={T} variant="primary" onClick={() => setTab("portfolio")} style={{ fontSize: 12, padding: "9px 18px" }}>
+                + Tambah Aset Pertama
+              </TBtn>
+              {!riskProfile && (
+                <TBtn T={T} variant="ghost" onClick={() => setTab("risk")} style={{ fontSize: 12, padding: "9px 18px" }}>
+                  Isi Profil Risiko
+                </TBtn>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Financial Snapshot */}
       <Card T={T}>
         <SL T={T}>Financial Snapshot</SL>

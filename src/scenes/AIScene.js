@@ -356,6 +356,12 @@ Jawab max 3 paragraf. Sertakan disclaimer singkat.`;
             </button>
           ))}
         </div>
+        {input.trim() && !blocked && (
+          <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, paddingLeft: 2 }}>
+            ⚡ <span style={{ color: pulseCredits <= 3 ? T.orange : T.textSoft }}>1 Pulse akan digunakan</span>
+            {" · "}sisa <strong style={{ color: pulseCredits <= 3 ? T.orange : T.accent }}>{pulseCredits}</strong> Pulse
+          </div>
+        )}
         <div style={{ display: "flex", gap: 9 }}>
           <TInput
             T={T}
@@ -364,7 +370,7 @@ Jawab max 3 paragraf. Sertakan disclaimer singkat.`;
             onKeyDown={(e) => e.key === "Enter" && send()}
             placeholder={
               blocked
-                ? "Pulse Kredit ands habis silahkan upgrade subcription atau beli extra Pulse"
+                ? "Pulse habis — beli Pulse atau upgrade untuk melanjutkan"
                 : "Tanya tentang investasi kamu..."
             }
             style={{ flex: 1, padding: "11px 15px" }}
