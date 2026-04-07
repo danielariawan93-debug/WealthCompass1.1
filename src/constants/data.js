@@ -108,7 +108,6 @@ const CURRENCIES = [
     desc: "Aset jangka panjang dengan potensi apresiasi dan income sewa, namun tidak likuid.",
     expectedReturn: "8–15% p.a.",
     moduleKey: "realAssets",
-    rebalance: false,
   },
   {
     key: "business",
@@ -122,7 +121,6 @@ const CURRENCIES = [
     desc: "Aset dengan potensi return tinggi namun bergantung pada performa operasional dan tidak likuid.",
     expectedReturn: "Variatif",
     moduleKey: "realAssets",
-    rebalance: false,
   },
 ];
 
