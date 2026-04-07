@@ -147,6 +147,11 @@ function WealthPulseV7() {
     .reduce((sum, b) => sum + b.amount, 0);
   const totalAvailablePulse = pulseCredits + activeBonusPulse;
 
+  // Migrate saved risk profile keys from old names to new names
+  // (data.js was updated: low_moderate→moderate, moderate_aggressive→growth)
+  const RISK_KEY_MIGRATION = { low_moderate: "moderate", moderate_aggressive: "growth" };
+  const migrateRiskKey = (k) => (k ? (RISK_KEY_MIGRATION[k] || k) : k);
+
   // Referral code = deterministic from uid (WC + first 6 chars of uid, no dashes)
   const referralCode = user?.uid
     ? ("WC" + user.uid.replace(/-/g, "").toUpperCase()).slice(0, 8)
@@ -219,7 +224,7 @@ function WealthPulseV7() {
     setAssets(d.assets?.length ? d.assets : []);
     setDebts(d.debts || []);
     setGoals(d.goals || []);
-    setRiskProfile(d.riskProfile || null);
+    setRiskProfile(migrateRiskKey(d.riskProfile || null));
     setIsPro(d.isPro || false);
     setIsProPlus(d.isProPlus || false);
     setUploadCount(d.uploadCount || 0);
@@ -294,7 +299,7 @@ function WealthPulseV7() {
         setAssets(cloud.assets?.length ? cloud.assets : []);
         setDebts(cloud.debts || []);
         setGoals(cloud.goals || []);
-        setRiskProfile(cloud.riskProfile || null);
+        setRiskProfile(migrateRiskKey(cloud.riskProfile || null));
         setIsPro(cloud.isPro || false);
         setIsProPlus(cloud.isProPlus || false);
         setUploadCount(cloud.uploadCount || 0);
@@ -561,10 +566,8 @@ function WealthPulseV7() {
     () => assets.reduce((s, a) => s + getIDR(a), 0),
     [assets]
   );
-  const profile = riskProfile ? RISK_PROFILES[riskProfile] : null;
-  const profileColor = riskProfile
-    ? RISK_PROFILES[riskProfile].color
-    : T.accent;
+  const profile = riskProfile ? (RISK_PROFILES[riskProfile] ?? null) : null;
+  const profileColor = profile?.color ?? T.accent;
   // seg for header: based on NET worth (gross - debts) for accurate wealth positioning
   const totalLiabilities = debts.reduce(
     (s, d) => s + parseVal(d.outstanding),

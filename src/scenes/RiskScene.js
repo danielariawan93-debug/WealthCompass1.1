@@ -12,13 +12,11 @@ function RiskScene({ riskProfile, setRiskProfile, T, onDone }) {
     const key =
       Object.entries(RISK_PROFILES).find(
         ([, v]) => score >= v.range[0] && score <= v.range[1]
-      )?.[0] || "low_moderate";
+      )?.[0] || "moderate";
     setRiskProfile(key);
   };
-  const profile = riskProfile ? RISK_PROFILES[riskProfile] : null;
-  const profileColor = riskProfile
-    ? RISK_PROFILES[riskProfile].color
-    : T.accent;
+  const profile = riskProfile ? (RISK_PROFILES[riskProfile] ?? null) : null;
+  const profileColor = profile?.color ?? T.accent;
 
   return (
     <div>

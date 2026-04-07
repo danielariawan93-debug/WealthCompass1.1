@@ -39,8 +39,8 @@ function RebalanceScene({
 
   const liquidAssets = assets.filter(a => !['property', 'business'].includes(a.classKey));
   const total = liquidAssets.reduce((s, a) => s + getIDR(a), 0);
-  const target = riskProfile ? RISK_PROFILES[riskProfile].alloc : null;
-  const profile = riskProfile ? RISK_PROFILES[riskProfile] : null;
+  const profile = riskProfile ? (RISK_PROFILES[riskProfile] ?? null) : null;
+  const target = profile?.alloc ?? null;
 
   const byClass = ASSET_CLASSES.filter(ac => !['property', 'business'].includes(ac.key)).map((ac) => {
     const v = liquidAssets.filter((a) => a.classKey === ac.key).reduce((s, a) => s + getIDR(a), 0);
@@ -65,7 +65,7 @@ function RebalanceScene({
     );
 
   const needsRebalance = byClass.some((c) => Math.abs(c.diff) > 5);
-  const profileColor = RISK_PROFILES[riskProfile].color;
+  const profileColor = profile?.color ?? T.accent;
   const itemsNeedingAction = byClass
     .filter((c) => Math.abs(c.diff) > 5)
     .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
