@@ -749,6 +749,8 @@ function WealthPulseV7() {
         assets={assets}
         debts={debts}
         setDebts={setDebts}
+        activeIncomes={activeIncomes}
+        monthlyFixedIncome={monthlyFixedIncome}
         settings={settings}
         setSettings={setSettings}
         theme={theme}

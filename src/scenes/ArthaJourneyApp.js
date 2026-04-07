@@ -412,112 +412,306 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, isPro, isPr
 }
 
 // ─── Budget Scene ─────────────────────────────────────────────────────────────
-function BudgetScene({ T, budgets, setBudgets, transactions }) {
+const AREA_DEFS = {
+  kebutuhan: {
+    label: "Kebutuhan", icon: "🏠", color: "#5b9cf6", recommended: 50,
+    desc: "Pengeluaran wajib & primer",
+    cats: ["Makan & Minum", "Transportasi", "Tagihan & Utilitas", "Kesehatan", "Pendidikan", "Kebutuhan Lainnya"],
+  },
+  keinginan: {
+    label: "Keinginan", icon: "🛍️", color: "#f59e0b", recommended: 30,
+    desc: "Lifestyle & kenyamanan",
+    cats: ["Hiburan", "Belanja", "Perawatan Diri", "Makan di Luar", "Liburan", "Keinginan Lainnya"],
+  },
+  tabungan: {
+    label: "Tabungan & Investasi", icon: "💰", color: "#3ecf8e", recommended: 20,
+    desc: "Aset masa depan",
+    cats: ["Dana Darurat", "Investasi Saham/Reksa", "Cicilan Aset", "Asuransi", "Tabungan Lainnya"],
+  },
+};
+
+const CAT_AREA_MAP = {};
+Object.entries(AREA_DEFS).forEach(([area, def]) => def.cats.forEach(c => { CAT_AREA_MAP[c] = area; }));
+function inferArea(cat) {
+  return CAT_AREA_MAP[cat] || "kebutuhan";
+}
+function isLainnya(cat) { return cat?.endsWith("Lainnya"); }
+
+// Budget card extracted as component to fix useState-in-map
+function BudgetCard({ T, b, spent, onDelete, onEdit }) {
+  const [editing, setEditing] = useState(false);
+  const [editVal, setEditVal] = useState(String(b.limit));
+  const pct = b.limit > 0 ? Math.min((spent / b.limit) * 100, 100) : 0;
+  const barColor = pct > 90 ? T.red : pct > 60 ? T.orange : T.green;
+  return (
+    <div style={{ padding: "12px 14px", background: T.surface, borderRadius: 10, marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span style={{ fontSize: 16 }}>{CAT_ICONS[b.category] || "📦"}</span>
+          <span style={{ fontWeight: 600, fontSize: 13, color: T.text }}>{b.category}</span>
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {editing ? (
+            <>
+              <input type="number" value={editVal} onChange={e => setEditVal(e.target.value)}
+                style={{ width: 90, padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.accent}`, background: T.surface, color: T.text, fontSize: 12 }} />
+              <button onClick={() => { onEdit(b.id, editVal); setEditing(false); }}
+                style={{ fontSize: 14, color: T.green, background: "none", border: "none", cursor: "pointer" }}>✓</button>
+              <button onClick={() => setEditing(false)}
+                style={{ fontSize: 12, color: T.muted, background: "none", border: "none", cursor: "pointer" }}>✕</button>
+            </>
+          ) : (
+            <button onClick={() => { setEditing(true); setEditVal(String(b.limit)); }}
+              style={{ fontSize: 11, color: T.muted, background: T.card, border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>
+              ✏️ {fmtRp(b.limit)}
+            </button>
+          )}
+          <button onClick={() => onDelete(b.id)}
+            style={{ fontSize: 11, color: T.muted, background: "none", border: "none", cursor: "pointer", padding: "3px 4px" }}>🗑</button>
+        </div>
+      </div>
+      <div style={{ height: 6, background: T.border, borderRadius: 3, overflow: "hidden", marginBottom: 5 }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 3, transition: "width .3s" }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+        <span style={{ color: barColor }}>{fmtRp(spent)} terpakai</span>
+        <span style={{ color: T.muted }}>{pct.toFixed(0)}% dari {fmtRp(b.limit)}</span>
+      </div>
+    </div>
+  );
+}
+
+const FREQ_MULT_BG = { monthly: 12, quarterly: 4, annually: 1, semiannual: 2, weekly: 52, daily: 365 };
+
+function BudgetScene({ T, budgets, setBudgets, transactions, assets, activeIncomes, monthlyFixedIncome }) {
   const [viewMonth, setViewMonth] = useState(getMonth());
+  const [showAddArea, setShowAddArea] = useState(null); // "kebutuhan"|"keinginan"|"tabungan"|null
   const [newCat, setNewCat] = useState("");
+  const [customCat, setCustomCat] = useState("");
   const [newLim, setNewLim] = useState("");
 
   const monthBudgets = budgets.filter(b => b.month === viewMonth);
   const usedCats = new Set(monthBudgets.map(b => b.category));
-  const availCats = BUDGET_CATS.filter(c => !usedCats.has(c));
 
-  // Spending per category this month
+  // Income from WealthPulse
+  const passiveMonthly = (assets || [])
+    .filter(a => a.income?.amount > 0 && !(a.classKey === "business" && a.incomeType === "active"))
+    .reduce((s, a) => s + a.income.amount * (FREQ_MULT_BG[a.income.frequency] || 12) / 12, 0);
+  const activeMonthly = (activeIncomes || []).reduce((s, a) => s + (a.amount || 0), 0);
+  const fixedMonthly = parseNum(monthlyFixedIncome || "0");
+  const totalActiveIncome = activeMonthly + fixedMonthly;
+  const totalIncome = passiveMonthly + totalActiveIncome;
+
+  // Spending & limits per category
   const getSpent = (cat) =>
     transactions
       .filter(t => (t.type === "expense" || t.type === "debt_payment") && getMonth(t.date) === viewMonth && t.category === cat)
       .reduce((s, t) => s + Number(t.amount || 0), 0);
 
-  const totalLimit = monthBudgets.reduce((s, b) => s + Number(b.limit || 0), 0);
-  const totalSpent = monthBudgets.reduce((s, b) => s + getSpent(b.category), 0);
+  const totalBudget = monthBudgets.reduce((s, b) => s + Number(b.limit || 0), 0);
+  const totalSpent  = monthBudgets.reduce((s, b) => s + getSpent(b.category), 0);
+  const budgetPct   = totalIncome > 0 ? Math.round((totalBudget / totalIncome) * 100) : 0;
+  const surplus     = totalIncome - totalBudget;
 
   const addBudget = () => {
-    if (!newCat || !newLim) return;
-    setBudgets(prev => [...prev, { id: genId(), category: newCat, limit: parseNum(newLim), month: viewMonth }]);
-    setNewCat(""); setNewLim("");
+    const finalCat = isLainnya(newCat) ? (customCat.trim() || newCat) : newCat;
+    if (!finalCat || !newLim) return;
+    setBudgets(prev => [...prev, {
+      id: genId(), category: finalCat, limit: parseNum(newLim),
+      month: viewMonth, area: showAddArea,
+    }]);
+    setNewCat(""); setCustomCat(""); setNewLim(""); setShowAddArea(null);
   };
+
   const delBudget = (id) => setBudgets(prev => prev.filter(b => b.id !== id));
-  const editLimit = (id, val) => setBudgets(prev => prev.map(b => b.id === id ? { ...b, limit: parseNum(val) } : b));
+  const editBudgetLimit = (id, val) => setBudgets(prev => prev.map(b => b.id === id ? { ...b, limit: parseNum(val) } : b));
+
+  const getBudgetsForArea = (area) => monthBudgets.filter(b => (b.area || inferArea(b.category)) === area);
+  const getAreaTotal = (area) => getBudgetsForArea(area).reduce((s, b) => s + Number(b.limit || 0), 0);
+  const getAreaSpent = (area) => getBudgetsForArea(area).reduce((s, b) => s + getSpent(b.category), 0);
+
+  // Available cats for an area (not yet added this month)
+  const getAvailCats = (area) => AREA_DEFS[area].cats.filter(c => {
+    if (isLainnya(c)) return true; // always allow Lainnya (custom)
+    return !usedCats.has(c);
+  });
 
   return (
     <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
       {/* Month picker */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <button onClick={() => setViewMonth(prevMonth(viewMonth))} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 12px", color: T.textSoft, cursor: "pointer", fontSize: 14 }}>‹</button>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+        <button onClick={() => setViewMonth(prevMonth(viewMonth))} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 14px", color: T.textSoft, cursor: "pointer", fontSize: 15 }}>‹</button>
         <div style={{ flex: 1, textAlign: "center", fontWeight: 700, fontSize: 14, color: T.text }}>{monthLabel(viewMonth)}</div>
-        <button onClick={() => setViewMonth(nextMonth(viewMonth))} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 12px", color: T.textSoft, cursor: "pointer", fontSize: 14 }}>›</button>
+        <button onClick={() => setViewMonth(nextMonth(viewMonth))} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 14px", color: T.textSoft, cursor: "pointer", fontSize: 15 }}>›</button>
       </div>
 
-      {/* Summary card */}
-      {monthBudgets.length > 0 && (
-        <Card T={T} style={{ marginBottom: 14, display: "flex", gap: 0 }}>
-          {[["Total Budget", totalLimit, T.accent], ["Terpakai", totalSpent, totalSpent > totalLimit ? T.red : T.green], ["Sisa", totalLimit - totalSpent, totalLimit - totalSpent >= 0 ? T.green : T.red]].map(([label, val, color]) => (
-            <div key={label} style={{ flex: 1, textAlign: "center", padding: "8px 4px", borderRight: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 10, color: T.muted, marginBottom: 4 }}>{label}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color }}>{fmtRp(val)}</div>
+      {/* Income summary from WealthPulse */}
+      <Card T={T} style={{ marginBottom: 14 }}>
+        <SectionTitle>Estimasi Pendapatan Bulanan (dari WealthPulse)</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ background: "#3ecf8e18", border: "1px solid #3ecf8e33", borderRadius: 10, padding: "10px 12px" }}>
+            <div style={{ fontSize: 10, color: "#3ecf8e", fontWeight: 700, marginBottom: 4 }}>💰 Passive Income</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: "#3ecf8e" }}>{fmtRp(passiveMonthly)}</div>
+            <div style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>
+              {(assets || []).filter(a => a.income?.amount > 0).length} aset menghasilkan
             </div>
-          )).map((el, i, arr) => i === arr.length - 1 ? React.cloneElement(el, { style: { ...el.props.style, borderRight: "none" } }) : el)}
+          </div>
+          <div style={{ background: "#f59e0b18", border: "1px solid #f59e0b33", borderRadius: 10, padding: "10px 12px" }}>
+            <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 700, marginBottom: 4 }}>💼 Active Income</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: "#f59e0b" }}>{fmtRp(totalActiveIncome)}</div>
+            <div style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>
+              {(activeIncomes || []).length} sumber aktif{fixedMonthly > 0 ? " + gaji tetap" : ""}
+            </div>
+          </div>
+        </div>
+        <div style={{ padding: "10px 12px", background: T.surface, borderRadius: 9, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: T.textSoft }}>Total Income / bln</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{fmtRp(totalIncome)}</span>
+        </div>
+      </Card>
+
+      {/* Budget vs income insight */}
+      {totalIncome > 0 && (
+        <Card T={T} style={{ marginBottom: 14, border: `1px solid ${surplus >= 0 ? T.green + "44" : T.red + "44"}`, background: surplus >= 0 ? T.green + "08" : T.red + "08" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Alokasi Budget</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: surplus >= 0 ? T.green : T.red }}>{budgetPct}% dari income</span>
+          </div>
+          <div style={{ height: 8, background: T.border, borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
+            <div style={{ height: "100%", width: `${Math.min(budgetPct, 100)}%`, background: surplus >= 0 ? T.green : T.red, borderRadius: 4 }} />
+          </div>
+          {surplus >= 0 ? (
+            <div style={{ fontSize: 12, color: T.green, lineHeight: 1.6 }}>
+              ✅ <strong>Pertahankan!</strong> Sisa <strong>{fmtRp(surplus)}/bln</strong> dapat dialokasikan untuk menambah aset pasif — reksa dana, saham dividen, atau properti.
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: T.red, lineHeight: 1.6 }}>
+              ⚠️ Budget melebihi income sebesar <strong>{fmtRp(Math.abs(surplus))}/bln</strong>. Perlu mengurangi anggaran atau menambah sumber pendapatan.
+            </div>
+          )}
         </Card>
       )}
 
-      {/* Budget cards */}
-      {monthBudgets.length === 0 && (
-        <Card T={T} style={{ textAlign: "center", padding: "28px 16px", border: `1px dashed ${T.border}`, marginBottom: 14 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>📊</div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 6 }}>Belum ada budget bulan ini</div>
-          <div style={{ fontSize: 12, color: T.muted }}>Tambahkan anggaran per kategori di bawah untuk mulai melacak pengeluaran.</div>
-        </Card>
+      {/* Overall summary */}
+      {monthBudgets.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+          {[["Budget", totalBudget, T.accent], ["Terpakai", totalSpent, totalSpent > totalBudget ? T.red : T.green], ["Sisa Budget", totalBudget - totalSpent, totalBudget - totalSpent >= 0 ? T.green : T.red]].map(([l, v, c]) => (
+            <div key={l} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+              <div style={{ fontSize: 9, color: T.muted, marginBottom: 4 }}>{l}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: c }}>{fmtRp(v)}</div>
+            </div>
+          ))}
+        </div>
       )}
-      {monthBudgets.map(b => {
-        const spent = getSpent(b.category);
-        const pct = b.limit > 0 ? Math.min((spent / b.limit) * 100, 100) : 0;
-        const barColor = pct > 90 ? T.red : pct > 60 ? T.orange : T.green;
-        const [editing, setEditing] = useState(false);
-        const [editVal, setEditVal] = useState(String(b.limit));
+
+      {/* 3 Area sections */}
+      {Object.entries(AREA_DEFS).map(([areaKey, areaDef]) => {
+        const areaBudgets = getBudgetsForArea(areaKey);
+        const areaTotal   = getAreaTotal(areaKey);
+        const areaSpent   = getAreaSpent(areaKey);
+        const isOpen = showAddArea === areaKey;
+        const availCats = getAvailCats(areaKey);
+
         return (
-          <Card T={T} key={b.id} style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 18 }}>{CAT_ICONS[b.category] || "📦"}</span>
-                <span style={{ fontWeight: 600, fontSize: 13, color: T.text }}>{b.category}</span>
+          <Card T={T} key={areaKey} style={{ marginBottom: 14, borderTop: `3px solid ${areaDef.color}` }}>
+            {/* Area header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>
+                  {areaDef.icon} {areaDef.label}
+                  <span style={{ fontSize: 10, color: areaDef.color, fontWeight: 400, marginLeft: 8 }}>50/30/20 rec: {areaDef.recommended}%</span>
+                </div>
+                <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{areaDef.desc}</div>
               </div>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                {editing ? (
-                  <>
-                    <input type="number" value={editVal} onChange={e => setEditVal(e.target.value)} style={{ width: 80, padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.accent}`, background: T.surface, color: T.text, fontSize: 12 }} />
-                    <button onClick={() => { editLimit(b.id, editVal); setEditing(false); }} style={{ fontSize: 11, color: T.green, background: "none", border: "none", cursor: "pointer" }}>✓</button>
-                  </>
-                ) : (
-                  <button onClick={() => { setEditing(true); setEditVal(String(b.limit)); }} style={{ fontSize: 10, color: T.muted, background: "none", border: "none", cursor: "pointer" }}>✏️ {fmtRp(b.limit)}</button>
-                )}
-                <button onClick={() => delBudget(b.id)} style={{ fontSize: 10, color: T.muted, background: "none", border: "none", cursor: "pointer" }}>🗑</button>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: areaDef.color }}>{fmtRp(areaTotal)}</div>
+                {totalIncome > 0 && <div style={{ fontSize: 9, color: T.muted }}>{Math.round((areaTotal / totalIncome) * 100)}% income</div>}
               </div>
             </div>
-            {/* Progress bar */}
-            <div style={{ height: 7, background: T.border, borderRadius: 4, overflow: "hidden", marginBottom: 6 }}>
-              <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 4, transition: "width .3s" }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: T.muted }}>
-              <span style={{ color: barColor }}>{fmtRp(spent)} terpakai</span>
-              <span>{pct.toFixed(0)}% dari {fmtRp(b.limit)}</span>
-            </div>
+
+            {/* Budget entries for this area */}
+            {areaBudgets.length === 0 && !isOpen && (
+              <div style={{ padding: "12px 0", textAlign: "center", fontSize: 12, color: T.muted, borderBottom: `1px dashed ${T.border}`, marginBottom: 10 }}>
+                Belum ada anggaran untuk area ini
+              </div>
+            )}
+            {areaBudgets.map(b => (
+              <BudgetCard key={b.id} T={T} b={b} spent={getSpent(b.category)} onDelete={delBudget} onEdit={editBudgetLimit} />
+            ))}
+
+            {/* Area total spent bar */}
+            {areaBudgets.length > 0 && areaTotal > 0 && (
+              <div style={{ marginTop: 4, marginBottom: 10 }}>
+                <div style={{ height: 4, background: T.border, borderRadius: 2, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${Math.min((areaSpent / areaTotal) * 100, 100)}%`, background: areaDef.color, borderRadius: 2 }} />
+                </div>
+                <div style={{ fontSize: 10, color: T.muted, marginTop: 4, textAlign: "right" }}>{fmtRp(areaSpent)} terpakai dari {fmtRp(areaTotal)}</div>
+              </div>
+            )}
+
+            {/* Add form (expanded inline) */}
+            {isOpen ? (
+              <div style={{ background: T.surface, borderRadius: 10, padding: "12px", border: `1px solid ${areaDef.color}44` }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: areaDef.color, marginBottom: 8 }}>+ Tambah Anggaran {areaDef.label}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <Sel T={T} value={newCat} onChange={e => { setNewCat(e.target.value); setCustomCat(""); }}>
+                    <option value="">-- Pilih Kategori --</option>
+                    {availCats.map(c => <option key={c} value={c}>{isLainnya(c) ? "✏️ Tulis Sendiri..." : c}</option>)}
+                  </Sel>
+                  {isLainnya(newCat) && (
+                    <Inp T={T} value={customCat} onChange={e => setCustomCat(e.target.value)} placeholder="Nama kategori (cth: Rokok, Kopi, Gym...)" />
+                  )}
+                  <Inp T={T} type="number" value={newLim} onChange={e => setNewLim(e.target.value)} placeholder="Limit anggaran (Rp)" />
+                  {totalIncome > 0 && newLim && (
+                    <div style={{ fontSize: 11, color: T.muted }}>
+                      = {Math.round((parseNum(newLim) / totalIncome) * 100)}% dari total income bulanan
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Btn T={T} variant="primary" onClick={addBudget} disabled={!newCat || !newLim || (isLainnya(newCat) && !customCat.trim())} style={{ flex: 1 }}>Simpan</Btn>
+                    <Btn T={T} onClick={() => { setShowAddArea(null); setNewCat(""); setCustomCat(""); setNewLim(""); }} style={{ flex: 1 }}>Batal</Btn>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setShowAddArea(areaKey); setNewCat(""); setCustomCat(""); setNewLim(""); }}
+                style={{ width: "100%", padding: "8px", borderRadius: 8, border: `1px dashed ${areaDef.color}66`, background: "transparent", color: areaDef.color, cursor: "pointer", fontSize: 12, fontWeight: 600 }}
+              >
+                + Tambah ke {areaDef.label}
+              </button>
+            )}
           </Card>
         );
       })}
 
-      {/* Add budget row */}
-      {availCats.length > 0 && (
-        <Card T={T}>
-          <SectionTitle>Tambah Anggaran</SectionTitle>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Sel T={T} value={newCat} onChange={e => setNewCat(e.target.value)} style={{ flex: 2, minWidth: 120 }}>
-              <option value="">-- Pilih Kategori --</option>
-              {availCats.map(c => <option key={c}>{c}</option>)}
-            </Sel>
-            <Inp T={T} type="number" value={newLim} onChange={e => setNewLim(e.target.value)} placeholder="Limit (Rp)" style={{ flex: 1, minWidth: 100 }} />
-            <Btn T={T} variant="primary" onClick={addBudget} disabled={!newCat || !newLim}>Tambah</Btn>
-          </div>
-        </Card>
-      )}
+      {/* 50/30/20 guide */}
+      <Card T={T} style={{ background: T.surface, border: `1px solid ${T.border}` }}>
+        <SectionTitle>Panduan Alokasi 50/30/20</SectionTitle>
+        {Object.entries(AREA_DEFS).map(([k, a]) => {
+          const actual = totalIncome > 0 ? Math.round((getAreaTotal(k) / totalIncome) * 100) : 0;
+          const diff = actual - a.recommended;
+          return (
+            <div key={k} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <span style={{ fontSize: 16, width: 24 }}>{a.icon}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                  <span style={{ color: T.textSoft }}>{a.label}</span>
+                  <span style={{ color: Math.abs(diff) <= 5 ? T.green : T.orange, fontWeight: 600 }}>
+                    {actual}% <span style={{ color: T.muted, fontWeight: 400 }}>/ rec {a.recommended}%</span>
+                  </span>
+                </div>
+                <div style={{ height: 5, background: T.border, borderRadius: 3 }}>
+                  <div style={{ height: "100%", width: `${Math.min(actual, 100)}%`, background: a.color, borderRadius: 3 }} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{ fontSize: 11, color: T.muted, marginTop: 8, lineHeight: 1.6 }}>
+          Metode 50/30/20: 50% Kebutuhan · 30% Keinginan · 20% Tabungan & Investasi
+        </div>
+      </Card>
     </div>
   );
 }
@@ -1049,7 +1243,7 @@ function ReportScene({ T, transactions, budgets }) {
 // ─── Main ArthaJourneyApp ────────────────────────────────────────────────────
 export default function ArthaJourneyApp({
   user, T, isPro, isProPlus, pulseCredits,
-  assets, debts, setDebts,
+  assets, debts, setDebts, activeIncomes, monthlyFixedIncome,
   settings, setSettings, theme, setTheme, dispCur, setDispCur,
   fontScale, setFontScale, customPresetId, setCustomPresetId,
   setShowUpgrade, activeApp, setActiveApp, onLogout, logoutSaving,
@@ -1066,7 +1260,7 @@ export default function ArthaJourneyApp({
       case "wallet":
         return <WalletScene T={T} wallets={ajWallets} setWallets={setAjWallets} transactions={ajTransactions} assets={assets} isPro={isPro} isProPlus={isProPlus} />;
       case "budget":
-        return <BudgetScene T={T} budgets={ajBudgets} setBudgets={setAjBudgets} transactions={ajTransactions} />;
+        return <BudgetScene T={T} budgets={ajBudgets} setBudgets={setAjBudgets} transactions={ajTransactions} assets={assets} activeIncomes={activeIncomes} monthlyFixedIncome={monthlyFixedIncome} />;
       case "transaksi":
         return <TransaksiScene T={T} transactions={ajTransactions} setTransactions={setAjTransactions} wallets={ajWallets} debts={debts} setDebts={setDebts} />;
       case "hutang":
