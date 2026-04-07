@@ -135,22 +135,35 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
   const utilisasi = isRevolving && parseVal(f.plafon) > 0
     ? (parseVal(f.outstanding) / parseVal(f.plafon)) * 100 : 0;
 
-  // Minimum outstanding = total AJ expenses via linked credit wallets (cannot be set lower)
-  const minOutstandingFromAJ = useMemo(() => {
-    if (!editData || !isRevolving) return 0;
-    // Find wallets in AJ that are linked to this debt (by debtId or by type match + name)
-    const debtTypeKeys = { kpr: null, kkb: null, cc: "Kartu Kredit", paylater: "Paylater", krek: null, margin: null };
+  // Net minimum outstanding = gross expenses − debt payments made via AJ for this debt.
+  // This respects partial payments: if user paid 8jt of 10jt spend → floor is only 2jt.
+  const { minOutstandingFromAJ, ajGrossSpend, ajPayments } = useMemo(() => {
+    const zero = { minOutstandingFromAJ: 0, ajGrossSpend: 0, ajPayments: 0 };
+    if (!editData || !isRevolving) return zero;
+    const debtTypeKeys = { cc: "Kartu Kredit", paylater: "Paylater" };
     const walletType = debtTypeKeys[editData.type || f.key];
-    if (!walletType) return 0;
+    if (!walletType) return zero;
+
+    // Linked wallets: by explicit debtId OR unlinked wallet of matching type
     const linkedWallets = ajWallets.filter(w =>
       w.debtId === editData.id ||
-      (w.type === walletType && !w.debtId) // unlinked wallets of matching type
+      (w.type === walletType && !w.debtId)
     );
-    if (linkedWallets.length === 0) return 0;
+    if (linkedWallets.length === 0) return zero;
     const linkedIds = new Set(linkedWallets.map(w => w.id));
-    return ajTransactions
+
+    // Gross spending via these wallets
+    const grossSpend = ajTransactions
       .filter(t => t.type === "expense" && linkedIds.has(t.walletId))
       .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+
+    // Debt payments recorded against this debt in AJ
+    const payments = ajTransactions
+      .filter(t => t.type === "debt_payment" && t.debtId === editData.id)
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+
+    const net = Math.max(0, grossSpend - payments);
+    return { minOutstandingFromAJ: net, ajGrossSpend: grossSpend, ajPayments: payments };
   }, [editData, isRevolving, ajWallets, ajTransactions, f.key]);
 
   const canSave = f.name.trim() && derivedOutstanding > 0 && derivedOutstanding >= minOutstandingFromAJ;
@@ -333,15 +346,30 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
               value={f.outstanding}
               onChange={e => setFF('outstanding', e.target.value)}
               placeholder="200000000"
-              style={{ ...inp, borderColor: minOutstandingFromAJ > 0 && parseVal(f.outstanding) < minOutstandingFromAJ ? T.red : inp.borderColor }}
+              style={{ ...inp, borderColor: (minOutstandingFromAJ > 0 && parseVal(f.outstanding) < minOutstandingFromAJ) ? T.red : inp.borderColor }}
             />
             {/* AJ integration warning: cannot go below total AJ credit spend */}
-            {minOutstandingFromAJ > 0 && (
-              <div style={{ marginTop: 6, padding: '8px 10px', background: parseVal(f.outstanding) < minOutstandingFromAJ ? T.red + '22' : T.orange + '18', border: `1px solid ${parseVal(f.outstanding) < minOutstandingFromAJ ? T.red : T.orange}44`, borderRadius: 7, fontSize: 11, lineHeight: 1.5 }}>
-                {parseVal(f.outstanding) < minOutstandingFromAJ
-                  ? <span style={{ color: T.red }}>⛔ Outstanding tidak boleh lebih rendah dari total pengeluaran Artha Journey: <strong>Rp {minOutstandingFromAJ.toLocaleString('id-ID')}</strong></span>
-                  : <span style={{ color: T.orange }}>💡 Total pengeluaran via wallet Paylater/CC di Artha Journey: <strong>Rp {minOutstandingFromAJ.toLocaleString('id-ID')}</strong>. Outstanding tidak bisa lebih rendah dari nilai ini.</span>
-                }
+            {(minOutstandingFromAJ > 0 || ajGrossSpend > 0) && (
+              <div style={{ marginTop: 6, padding: '10px 12px', background: (parseVal(f.outstanding) < minOutstandingFromAJ && minOutstandingFromAJ > 0) ? T.red + '22' : T.surface, border: `1px solid ${(parseVal(f.outstanding) < minOutstandingFromAJ && minOutstandingFromAJ > 0) ? T.red : T.border}`, borderRadius: 8, fontSize: 11, lineHeight: 1.7 }}>
+                {/* Spend / Payment breakdown */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: T.muted }}>Pengeluaran via Artha Journey</span>
+                  <span style={{ color: T.red, fontWeight: 600 }}>Rp {ajGrossSpend.toLocaleString('id-ID')}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ color: T.muted }}>Pembayaran hutang di AJ</span>
+                  <span style={{ color: T.green, fontWeight: 600 }}>- Rp {ajPayments.toLocaleString('id-ID')}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 5, borderTop: `1px solid ${T.border}`, fontWeight: 700 }}>
+                  <span style={{ color: T.text }}>Net minimum outstanding</span>
+                  <span style={{ color: minOutstandingFromAJ > 0 ? T.orange : T.green }}>Rp {minOutstandingFromAJ.toLocaleString('id-ID')}</span>
+                </div>
+                {/* Error when below floor */}
+                {parseVal(f.outstanding) < minOutstandingFromAJ && minOutstandingFromAJ > 0 && (
+                  <div style={{ marginTop: 8, padding: '7px 10px', background: T.red + '22', borderRadius: 6, color: T.red, fontWeight: 600 }}>
+                    ⛔ Outstanding tidak boleh lebih rendah dari net pengeluaran. Lakukan pembayaran hutang terlebih dahulu di Artha Journey.
+                  </div>
+                )}
               </div>
             )}
             {utilisasi > 0 && (
