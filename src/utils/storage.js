@@ -100,6 +100,9 @@ const DEFAULT_ACCOUNT_STATE = {
   theme: "dark",
   customPresetId: "midnight",
   networthSnapshots: [], // [{ts: timestamp, val: IDR net worth}] — synced to Firebase
+  ajWallets: [],       // Artha Journey wallets [{id,name,type,initialBalance,icon,color}]
+  ajTransactions: [],  // Artha Journey transactions [{id,date,type,category,amount,walletId,...}]
+  ajBudgets: [],       // Artha Journey budgets [{id,category,limit,month}]
 };
 
 export {

@@ -133,6 +133,9 @@ function WealthPulseV7() {
   const [referrals, setReferrals] = useState([]);   // users referred by this account
   const [referredBy, setReferredBy] = useState(""); // referral code this user came from
   const [networthSnapshots, setNetworthSnapshots] = useState([]); // [{ts, val}] — cloud-synced
+  const [ajWallets, setAjWallets] = useState([]);
+  const [ajTransactions, setAjTransactions] = useState([]);
+  const [ajBudgets, setAjBudgets] = useState([]);
 
   // -- DERIVED PULSE VALUES ---------------------------------------------------
   const _now = new Date();
@@ -199,6 +202,7 @@ function WealthPulseV7() {
     pulseCredits, proExpiry, dispCur, settings, theme, customPresetId,
     activeIncomes, insurances, monthlyExpense, monthlyFixedIncome,
     bonusPulse, referrals, referredBy, networthSnapshots,
+    ajWallets, ajTransactions, ajBudgets,
   };
 
   // -- AUTH HANDLERS (safe to reference state now) ----------------------------
@@ -242,6 +246,9 @@ function WealthPulseV7() {
     setReferrals(d.referrals || []);
     setReferredBy(d.referredBy || "");
     setNetworthSnapshots(d.networthSnapshots || []);
+    setAjWallets(d.ajWallets || []);
+    setAjTransactions(d.ajTransactions || []);
+    setAjBudgets(d.ajBudgets || []);
     const lastApp = localStorage.getItem("wc_active_app");
     setActiveApp(lastApp || null);
     // Capture pending referral code from ?ref= URL param (set by AppSelector/init effect)
@@ -290,6 +297,9 @@ function WealthPulseV7() {
         setReferrals(cloud.referrals || []);
         setReferredBy(cloud.referredBy || "");
         setNetworthSnapshots(cloud.networthSnapshots || []);
+        setAjWallets(cloud.ajWallets || []);
+        setAjTransactions(cloud.ajTransactions || []);
+        setAjBudgets(cloud.ajBudgets || []);
         // Mirror cloud data to localStorage as offline cache
         saveAccountData(userData.email, cloud);
         // Delay cloudLoadDone agar React flush semua setState sebelum auto-save
@@ -343,6 +353,9 @@ function WealthPulseV7() {
     setBonusPulse([]);
     setReferrals([]);
     setReferredBy("");
+    setAjWallets([]);
+    setAjTransactions([]);
+    setAjBudgets([]);
     setHideValues(false);
     setTheme("dark");
     setCustomPresetId("midnight");
@@ -606,6 +619,9 @@ function WealthPulseV7() {
       referrals,
       referredBy,
       networthSnapshots,
+      ajWallets,
+      ajTransactions,
+      ajBudgets,
     };
     saveAccountData(user.email, payload);
     if (user?.uid) {
@@ -637,6 +653,9 @@ function WealthPulseV7() {
     referrals,
     referredBy,
     networthSnapshots,
+    ajWallets,
+    ajTransactions,
+    ajBudgets,
   ]);
 
   // Reconcile activeIncomes with assets — auto-remove stale "biz_*" entries when
@@ -729,6 +748,7 @@ function WealthPulseV7() {
         pulseCredits={totalAvailablePulse}
         assets={assets}
         debts={debts}
+        setDebts={setDebts}
         settings={settings}
         setSettings={setSettings}
         theme={theme}
@@ -744,6 +764,12 @@ function WealthPulseV7() {
         setActiveApp={handleSetActiveApp}
         onLogout={handleLogout}
         logoutSaving={logoutSaving}
+        ajWallets={ajWallets}
+        setAjWallets={setAjWallets}
+        ajTransactions={ajTransactions}
+        setAjTransactions={setAjTransactions}
+        ajBudgets={ajBudgets}
+        setAjBudgets={setAjBudgets}
       />
     );
   }
