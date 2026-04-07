@@ -825,9 +825,14 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
     if (!file) return;
     if (pulseCredits < 1) { setError("Pulse tidak cukup. Beli Pulse untuk melanjutkan."); return; }
     setStep(2); setError("");
-    try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
+
+    const reader = new FileReader();
+    reader.onerror = () => {
+      setError("Gagal membaca file. Coba gunakan format JPG atau PNG.");
+      setStep(1);
+    };
+    reader.onload = async (e) => {
+      try {
         const base64 = e.target.result.split(",")[1];
         const mimeType = file.type || "image/jpeg";
         const res = await fetch("/api/scan-receipt", {
@@ -835,8 +840,15 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imageBase64: base64, mimeType }),
         });
-        if (!res.ok) { const t = await res.text(); throw new Error(t || "Scan gagal"); }
+        if (!res.ok) {
+          let msg = "Scan gagal (server error)";
+          try { const body = await res.json(); msg = body.error || msg; } catch {}
+          throw new Error(msg);
+        }
         const data = await res.json();
+        if (!data.items || data.items.length === 0) {
+          throw new Error("Tidak ada item terdeteksi. Pastikan foto struk jelas, terang, dan tidak blur.");
+        }
         setScanData(data);
         setItems((data.items || []).map((it, i) => ({
           id: String(i), name: it.name || "Item " + (i + 1),
@@ -845,11 +857,12 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
         })));
         setPulseCredits(prev => Math.max(0, prev - 1));
         setStep(3);
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      setError("Scan gagal: " + err.message); setStep(1);
-    }
+      } catch (err) {
+        setError("Scan gagal: " + (err.message || "Terjadi kesalahan. Coba lagi."));
+        setStep(1);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const setItem = (id, key, val) => setItems(prev => prev.map(it => it.id === id ? { ...it, [key]: val } : it));
@@ -872,6 +885,7 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "#000a", display: "flex", alignItems: "flex-end" }}>
+      <style>{`@keyframes wcPulse{0%,80%,100%{opacity:.2;transform:scale(0.8)}40%{opacity:1;transform:scale(1.2)}}`}</style>
       <div style={{ width: "100%", maxHeight: "92vh", background: T.card, borderRadius: "20px 20px 0 0", overflowY: "auto" }}>
         {/* Header */}
         <div style={{ padding: "16px 20px 12px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: T.card }}>
@@ -937,12 +951,23 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
 
           {/* Step 2: Scanning */}
           {step === 2 && (
-            <div style={{ textAlign: "center", padding: "40px 20px" }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>🤖</div>
+            <div style={{ textAlign: "center", padding: "32px 16px" }}>
+              <div style={{ fontSize: 52, marginBottom: 14 }}>🤖</div>
               <div style={{ fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 8 }}>AI sedang membaca struk...</div>
               <div style={{ fontSize: 12, color: T.muted, marginBottom: 20 }}>Mendeteksi nama toko, tanggal, dan daftar item</div>
-              <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
-                {[0,1,2].map(i => <div key={i} style={{ width: 10, height: 10, borderRadius: "50%", background: T.accent, animation: `pulse 1s ${i*0.3}s infinite` }} />)}
+              {/* Loading dots */}
+              <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 24 }}>
+                {[0,1,2].map(i => (
+                  <div key={i} style={{
+                    width: 10, height: 10, borderRadius: "50%", background: T.accent,
+                    animation: `wcPulse 1.2s ${i * 0.4}s ease-in-out infinite`,
+                  }} />
+                ))}
+              </div>
+              {/* Warning: don't close */}
+              <div style={{ padding: "12px 16px", background: T.orange + "22", border: `1px solid ${T.orange}55`, borderRadius: 10, fontSize: 12, color: T.orange, lineHeight: 1.5 }}>
+                ⚠️ <strong>Jangan tutup atau refresh browser</strong>
+                <br />Proses sedang berjalan, harap tunggu sebentar...
               </div>
             </div>
           )}

@@ -1,5 +1,6 @@
 import { getApps, initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
+// Note: updateDoc not used — we use setDoc with merge:true for all writes
 
 // Reuse existing Firebase app (initialized by LoginScreen)
 // Only initialize if not already done
@@ -99,11 +100,67 @@ const DEFAULT_ACCOUNT_STATE = {
   networthSnapshots: [], // [{ts: timestamp, val: IDR net worth}] — synced to Firebase
 };
 
+// Register this user's referral code so others can find them by code
+async function registerReferralCode(uid, code) {
+  if (!uid || !code) return;
+  try {
+    await setDoc(doc(db, "referral_codes", code), { uid, createdAt: Date.now() }, { merge: true });
+  } catch (e) {
+    console.warn("registerReferralCode failed:", e.message);
+  }
+}
+
+// Look up which uid owns a referral code
+async function lookupReferralCode(code) {
+  if (!code) return null;
+  try {
+    const snap = await getDoc(doc(db, "referral_codes", code));
+    return snap.exists() ? (snap.data().uid || null) : null;
+  } catch (e) {
+    console.warn("lookupReferralCode failed:", e.message);
+    return null;
+  }
+}
+
+// Credit the referrer: add new user to their referrals array, grant 5 bonus Pulse
+// Idempotent — safe to call multiple times (deduplicates by newUserEmail)
+async function creditReferrer(referrerUid, newUserEmail) {
+  if (!referrerUid || !newUserEmail) return;
+  try {
+    const snap = await getDoc(doc(db, "users", referrerUid));
+    if (!snap.exists()) return;
+    const data = snap.data().data || {};
+    const existingReferrals = data.referrals || [];
+    // Don't double-credit for the same referred user
+    if (existingReferrals.some(r => r.email === newUserEmail)) return;
+    const BONUS = 5;
+    const bonusEntry = {
+      id: Date.now().toString(),
+      amount: BONUS,
+      reason: "Referral: " + newUserEmail,
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    const updated = {
+      ...data,
+      referrals: [...existingReferrals, { email: newUserEmail, ts: Date.now() }],
+      pulseCredits: (data.pulseCredits || 0) + BONUS,
+      bonusPulse: [...(data.bonusPulse || []), bonusEntry],
+    };
+    await setDoc(doc(db, "users", referrerUid), { data: updated, updatedAt: Date.now() }, { merge: true });
+    console.log("[Referral] Credited referrer", referrerUid, "+5 Pulse for", newUserEmail);
+  } catch (e) {
+    console.warn("creditReferrer failed:", e.message);
+  }
+}
+
 export {
   getAccountKey,
   saveAccountData,
   loadAccountData,
   saveAccountDataCloud,
   loadAccountDataCloud,
+  registerReferralCode,
+  lookupReferralCode,
+  creditReferrer,
   DEFAULT_ACCOUNT_STATE,
 };

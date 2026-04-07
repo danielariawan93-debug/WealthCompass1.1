@@ -22,6 +22,9 @@ import {
   loadAccountData,
   saveAccountDataCloud,
   loadAccountDataCloud,
+  registerReferralCode,
+  lookupReferralCode,
+  creditReferrer,
   DEFAULT_ACCOUNT_STATE,
 } from "./utils/storage";
 import {
@@ -251,20 +254,39 @@ function WealthPulseV7() {
     setAjBudgets(d.ajBudgets || []);
     const lastApp = localStorage.getItem("wc_active_app");
     setActiveApp(lastApp || null);
-    // Capture pending referral code from ?ref= URL param (set by AppSelector/init effect)
+    // Read pending referral code — do NOT remove from localStorage yet;
+    // the cloud callback will process it authoritatively after loading cloud data
     const pendingRef = localStorage.getItem("wc_pending_ref");
     if (pendingRef && !d.referredBy) {
-      setReferredBy(pendingRef);
-      localStorage.removeItem("wc_pending_ref");
+      setReferredBy(pendingRef); // optimistic local-first update
     }
 
     // Then try Firestore (async - always authoritative source of truth)
     if (userData.uid) {
-      loadAccountDataCloud(userData.uid).then(cloud => {
+      // Compute this user's referral code (deterministic from uid)
+      const myCode = "WC" + userData.uid.replace(/-/g, "").slice(0, 6).toUpperCase();
+      // Always register this user's code so others can look them up
+      registerReferralCode(userData.uid, myCode).catch(() => {});
+
+      loadAccountDataCloud(userData.uid).then(async cloud => {
         if (!cloud) {
-          // Firestore empty - push local data up so other devices can sync
+          // Firestore empty — new user. Push local data and process referral
           const localData = loadAccountData(userData.email);
-          if (localData) saveAccountDataCloud(userData.uid, localData).catch(() => {});
+          // Process referral for genuinely new user (no cloud record yet)
+          const pRef = localStorage.getItem("wc_pending_ref");
+          if (pRef && pRef !== myCode) {
+            localStorage.removeItem("wc_pending_ref");
+            setReferredBy(pRef);
+            const referrerUid = await lookupReferralCode(pRef).catch(() => null);
+            if (referrerUid && referrerUid !== userData.uid) {
+              creditReferrer(referrerUid, userData.email || userData.uid).catch(() => {});
+            }
+            // Save referredBy to cloud immediately
+            const payload = { ...(localData || {}), referredBy: pRef };
+            saveAccountDataCloud(userData.uid, payload).catch(() => {});
+          } else if (localData) {
+            saveAccountDataCloud(userData.uid, localData).catch(() => {});
+          }
           setTimeout(() => { cloudLoadDone.current = true; }, 300);
           return;
         }
@@ -295,7 +317,24 @@ function WealthPulseV7() {
         setMonthlyFixedIncome(cloud.monthlyFixedIncome || "");
         setBonusPulse(cloud.bonusPulse || []);
         setReferrals(cloud.referrals || []);
-        setReferredBy(cloud.referredBy || "");
+
+        // Process referral: only if cloud doesn't already have referredBy recorded
+        const pRef = localStorage.getItem("wc_pending_ref");
+        if (pRef && !cloud.referredBy && pRef !== myCode) {
+          localStorage.removeItem("wc_pending_ref");
+          setReferredBy(pRef);
+          const referrerUid = await lookupReferralCode(pRef).catch(() => null);
+          if (referrerUid && referrerUid !== userData.uid) {
+            creditReferrer(referrerUid, userData.email || userData.uid).catch(() => {});
+          }
+          // Persist referredBy to cloud
+          saveAccountDataCloud(userData.uid, { ...cloud, referredBy: pRef }).catch(() => {});
+        } else {
+          setReferredBy(cloud.referredBy || "");
+          // Clean up stale pending ref (user already has referredBy in cloud)
+          if (pRef) localStorage.removeItem("wc_pending_ref");
+        }
+
         setNetworthSnapshots(cloud.networthSnapshots || []);
         setAjWallets(cloud.ajWallets || []);
         setAjTransactions(cloud.ajTransactions || []);
@@ -305,6 +344,7 @@ function WealthPulseV7() {
         // Delay cloudLoadDone agar React flush semua setState sebelum auto-save
         setTimeout(() => { cloudLoadDone.current = true; }, 300);
       }).catch(() => {
+        // Cloud load failed — clean up pending ref optimistically processed above
         setTimeout(() => { cloudLoadDone.current = true; }, 300);
       });
     }
