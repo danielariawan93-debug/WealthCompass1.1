@@ -86,7 +86,14 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
   const allTypes = [...KONSUMTIF, ...PRODUKTIF];
   const [f, setF] = useState(() => {
     if (editData) {
-      const state = { ...EMPTY_FORM, ...editData, renewalDay:'', renewalMonth:'', renewalYear:'' };
+      const state = {
+        ...EMPTY_FORM,
+        ...editData,
+        // editData is saved as {type: "paylater", ...} — map type→key so the
+        // form picker shows the correct value (not the EMPTY_FORM default 'kpr')
+        key: editData.key || editData.type || EMPTY_FORM.key,
+        renewalDay: '', renewalMonth: '', renewalYear: '',
+      };
       if (editData.renewalDate) {
         const parts = editData.renewalDate.split('-');
         state.renewalYear  = parts[0] || '';

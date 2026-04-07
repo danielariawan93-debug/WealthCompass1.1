@@ -1223,9 +1223,23 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setD
   const canSave = form.amount && parseNum(form.amount) > 0 && form.walletId &&
     (form.type === "debt_payment" ? form.debtId : form.type === "transfer" ? form.toWalletId : form.category);
 
+  // Sync credit wallet expense → increment linked debt outstanding in WealthPulse
+  const syncCreditDebt = (walletId, amount, reverse = false) => {
+    if (!setDebts) return;
+    const wallet = wallets.find(w => w.id === walletId);
+    if (!wallet?.debtId || !CREDIT_WALLET_TYPES.includes(wallet.type)) return;
+    setDebts(prev => prev.map(d =>
+      d.id === wallet.debtId
+        ? { ...d, outstanding: Math.max(0, parseNum(d.outstanding) + (reverse ? -amount : amount)).toString() }
+        : d
+    ));
+  };
+
   const save = () => {
     if (!canSave) return;
     const amt = parseNum(form.amount);
+
+    // debt_payment → decrement outstanding in WealthPulse
     if (form.type === "debt_payment" && form.debtId && setDebts) {
       setDebts(prev => prev.map(d =>
         d.id === form.debtId
@@ -1233,6 +1247,11 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setD
           : d
       ));
     }
+    // expense via Paylater/Kartu Kredit → increment linked debt outstanding
+    if (form.type === "expense") {
+      syncCreditDebt(form.walletId, amt);
+    }
+
     setTransactions(prev => [...prev, {
       id: genId(), date: form.date || today, type: form.type,
       category: form.type === "debt_payment"
@@ -1246,13 +1265,45 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setD
     setShowForm(false);
   };
 
-  // Called when ReceiptScanner finishes
+  // Called when ReceiptScanner finishes — accumulate credit debt changes per debtId
   const handleScanDone = (txs) => {
+    if (setDebts && txs.length > 0) {
+      const debtChanges = {};
+      txs.forEach(tx => {
+        if (tx.type === "expense") {
+          const wallet = wallets.find(w => w.id === tx.walletId);
+          if (wallet?.debtId && CREDIT_WALLET_TYPES.includes(wallet.type)) {
+            debtChanges[wallet.debtId] = (debtChanges[wallet.debtId] || 0) + tx.amount;
+          }
+        }
+      });
+      if (Object.keys(debtChanges).length > 0) {
+        setDebts(prev => prev.map(d =>
+          debtChanges[d.id] !== undefined
+            ? { ...d, outstanding: (parseNum(d.outstanding) + debtChanges[d.id]).toString() }
+            : d
+        ));
+      }
+    }
     setTransactions(prev => [...prev, ...txs]);
     setShowScanner(false);
   };
 
-  const del = (id) => { if (window.confirm("Hapus transaksi ini?")) setTransactions(prev => prev.filter(t => t.id !== id)); };
+  const del = (id) => {
+    if (!window.confirm("Hapus transaksi ini?")) return;
+    // Reverse credit debt change on deletion
+    const tx = transactions.find(t => t.id === id);
+    if (tx?.type === "expense") syncCreditDebt(tx.walletId, tx.amount, true);
+    if (tx?.type === "debt_payment" && tx.debtId && setDebts) {
+      // Restore outstanding when deleting a debt payment
+      setDebts(prev => prev.map(d =>
+        d.id === tx.debtId
+          ? { ...d, outstanding: (parseNum(d.outstanding) + tx.amount).toString() }
+          : d
+      ));
+    }
+    setTransactions(prev => prev.filter(t => t.id !== id));
+  };
 
   const filtered = [...transactions]
     .filter(t => filter === "all" || t.type === filter)
