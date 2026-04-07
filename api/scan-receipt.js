@@ -30,37 +30,48 @@ module.exports = async function handler(req, res) {
   const finalMimeType = validMimeTypes.includes(mimeType) ? mimeType : 'image/jpeg';
 
   try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey });
-
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: finalMimeType,
-                data: imageBase64,
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: finalMimeType,
+                  data: imageBase64,
+                },
               },
-            },
-            {
-              type: 'text',
-              text: 'Ekstrak semua data dari struk/receipt ini. Kembalikan HANYA JSON valid tanpa teks lain:\n{"storeName":"nama toko","date":"YYYY-MM-DD","items":[{"name":"nama item","qty":1,"amount":0}],"total":0}\n\nGunakan tanggal hari ini jika tanggal tidak terbaca. Jumlah dalam angka bulat (Rupiah). Jika bukan struk, kembalikan {"storeName":"","date":"","items":[],"total":0}',
-            },
-          ],
-        },
-      ],
+              {
+                type: 'text',
+                text: 'Ekstrak semua data dari struk/receipt ini. Kembalikan HANYA JSON valid tanpa teks lain:\n{"storeName":"nama toko","date":"YYYY-MM-DD","items":[{"name":"nama item","qty":1,"amount":0}],"total":0}\n\nGunakan tanggal hari ini jika tanggal tidak terbaca. Jumlah dalam angka bulat (Rupiah). Jika bukan struk, kembalikan {"storeName":"","date":"","items":[],"total":0}',
+              },
+            ],
+          },
+        ],
+      }),
     });
 
-    const text = response.content[0]?.text || '';
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      return res.status(response.status).json({ error: errBody.error?.message || 'Anthropic API error' });
+    }
+
+    const data = await response.json();
+    const text = data.content?.[0]?.text || '';
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) {
-      return res.status(422).json({ error: 'Tidak dapat membaca struk' });
+      return res.status(422).json({ error: 'Tidak dapat membaca struk dari gambar ini' });
     }
 
     const parsed = JSON.parse(match[0]);
