@@ -40,7 +40,7 @@ const CURRENCIES = [
     riskLevel: 2,
     riskLabel: "Rendah",
     riskColor: "#5b9cf6",
-    instruments: ["Obligasi Pemerintah","FR" "Sukuk", "SBR", "ORI"],
+    instruments: ["Obligasi Pemerintah", "FR", "Sukuk", "SBR", "ORI"],
     desc: "Memberikan pendapatan stabil dengan risiko rendah. Cocok sebagai fondasi portofolio.",
     expectedReturn: "5–8% p.a.",
   },
@@ -57,7 +57,7 @@ const CURRENCIES = [
     expectedReturn: "6–10% p.a.",
   },
   {
-    key: "mixed",
+    key: "gold",
     label: "Emas & Komoditas",
     shortLabel: "Emas, Perak, ETF Komoditas",
     icon: "🪙",
@@ -128,10 +128,10 @@ const CURRENCIES = [
 // RISK PROFILES & QUESTIONS
 // -----------------------------------------------------------------------------
 const RISK_PROFILES = {
-  conservative: { label: "Konservatif", emoji: "🛡️", range: [7, 12], color: "#3ecf8e", alloc: { cash: 25, bond: 45, fixedincome_plus: 15, mixed: 10, equity: 5, crypto: 0 } },
-  moderate: { label: "Moderate", emoji: "🌿", range: [13, 17], color: "#5b9cf6", alloc: { cash: 15, bond: 35, fixedincome_plus: 20, mixed: 10, equity: 18, crypto: 2 } },
-  growth: { label: "Growth", emoji: "⚖️", range: [18, 22], color: "#f59e0b", alloc: { cash: 10, bond: 20, fixedincome_plus: 15, mixed: 10, equity: 40, crypto: 5 } },
-  aggressive: { label: "Agresif", emoji: "🚀", range: [23, 28], color: "#f26b6b", alloc: { cash: 5, bond: 10, fixedincome_plus: 10, mixed: 5, equity: 60, crypto: 10 } },
+  conservative: { label: "Konservatif", emoji: "🛡️", range: [7, 12], color: "#3ecf8e", alloc: { cash: 25, bond: 45, fixedincome_plus: 15, gold: 10, equity: 5, crypto: 0 } },
+  moderate: { label: "Moderate", emoji: "🌿", range: [13, 17], color: "#5b9cf6", alloc: { cash: 15, bond: 35, fixedincome_plus: 20, gold: 10, equity: 18, crypto: 2 } },
+  growth: { label: "Growth", emoji: "⚖️", range: [18, 22], color: "#f59e0b", alloc: { cash: 10, bond: 20, fixedincome_plus: 15, gold: 10, equity: 40, crypto: 5 } },
+  aggressive: { label: "Agresif", emoji: "🚀", range: [23, 28], color: "#f26b6b", alloc: { cash: 5, bond: 10, fixedincome_plus: 10, gold: 5, equity: 60, crypto: 10 } },
 };
 
  const RISK_QUESTIONS = [
