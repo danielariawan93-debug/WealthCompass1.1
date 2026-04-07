@@ -167,7 +167,21 @@ function parseNum(v) { return parseFloat(String(v || "0").replace(/[^\d.]/g, "")
 const TX_INCOME_CATS = ["Gaji/Salary","Bonus","Freelance","Passive Income","Penjualan","Transfer Masuk","Lainnya"];
 const TX_EXPENSE_CATS = ["Makan & Minum","Transportasi","Belanja","Tagihan & Utilitas","Hiburan","Kesehatan","Pendidikan","Perawatan Diri","Lainnya"];
 const BUDGET_CATS = ["Makan & Minum","Transportasi","Belanja","Tagihan & Utilitas","Hiburan","Kesehatan","Pendidikan","Perawatan Diri","Lainnya"];
-const CAT_ICONS = { "Makan & Minum":"🍜","Transportasi":"🚗","Belanja":"🛍️","Tagihan & Utilitas":"💡","Hiburan":"🎬","Kesehatan":"❤️","Pendidikan":"📚","Perawatan Diri":"✨","Lainnya":"📦","Gaji/Salary":"💼","Bonus":"🎁","Freelance":"💻","Passive Income":"📈","Penjualan":"🏷️","Transfer Masuk":"↩️" };
+const CAT_ICONS = {
+  // Kebutuhan
+  "Makan & Minum":"🍜","Transportasi":"🚗","Tagihan & Utilitas":"💡","Kesehatan":"❤️","Pendidikan":"📚",
+  "Belanja Dapur":"🛒","Anak & Keluarga":"👶","Sewa / KPR":"🏠","Internet & Phone":"📶",
+  "Listrik & Air":"⚡","Kebutuhan Lainnya":"📦",
+  // Keinginan
+  "Hiburan":"🎬","Belanja":"🛍️","Perawatan Diri":"✨","Makan di Luar":"🍽️","Liburan":"✈️",
+  "Hobi & Game":"🎮","Langganan (Netflix dll)":"📺","Keinginan Lainnya":"🌟",
+  // Tabungan
+  "Dana Darurat":"🛡️","Investasi Saham/Reksa":"📈","Cicilan Aset":"🏡","Asuransi":"☂️",
+  "Tabungan Tujuan":"🎯","Tabungan Lainnya":"💰",
+  // Income
+  "Gaji/Salary":"💼","Bonus":"🎁","Freelance":"💻","Passive Income":"📊","Penjualan":"🏷️","Transfer Masuk":"↩️",
+  "Bayar Hutang":"💳","Transfer":"↔️","Lainnya":"📦",
+};
 const WALLET_ICONS = ["🏦","📱","💵","👛","💳","💰","🏧","💼"];
 const WALLET_COLORS = ["#5b9cf6","#3ecf8e","#f59e0b","#9b7ef8","#f26b6b","#34d399","#60a5fa","#fb923c"];
 
@@ -411,22 +425,95 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, isPro, isPr
   );
 }
 
+// ─── CategoryPicker ───────────────────────────────────────────────────────────
+function CategoryPicker({ T, value, onChange, type = "expense" }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const areas = Object.entries(AREA_DEFS).map(([key, def]) => ({
+    key, label: def.label, icon: def.icon, color: def.color,
+    cats: def.cats.filter(c => !c.endsWith("Lainnya")),
+  }));
+
+  const displayLabel = value ? `${CAT_ICONS[value] || "📦"} ${value}` : "Pilih kategori...";
+
+  const matchesSearch = (c) => !search || c.toLowerCase().includes(search.toLowerCase());
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => { setOpen(o => !o); setSearch(""); }}
+        style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: `1px solid ${open ? T.accent : T.border}`, background: T.surface, color: value ? T.text : T.muted, textAlign: "left", cursor: "pointer", fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center", boxSizing: "border-box" }}
+      >
+        <span>{displayLabel}</span>
+        <span style={{ fontSize: 10, color: T.muted }}>▾</span>
+      </button>
+
+      {open && (
+        <div style={{ position: "absolute", zIndex: 200, top: "calc(100% + 4px)", left: 0, right: 0, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, maxHeight: 300, overflowY: "auto", boxShadow: "0 8px 32px #0008" }}>
+          {/* Search bar */}
+          <div style={{ padding: "8px 10px", borderBottom: `1px solid ${T.border}`, position: "sticky", top: 0, background: T.card, zIndex: 1 }}>
+            <input
+              value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="🔍 Cari kategori..." autoFocus
+              style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.accent}`, background: T.surface, color: T.text, fontSize: 12, outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+
+          {type === "income" ? (
+            TX_INCOME_CATS.filter(matchesSearch).map(cat => (
+              <button key={cat} onClick={() => { onChange(cat); setOpen(false); }}
+                style={{ width: "100%", padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, background: value === cat ? T.accentDim : "transparent", border: "none", borderBottom: `1px solid ${T.border}44`, color: T.text, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
+                <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{CAT_ICONS[cat] || "💰"}</span>
+                <span style={{ flex: 1 }}>{cat}</span>
+                {value === cat && <span style={{ color: T.accent, fontSize: 14 }}>✓</span>}
+              </button>
+            ))
+          ) : (
+            areas.map(area => {
+              const cats = area.cats.filter(matchesSearch);
+              if (cats.length === 0) return null;
+              return (
+                <div key={area.key}>
+                  <div style={{ padding: "7px 14px 6px", background: area.color + "30", fontSize: 10, fontWeight: 800, color: area.color, letterSpacing: 1.5, textTransform: "uppercase", position: "sticky", top: 45, zIndex: 1 }}>
+                    {area.icon} {area.label}
+                  </div>
+                  {cats.map(cat => (
+                    <button key={cat} onClick={() => { onChange(cat); setOpen(false); }}
+                      style={{ width: "100%", padding: "10px 14px 10px 20px", display: "flex", alignItems: "center", gap: 10, background: value === cat ? T.accentDim : "transparent", border: "none", borderBottom: `1px solid ${T.border}33`, color: T.text, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
+                      <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{CAT_ICONS[cat] || "📦"}</span>
+                      <span style={{ flex: 1 }}>{cat}</span>
+                      {value === cat && <span style={{ color: T.accent, fontSize: 14 }}>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+      {/* Overlay to close */}
+      {open && <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />}
+    </div>
+  );
+}
+
 // ─── Budget Scene ─────────────────────────────────────────────────────────────
 const AREA_DEFS = {
   kebutuhan: {
     label: "Kebutuhan", icon: "🏠", color: "#5b9cf6", recommended: 50,
     desc: "Pengeluaran wajib & primer",
-    cats: ["Makan & Minum", "Transportasi", "Tagihan & Utilitas", "Kesehatan", "Pendidikan", "Kebutuhan Lainnya"],
+    cats: ["Makan & Minum","Belanja Dapur","Transportasi","Tagihan & Utilitas","Listrik & Air","Internet & Phone","Kesehatan","Pendidikan","Anak & Keluarga","Sewa / KPR","Kebutuhan Lainnya"],
   },
   keinginan: {
     label: "Keinginan", icon: "🛍️", color: "#f59e0b", recommended: 30,
     desc: "Lifestyle & kenyamanan",
-    cats: ["Hiburan", "Belanja", "Perawatan Diri", "Makan di Luar", "Liburan", "Keinginan Lainnya"],
+    cats: ["Makan di Luar","Hiburan","Belanja","Perawatan Diri","Liburan","Hobi & Game","Langganan (Netflix dll)","Keinginan Lainnya"],
   },
   tabungan: {
     label: "Tabungan & Investasi", icon: "💰", color: "#3ecf8e", recommended: 20,
     desc: "Aset masa depan",
-    cats: ["Dana Darurat", "Investasi Saham/Reksa", "Cicilan Aset", "Asuransi", "Tabungan Lainnya"],
+    cats: ["Dana Darurat","Investasi Saham/Reksa","Cicilan Aset","Asuransi","Tabungan Tujuan","Tabungan Lainnya"],
   },
 };
 
@@ -716,34 +803,271 @@ function BudgetScene({ T, budgets, setBudgets, transactions, assets, activeIncom
   );
 }
 
+// ─── Receipt Scanner (4-step flow) ────────────────────────────────────────────
+function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCredits }) {
+  const [step, setStep] = useState(1); // 1=upload, 2=scanning, 3=review, 4=assign
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [scanData, setScanData] = useState(null);
+  const [items, setItems] = useState([]);
+  const [walletId, setWalletId] = useState(wallets[0]?.id || "");
+  const [error, setError] = useState("");
+
+  const handleFile = (f) => {
+    if (!f) return;
+    setFile(f);
+    const reader = new FileReader();
+    reader.onload = e => setPreview(e.target.result);
+    reader.readAsDataURL(f);
+  };
+
+  const doScan = async () => {
+    if (!file) return;
+    if (pulseCredits < 1) { setError("Pulse tidak cukup. Beli Pulse untuk melanjutkan."); return; }
+    setStep(2); setError("");
+
+    const reader = new FileReader();
+    reader.onerror = () => {
+      setError("Gagal membaca file. Coba gunakan format JPG atau PNG.");
+      setStep(1);
+    };
+    reader.onload = async (e) => {
+      try {
+        const base64 = e.target.result.split(",")[1];
+        const mimeType = file.type || "image/jpeg";
+        const res = await fetch("/api/scan-receipt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: base64, mimeType }),
+        });
+        if (!res.ok) {
+          let msg = "Scan gagal (server error)";
+          try { const body = await res.json(); msg = body.error || msg; } catch {}
+          throw new Error(msg);
+        }
+        const data = await res.json();
+        if (!data.items || data.items.length === 0) {
+          throw new Error("Tidak ada item terdeteksi. Pastikan foto struk jelas, terang, dan tidak blur.");
+        }
+        setScanData(data);
+        setItems((data.items || []).map((it, i) => ({
+          id: String(i), name: it.name || "Item " + (i + 1),
+          amount: Number(it.total || it.amount || 0), qty: Number(it.qty || 1),
+          category: "", include: true,
+        })));
+        setPulseCredits(prev => Math.max(0, prev - 1));
+        setStep(3);
+      } catch (err) {
+        setError("Scan gagal: " + (err.message || "Terjadi kesalahan. Coba lagi."));
+        setStep(1);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const setItem = (id, key, val) => setItems(prev => prev.map(it => it.id === id ? { ...it, [key]: val } : it));
+
+  const finish = () => {
+    const txs = items.filter(i => i.include && i.amount > 0).map(i => ({
+      id: genId(),
+      date: scanData?.date || new Date().toISOString().slice(0, 10),
+      type: "expense",
+      category: i.category || "Makan & Minum",
+      amount: Number(i.amount),
+      walletId,
+      description: i.name + (scanData?.storeName ? ` (${scanData.storeName})` : ""),
+    }));
+    onDone(txs);
+  };
+
+  const totalSelected = items.filter(i => i.include).reduce((s, i) => s + Number(i.amount || 0), 0);
+  const unassigned = items.filter(i => i.include && !i.category).length;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "#000a", display: "flex", alignItems: "flex-end" }}>
+      <style>{`@keyframes wcPulse{0%,80%,100%{opacity:.2;transform:scale(0.8)}40%{opacity:1;transform:scale(1.2)}}`}</style>
+      <div style={{ width: "100%", maxHeight: "92vh", background: T.card, borderRadius: "20px 20px 0 0", overflowY: "auto" }}>
+        {/* Header */}
+        <div style={{ padding: "16px 20px 12px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: T.card }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>📄 Scan Struk / Nota</div>
+            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>⚡ 1 Pulse per scan berhasil · sisa {pulseCredits} Pulse</div>
+          </div>
+          <button onClick={onClose} style={{ background: T.surface, border: "none", borderRadius: 20, padding: "6px 12px", color: T.textSoft, cursor: "pointer", fontSize: 13 }}>✕</button>
+        </div>
+
+        {/* Step indicator */}
+        <div style={{ display: "flex", alignItems: "center", padding: "12px 20px", gap: 0 }}>
+          {["Upload","Scan AI","Review","Kategori"].map((s, i) => {
+            const n = i + 1; const active = step === n; const done = step > n;
+            return (
+              <React.Fragment key={s}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: done ? T.green : active ? T.accent : T.border, color: done || active ? "#000" : T.muted, display: "flex", alignItems: "center", justifyContent: "center", fontSize: done ? 14 : 12, fontWeight: 700 }}>
+                    {done ? "✓" : n}
+                  </div>
+                  <div style={{ fontSize: 9, color: active ? T.accent : T.muted, marginTop: 3, fontWeight: active ? 700 : 400 }}>{s}</div>
+                </div>
+                {i < 3 && <div style={{ height: 2, flex: 0.5, background: done ? T.green : T.border, marginBottom: 18 }} />}
+              </React.Fragment>
+            );
+          })}
+        </div>
+
+        <div style={{ padding: "0 16px 32px" }}>
+          {error && <div style={{ padding: "10px 14px", background: T.red + "20", border: `1px solid ${T.red}44`, borderRadius: 8, color: T.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
+
+          {/* Step 1: Upload */}
+          {step === 1 && (
+            <div>
+              {preview ? (
+                <div style={{ marginBottom: 14 }}>
+                  <img src={preview} alt="preview" style={{ width: "100%", maxHeight: 260, objectFit: "contain", borderRadius: 10, border: `1px solid ${T.border}` }} />
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button onClick={() => { setFile(null); setPreview(null); }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.textSoft, cursor: "pointer", fontSize: 12 }}>Ganti Foto</button>
+                    <button onClick={doScan} disabled={pulseCredits < 1} style={{ flex: 2, padding: "9px", borderRadius: 9, border: "none", background: pulseCredits < 1 ? T.border : T.accent, color: pulseCredits < 1 ? T.muted : "#000", cursor: pulseCredits < 1 ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 700 }}>
+                      ⚡ Scan Sekarang (1 Pulse)
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <label style={{ display: "block", padding: "36px 20px", border: `2px dashed ${T.accent}66`, borderRadius: 14, textAlign: "center", cursor: "pointer", background: T.accentDim + "40" }}>
+                  <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
+                  <div style={{ fontSize: 48, marginBottom: 10 }}>📸</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 6 }}>Foto Struk / Nota</div>
+                  <div style={{ fontSize: 12, color: T.muted }}>Tap untuk pilih foto dari galeri atau kamera</div>
+                  <div style={{ marginTop: 10, fontSize: 11, color: T.accent }}>Format: JPG, PNG, HEIC, WebP</div>
+                </label>
+              )}
+              {/* Wallet selector */}
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Dari Wallet</div>
+                <Sel T={T} value={walletId} onChange={e => setWalletId(e.target.value)}>
+                  {wallets.map(w => <option key={w.id} value={w.id}>{w.icon} {w.name}</option>)}
+                </Sel>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Scanning */}
+          {step === 2 && (
+            <div style={{ textAlign: "center", padding: "32px 16px" }}>
+              <div style={{ fontSize: 52, marginBottom: 14 }}>🤖</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 8 }}>AI sedang membaca struk...</div>
+              <div style={{ fontSize: 12, color: T.muted, marginBottom: 20 }}>Mendeteksi nama toko, tanggal, dan daftar item</div>
+              {/* Loading dots */}
+              <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 24 }}>
+                {[0,1,2].map(i => (
+                  <div key={i} style={{
+                    width: 10, height: 10, borderRadius: "50%", background: T.accent,
+                    animation: `wcPulse 1.2s ${i * 0.4}s ease-in-out infinite`,
+                  }} />
+                ))}
+              </div>
+              {/* Warning: don't close */}
+              <div style={{ padding: "12px 16px", background: T.orange + "22", border: `1px solid ${T.orange}55`, borderRadius: 10, fontSize: 12, color: T.orange, lineHeight: 1.5 }}>
+                ⚠️ <strong>Jangan tutup atau refresh browser</strong>
+                <br />Proses sedang berjalan, harap tunggu sebentar...
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Review items */}
+          {step === 3 && scanData && (
+            <div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                <div style={{ flex: 1, background: T.surface, borderRadius: 9, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 10, color: T.muted }}>Toko</div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginTop: 2 }}>{scanData.storeName || "—"}</div>
+                </div>
+                <div style={{ flex: 1, background: T.surface, borderRadius: 9, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 10, color: T.muted }}>Tanggal</div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginTop: 2 }}>{scanData.date || "—"}</div>
+                </div>
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Item ({items.length})</div>
+              {items.map(it => (
+                <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderBottom: `1px solid ${T.border}44` }}>
+                  <input type="checkbox" checked={it.include} onChange={e => setItem(it.id, "include", e.target.checked)} style={{ width: 16, height: 16, flexShrink: 0 }} />
+                  <input value={it.name} onChange={e => setItem(it.id, "name", e.target.value)}
+                    style={{ flex: 2, padding: "5px 8px", borderRadius: 7, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 12, outline: "none" }} />
+                  <input type="number" value={it.amount} onChange={e => setItem(it.id, "amount", e.target.value)}
+                    style={{ width: 90, padding: "5px 8px", borderRadius: 7, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 12, outline: "none", textAlign: "right" }} />
+                </div>
+              ))}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", fontWeight: 700, fontSize: 13 }}>
+                <span style={{ color: T.textSoft }}>Total ({items.filter(i=>i.include).length} item)</span>
+                <span style={{ color: T.accent }}>{fmtRp(totalSelected)}</span>
+              </div>
+              <Btn T={T} variant="primary" onClick={() => setStep(4)} style={{ width: "100%", marginTop: 8 }}>Lanjut → Assign Kategori</Btn>
+            </div>
+          )}
+
+          {/* Step 4: Assign categories */}
+          {step === 4 && (
+            <div>
+              <div style={{ fontSize: 12, color: T.muted, marginBottom: 12 }}>
+                Pilih kategori untuk setiap item. {unassigned > 0 && <span style={{ color: T.orange }}>{unassigned} belum dikategorikan.</span>}
+              </div>
+              {items.filter(i => i.include).map(it => (
+                <div key={it.id} style={{ marginBottom: 10, padding: "10px 12px", background: T.surface, borderRadius: 10, border: `1px solid ${it.category ? T.border : T.orange+"66"}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{it.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>{fmtRp(it.amount)}</span>
+                  </div>
+                  <CategoryPicker T={T} value={it.category} onChange={v => setItem(it.id, "category", v)} type="expense" />
+                </div>
+              ))}
+              <div style={{ marginTop: 14, padding: "12px 14px", background: T.accentDim, borderRadius: 10, display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                <span style={{ fontSize: 13, color: T.textSoft }}>Total transaksi</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: T.accent }}>{fmtRp(totalSelected)}</span>
+              </div>
+              <Btn T={T} variant="primary" onClick={finish} style={{ width: "100%" }}>
+                ✅ Buat {items.filter(i=>i.include).length} Transaksi
+              </Btn>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Transaksi Scene ──────────────────────────────────────────────────────────
-function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setDebts }) {
+function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setDebts, pulseCredits, setPulseCredits }) {
   const today = new Date().toISOString().slice(0, 10);
-  const emptyForm = { type: "expense", date: today, amount: "", category: "Makan & Minum", walletId: "", toWalletId: "", debtId: "", description: "" };
+  // Auto-select first wallet
+  const defaultWallet = wallets[0]?.id || "";
+  const emptyForm = { type: "expense", date: today, amount: "", category: "", walletId: defaultWallet, toWalletId: "", debtId: "", description: "" };
   const [showForm, setShowForm] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [filter, setFilter] = useState("all");
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  // When type changes, reset category to sensible default
+  // When wallets load after initial render, set default wallet
+  React.useEffect(() => {
+    if (defaultWallet && !form.walletId) setF("walletId", defaultWallet);
+  }, [defaultWallet]); // eslint-disable-line
+
   const setType = (t) => {
     const cat = t === "income" ? "Gaji/Salary" : t === "expense" ? "Makan & Minum" : "";
     setForm(p => ({ ...p, type: t, category: cat, debtId: "", toWalletId: "" }));
   };
 
   const TYPE_META = {
-    income: { label: "Pemasukan", icon: "💰", color: "#3ecf8e" },
-    expense: { label: "Pengeluaran", icon: "💸", color: "#f26b6b" },
-    debt_payment: { label: "Bayar Hutang", icon: "💳", color: "#f59e0b" },
-    transfer: { label: "Transfer", icon: "↔️", color: "#9b7ef8" },
+    income:       { label: "Pemasukan",   icon: "💰", color: "#3ecf8e" },
+    expense:      { label: "Pengeluaran", icon: "💸", color: "#f26b6b" },
+    debt_payment: { label: "Bayar Hutang",icon: "💳", color: "#f59e0b" },
+    transfer:     { label: "Transfer",    icon: "↔️", color: "#9b7ef8" },
   };
 
-  const save = () => {
-    if (!form.amount || !form.walletId) return;
-    const amt = parseNum(form.amount);
-    if (amt <= 0) return;
+  const canSave = form.amount && parseNum(form.amount) > 0 && form.walletId &&
+    (form.type === "debt_payment" ? form.debtId : form.type === "transfer" ? form.toWalletId : form.category);
 
-    // For debt_payment: reduce outstanding in WP debts
+  const save = () => {
+    if (!canSave) return;
+    const amt = parseNum(form.amount);
     if (form.type === "debt_payment" && form.debtId && setDebts) {
       setDebts(prev => prev.map(d =>
         d.id === form.debtId
@@ -751,22 +1075,23 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setD
           : d
       ));
     }
-
     setTransactions(prev => [...prev, {
-      id: genId(),
-      date: form.date || today,
-      type: form.type,
+      id: genId(), date: form.date || today, type: form.type,
       category: form.type === "debt_payment"
         ? (debts.find(d => d.id === form.debtId)?.name || "Bayar Hutang")
         : form.type === "transfer" ? "Transfer" : form.category,
-      amount: amt,
-      walletId: form.walletId,
+      amount: amt, walletId: form.walletId,
       toWalletId: form.type === "transfer" ? form.toWalletId : "",
-      debtId: form.debtId,
-      description: form.description.trim(),
+      debtId: form.debtId, description: form.description.trim(),
     }]);
     setForm({ ...emptyForm, walletId: form.walletId });
     setShowForm(false);
+  };
+
+  // Called when ReceiptScanner finishes
+  const handleScanDone = (txs) => {
+    setTransactions(prev => [...prev, ...txs]);
+    setShowScanner(false);
   };
 
   const del = (id) => { if (window.confirm("Hapus transaksi ini?")) setTransactions(prev => prev.filter(t => t.id !== id)); };
@@ -779,41 +1104,53 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setD
   const walletName = (id) => wallets.find(w => w.id === id)?.name || "—";
 
   return (
-    <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
-      {/* Filter bar */}
+    <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto", paddingBottom: 80 }}>
+      {/* Filter chips */}
       <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
         {[["all","Semua"],["income","Pemasukan"],["expense","Pengeluaran"],["debt_payment","Bayar Hutang"],["transfer","Transfer"]].map(([k,l]) => (
           <button key={k} onClick={() => setFilter(k)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${filter===k ? T.accent : T.border}`, background: filter===k ? T.accentDim : T.surface, color: filter===k ? T.accent : T.textSoft, fontSize: 11, cursor: "pointer", fontWeight: filter===k ? 700 : 400 }}>{l}</button>
         ))}
       </div>
 
-      {/* Add form */}
+      {/* Add transaction form */}
       {showForm && (
         <Card T={T} style={{ marginBottom: 16 }}>
-          <SectionTitle>Catat Transaksi Baru</SectionTitle>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <SectionTitle style={{ margin: 0 }}>Catat Transaksi Baru</SectionTitle>
+            {/* Receipt scan shortcut (expense only) */}
+            {form.type === "expense" && wallets.length > 0 && (
+              <button
+                onClick={() => { setShowForm(false); setShowScanner(true); }}
+                style={{ fontSize: 11, padding: "5px 10px", borderRadius: 8, border: `1px solid ${T.accent}44`, background: T.accentDim, color: T.accent, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+              >
+                📸 Scan Struk
+              </button>
+            )}
+          </div>
+
           {/* Type tabs */}
-          <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-            {Object.entries(TYPE_META).map(([k,m]) => (
-              <button key={k} onClick={() => setType(k)} style={{ flex: 1, padding: "7px 4px", borderRadius: 8, border: `1px solid ${form.type===k ? m.color : T.border}`, background: form.type===k ? m.color+"22" : T.surface, color: form.type===k ? m.color : T.textSoft, fontSize: 11, cursor: "pointer", fontWeight: form.type===k ? 700 : 400, textAlign: "center" }}>
-                {m.icon} {m.label}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 5, marginBottom: 12 }}>
+            {Object.entries(TYPE_META).map(([k, m]) => (
+              <button key={k} onClick={() => setType(k)} style={{ padding: "8px 4px", borderRadius: 8, border: `1px solid ${form.type===k ? m.color : T.border}`, background: form.type===k ? m.color+"22" : T.surface, color: form.type===k ? m.color : T.textSoft, fontSize: 10, cursor: "pointer", fontWeight: form.type===k ? 700 : 400, textAlign: "center" }}>
+                <div style={{ fontSize: 16 }}>{m.icon}</div>
+                <div style={{ marginTop: 2 }}>{m.label}</div>
               </button>
             ))}
           </div>
+
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            {/* Date + Amount */}
             <div style={{ display: "flex", gap: 8 }}>
               <Inp T={T} type="date" value={form.date} onChange={e => setF("date", e.target.value)} style={{ flex: 1 }} />
               <Inp T={T} type="number" value={form.amount} onChange={e => setF("amount", e.target.value)} placeholder="Jumlah (Rp)" style={{ flex: 2 }} />
             </div>
-            {/* Category / Debt selector */}
-            {form.type === "income" && (
-              <Sel T={T} value={form.category} onChange={e => setF("category", e.target.value)}>
-                {TX_INCOME_CATS.map(c => <option key={c}>{c}</option>)}
-              </Sel>
+
+            {/* Category — grouped picker for expense, flat for income */}
+            {(form.type === "expense") && (
+              <CategoryPicker T={T} value={form.category} onChange={v => setF("category", v)} type="expense" />
             )}
-            {form.type === "expense" && (
-              <Sel T={T} value={form.category} onChange={e => setF("category", e.target.value)}>
-                {TX_EXPENSE_CATS.map(c => <option key={c}>{c}</option>)}
-              </Sel>
+            {form.type === "income" && (
+              <CategoryPicker T={T} value={form.category} onChange={v => setF("category", v)} type="income" />
             )}
             {form.type === "debt_payment" && (
               <Sel T={T} value={form.debtId} onChange={e => setF("debtId", e.target.value)}>
@@ -821,30 +1158,34 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setD
                 {(debts || []).map(d => <option key={d.id} value={d.id}>{d.name} (sisa {fmtRp(d.outstanding)})</option>)}
               </Sel>
             )}
+
             {/* Source wallet */}
             <Sel T={T} value={form.walletId} onChange={e => setF("walletId", e.target.value)}>
               <option value="">-- Dari Wallet --</option>
-              {wallets.map(w => <option key={w.id} value={w.id}>{w.icon} {w.name}</option>)}
+              {wallets.map(w => <option key={w.id} value={w.id}>{w.icon} {w.name} ({fmtRp(getWalletBalance(w, transactions))})</option>)}
             </Sel>
-            {/* Transfer: destination wallet */}
+
+            {/* Transfer to wallet */}
             {form.type === "transfer" && (
               <Sel T={T} value={form.toWalletId} onChange={e => setF("toWalletId", e.target.value)}>
                 <option value="">-- Ke Wallet --</option>
                 {wallets.filter(w => w.id !== form.walletId).map(w => <option key={w.id} value={w.id}>{w.icon} {w.name}</option>)}
               </Sel>
             )}
+
             <Inp T={T} value={form.description} onChange={e => setF("description", e.target.value)} placeholder="Keterangan (opsional)" />
+
             <div style={{ display: "flex", gap: 8 }}>
-              <Btn T={T} variant="primary" onClick={save} style={{ flex: 1 }} disabled={!form.amount || !form.walletId}>Simpan</Btn>
+              <Btn T={T} variant="primary" onClick={save} style={{ flex: 1 }} disabled={!canSave}>Simpan</Btn>
               <Btn T={T} onClick={() => setShowForm(false)} style={{ flex: 1 }}>Batal</Btn>
             </div>
           </div>
         </Card>
       )}
 
-      {/* No wallets warning */}
+      {/* No-wallet warning */}
       {wallets.length === 0 && (
-        <Card T={T} style={{ textAlign: "center", padding: "24px 16px", marginBottom: 14, border: `1px dashed ${T.border}` }}>
+        <Card T={T} style={{ textAlign: "center", padding: "20px 16px", marginBottom: 14, border: `1px dashed ${T.border}` }}>
           <div style={{ fontSize: 12, color: T.muted }}>Tambah wallet terlebih dahulu di menu <strong style={{ color: T.accent }}>Wallet</strong> sebelum mencatat transaksi.</div>
         </Card>
       )}
@@ -854,8 +1195,13 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setD
         <Card T={T} style={{ textAlign: "center", padding: "36px 16px", border: `1px dashed ${T.border}` }}>
           <div style={{ fontSize: 36, marginBottom: 10 }}>💸</div>
           <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 6 }}>Belum ada transaksi</div>
-          <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>Catat pemasukan, pengeluaran, atau pembayaran hutang Anda.</div>
-          {wallets.length > 0 && <Btn T={T} variant="primary" onClick={() => setShowForm(true)}>+ Catat Pertama</Btn>}
+          <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>Catat manual atau scan struk/nota.</div>
+          {wallets.length > 0 && (
+            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              <Btn T={T} variant="primary" onClick={() => setShowForm(true)}>+ Catat Manual</Btn>
+              <Btn T={T} onClick={() => setShowScanner(true)}>📸 Scan Struk</Btn>
+            </div>
+          )}
         </Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -864,7 +1210,7 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setD
             const isIncome = t.type === "income";
             return (
               <Card T={T} key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
                   {CAT_ICONS[t.category] || meta.icon}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -872,14 +1218,14 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setD
                     {t.category}{t.description ? ` · ${t.description}` : ""}
                   </div>
                   <div style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>
-                    {new Date(t.date).toLocaleDateString("id-ID", { day:"numeric", month:"short", year:"numeric" })} · {walletName(t.walletId)}{t.toWalletId ? ` → ${walletName(t.toWalletId)}` : ""}
+                    {new Date(t.date + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })} · {walletName(t.walletId)}{t.toWalletId ? ` → ${walletName(t.toWalletId)}` : ""}
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: isIncome ? T.green : T.red }}>
                     {isIncome ? "+" : "-"}{fmtRp(t.amount)}
                   </div>
-                  <button onClick={() => del(t.id)} style={{ fontSize: 9, color: T.muted, background: "none", border: "none", cursor: "pointer", marginTop: 3 }}>🗑</button>
+                  <button onClick={() => del(t.id)} style={{ fontSize: 9, color: T.muted, background: "none", border: "none", cursor: "pointer", marginTop: 3, padding: "2px 4px" }}>🗑</button>
                 </div>
               </Card>
             );
@@ -887,12 +1233,30 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setD
         </div>
       )}
 
-      {/* FAB */}
+      {/* FAB buttons */}
       {wallets.length > 0 && !showForm && (
-        <button
-          onClick={() => setShowForm(true)}
-          style={{ position: "fixed", bottom: 24, right: 24, width: 52, height: 52, borderRadius: "50%", background: T.accent, color: "#000", border: "none", fontSize: 22, cursor: "pointer", boxShadow: `0 4px 20px ${T.accent}66`, zIndex: 50, fontWeight: 700 }}
-        >+</button>
+        <div style={{ position: "fixed", bottom: 24, right: 16, display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end", zIndex: 50 }}>
+          <button
+            onClick={() => setShowScanner(true)}
+            style={{ width: 44, height: 44, borderRadius: "50%", background: T.card, border: `1px solid ${T.border}`, color: T.accent, fontSize: 20, cursor: "pointer", boxShadow: "0 2px 12px #0004" }}
+            title="Scan Struk"
+          >📸</button>
+          <button
+            onClick={() => { setForm({ ...emptyForm, walletId: defaultWallet }); setShowForm(true); }}
+            style={{ width: 52, height: 52, borderRadius: "50%", background: T.accent, color: "#000", border: "none", fontSize: 24, cursor: "pointer", boxShadow: `0 4px 20px ${T.accent}66`, fontWeight: 700 }}
+            title="Catat Transaksi"
+          >+</button>
+        </div>
+      )}
+
+      {/* Receipt Scanner modal */}
+      {showScanner && (
+        <ReceiptScanner
+          T={T} wallets={wallets}
+          pulseCredits={pulseCredits} setPulseCredits={setPulseCredits}
+          onDone={handleScanDone}
+          onClose={() => setShowScanner(false)}
+        />
       )}
     </div>
   );
@@ -1242,7 +1606,7 @@ function ReportScene({ T, transactions, budgets }) {
 
 // ─── Main ArthaJourneyApp ────────────────────────────────────────────────────
 export default function ArthaJourneyApp({
-  user, T, isPro, isProPlus, pulseCredits,
+  user, T, isPro, isProPlus, pulseCredits, setPulseCredits,
   assets, debts, setDebts, activeIncomes, monthlyFixedIncome,
   settings, setSettings, theme, setTheme, dispCur, setDispCur,
   fontScale, setFontScale, customPresetId, setCustomPresetId,
@@ -1262,7 +1626,7 @@ export default function ArthaJourneyApp({
       case "budget":
         return <BudgetScene T={T} budgets={ajBudgets} setBudgets={setAjBudgets} transactions={ajTransactions} assets={assets} activeIncomes={activeIncomes} monthlyFixedIncome={monthlyFixedIncome} />;
       case "transaksi":
-        return <TransaksiScene T={T} transactions={ajTransactions} setTransactions={setAjTransactions} wallets={ajWallets} debts={debts} setDebts={setDebts} />;
+        return <TransaksiScene T={T} transactions={ajTransactions} setTransactions={setAjTransactions} wallets={ajWallets} debts={debts} setDebts={setDebts} pulseCredits={pulseCredits} setPulseCredits={setPulseCredits || (() => {})} />;
       case "hutang":
         return <HutangScene T={T} debts={debts} />;
       case "tools":
