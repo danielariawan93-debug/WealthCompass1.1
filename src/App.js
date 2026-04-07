@@ -1273,6 +1273,8 @@ function WealthPulseV7() {
                 T={T}
                 isPro={isPro}
                 isProPlus={isProPlus}
+                ajWallets={ajWallets}
+                ajTransactions={ajTransactions}
               />
             )}
             {tab === "ai" && (

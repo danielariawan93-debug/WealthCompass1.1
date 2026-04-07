@@ -1192,7 +1192,7 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
 }
 
 // ─── Transaksi Scene ──────────────────────────────────────────────────────────
-function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setDebts, pulseCredits, setPulseCredits }) {
+function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets, debts, setDebts, pulseCredits, setPulseCredits }) {
   const today = new Date().toISOString().slice(0, 10);
   // Auto-select first wallet
   const defaultWallet = wallets[0]?.id || "";
@@ -1225,11 +1225,35 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, debts, setD
 
   // Sync credit wallet expense → increment linked debt outstanding in WealthPulse
   const syncCreditDebt = (walletId, amount, reverse = false) => {
-    if (!setDebts) return;
+    if (!setDebts || !debts) return;
     const wallet = wallets.find(w => w.id === walletId);
-    if (!wallet?.debtId || !CREDIT_WALLET_TYPES.includes(wallet.type)) return;
+    if (!wallet || !CREDIT_WALLET_TYPES.includes(wallet.type)) return;
+
+    let targetDebtId = wallet.debtId;
+
+    // Auto-detect linked debt when wallet.debtId not set (existing wallets pre-dating the link feature)
+    if (!targetDebtId) {
+      const debtTypeKey = WALLET_TYPE_DEBT_KEY[wallet.type];
+      const candidates = debts.filter(d => d.type === debtTypeKey);
+      if (candidates.length === 1) {
+        targetDebtId = candidates[0].id;
+      } else if (candidates.length > 1) {
+        // Name-similarity match: pick the debt whose name overlaps most with the wallet name
+        const wName = wallet.name.toLowerCase();
+        const match = candidates.find(d =>
+          (d.name || "").toLowerCase().split(/\s+/).some(w => wName.includes(w) && w.length > 2)
+        ) || candidates.find(d => wName.includes((d.name || "").toLowerCase()));
+        if (match) targetDebtId = match.id;
+      }
+      // Auto-link wallet for future transactions
+      if (targetDebtId && setWallets) {
+        setWallets(prev => prev.map(w => w.id === walletId ? { ...w, debtId: targetDebtId } : w));
+      }
+    }
+
+    if (!targetDebtId) return;
     setDebts(prev => prev.map(d =>
-      d.id === wallet.debtId
+      d.id === targetDebtId
         ? { ...d, outstanding: Math.max(0, parseNum(d.outstanding) + (reverse ? -amount : amount)).toString() }
         : d
     ));
@@ -1835,7 +1859,7 @@ export default function ArthaJourneyApp({
       case "budget":
         return <BudgetScene T={T} budgets={ajBudgets} setBudgets={setAjBudgets} transactions={ajTransactions} assets={assets} activeIncomes={activeIncomes} monthlyFixedIncome={monthlyFixedIncome} />;
       case "transaksi":
-        return <TransaksiScene T={T} transactions={ajTransactions} setTransactions={setAjTransactions} wallets={ajWallets} debts={debts} setDebts={setDebts} pulseCredits={pulseCredits} setPulseCredits={setPulseCredits || (() => {})} />;
+        return <TransaksiScene T={T} transactions={ajTransactions} setTransactions={setAjTransactions} wallets={ajWallets} setWallets={setAjWallets} debts={debts} setDebts={setDebts} pulseCredits={pulseCredits} setPulseCredits={setPulseCredits || (() => {})} />;
       case "hutang":
         return <HutangScene T={T} debts={debts} />;
       case "tools":

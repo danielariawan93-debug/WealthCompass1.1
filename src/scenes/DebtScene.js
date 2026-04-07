@@ -82,7 +82,7 @@ const EMPTY_FORM = {
   linkedAssetId: '',
 };
 
-function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, isProPlus = false }) {
+function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, isProPlus = false, ajWallets = [], ajTransactions = [] }) {
   const allTypes = [...KONSUMTIF, ...PRODUKTIF];
   const [f, setF] = useState(() => {
     if (editData) {
@@ -135,7 +135,25 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
   const utilisasi = isRevolving && parseVal(f.plafon) > 0
     ? (parseVal(f.outstanding) / parseVal(f.plafon)) * 100 : 0;
 
-  const canSave = f.name.trim() && derivedOutstanding > 0;
+  // Minimum outstanding = total AJ expenses via linked credit wallets (cannot be set lower)
+  const minOutstandingFromAJ = useMemo(() => {
+    if (!editData || !isRevolving) return 0;
+    // Find wallets in AJ that are linked to this debt (by debtId or by type match + name)
+    const debtTypeKeys = { kpr: null, kkb: null, cc: "Kartu Kredit", paylater: "Paylater", krek: null, margin: null };
+    const walletType = debtTypeKeys[editData.type || f.key];
+    if (!walletType) return 0;
+    const linkedWallets = ajWallets.filter(w =>
+      w.debtId === editData.id ||
+      (w.type === walletType && !w.debtId) // unlinked wallets of matching type
+    );
+    if (linkedWallets.length === 0) return 0;
+    const linkedIds = new Set(linkedWallets.map(w => w.id));
+    return ajTransactions
+      .filter(t => t.type === "expense" && linkedIds.has(t.walletId))
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  }, [editData, isRevolving, ajWallets, ajTransactions, f.key]);
+
+  const canSave = f.name.trim() && derivedOutstanding > 0 && derivedOutstanding >= minOutstandingFromAJ;
 
   const handleSave = () => {
     if (!canSave) return;
@@ -307,8 +325,25 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
             <input value={f.plafon} onChange={e=>setFF('plafon',e.target.value)} placeholder="500000000" style={inp} />
           </div>
           <div>
-            <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>Outstanding Saat Ini (IDR) * <span style={{ color:T.muted, fontSize:9 }}> - yang dihitung sebagai hutang</span></div>
-            <input value={f.outstanding} onChange={e=>setFF('outstanding',e.target.value)} placeholder="200000000" style={inp} />
+            <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>
+              Outstanding Saat Ini (IDR) *
+              <span style={{ color:T.muted, fontSize:9 }}> - yang dihitung sebagai hutang</span>
+            </div>
+            <input
+              value={f.outstanding}
+              onChange={e => setFF('outstanding', e.target.value)}
+              placeholder="200000000"
+              style={{ ...inp, borderColor: minOutstandingFromAJ > 0 && parseVal(f.outstanding) < minOutstandingFromAJ ? T.red : inp.borderColor }}
+            />
+            {/* AJ integration warning: cannot go below total AJ credit spend */}
+            {minOutstandingFromAJ > 0 && (
+              <div style={{ marginTop: 6, padding: '8px 10px', background: parseVal(f.outstanding) < minOutstandingFromAJ ? T.red + '22' : T.orange + '18', border: `1px solid ${parseVal(f.outstanding) < minOutstandingFromAJ ? T.red : T.orange}44`, borderRadius: 7, fontSize: 11, lineHeight: 1.5 }}>
+                {parseVal(f.outstanding) < minOutstandingFromAJ
+                  ? <span style={{ color: T.red }}>⛔ Outstanding tidak boleh lebih rendah dari total pengeluaran Artha Journey: <strong>Rp {minOutstandingFromAJ.toLocaleString('id-ID')}</strong></span>
+                  : <span style={{ color: T.orange }}>💡 Total pengeluaran via wallet Paylater/CC di Artha Journey: <strong>Rp {minOutstandingFromAJ.toLocaleString('id-ID')}</strong>. Outstanding tidak bisa lebih rendah dari nilai ini.</span>
+                }
+              </div>
+            )}
             {utilisasi > 0 && (
               <div style={{ marginTop:6 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:T.muted, marginBottom:3 }}>
@@ -478,7 +513,7 @@ function formatRenewalDate(dateStr) {
 // ============================================================
 // MAIN SCENE
 // ============================================================
-function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideValues = false, isPro = false, isProPlus = false }) {
+function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideValues = false, isPro = false, isProPlus = false, ajWallets = [], ajTransactions = [] }) {
   const fV = (v) => fM(v, dispCur, hideValues);
   const [mode, setMode]     = useState('list');
   const [editDebt, setEditDebt] = useState(null);
@@ -604,6 +639,8 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
             assets={assets}
             isPro={isPro}
             isProPlus={isProPlus}
+            ajWallets={ajWallets}
+            ajTransactions={ajTransactions}
           />
         </Card>
       )}
