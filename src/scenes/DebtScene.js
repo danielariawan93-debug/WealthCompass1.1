@@ -574,13 +574,173 @@ function formatRenewalDate(dateStr) {
 }
 
 // ============================================================
+// E-STATEMENT MODAL (Wealth Pulse — unsynced CC/Paylater only)
+// Extracts: total_tagihan, tanggal_jatuh_tempo, sisa_cicilan, sisa_limit
+// ============================================================
+function EStatementModal({ debt, T, onClose, onApply }) {
+  const [step, setStep]       = useState(1); // 1=upload, 2=scanning, 3=review
+  const [file, setFile]       = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [result, setResult]   = useState(null);
+  const [error, setError]     = useState('');
+
+  const handleFile = (f) => {
+    if (!f) return;
+    setFile(f);
+    setError('');
+    const reader = new FileReader();
+    reader.onload = e => setPreview(e.target.result);
+    reader.readAsDataURL(f);
+  };
+
+  const doScan = async () => {
+    if (!file) return;
+    setStep(2);
+    setError('');
+    try {
+      const reader = new FileReader();
+      await new Promise((resolve, reject) => {
+        reader.onload = resolve;
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const base64 = reader.result.split(',')[1];
+      const mimeType = file.type || 'image/jpeg';
+      const res = await fetch('/api/scan-statement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType, mode: 'summary' }),
+      });
+      if (!res.ok) {
+        let msg = 'Scan gagal (server error)';
+        try { const b = await res.json(); msg = b.error || msg; } catch {}
+        throw new Error(msg);
+      }
+      const data = await res.json();
+      if (!data.total_tagihan && !data.tanggal_jatuh_tempo) {
+        throw new Error('Tidak ada data terdeteksi. Pastikan gambar e-statement jelas dan terbaca.');
+      }
+      setResult(data);
+      setStep(3);
+    } catch (err) {
+      setError('Scan gagal: ' + (err.message || 'Terjadi kesalahan.'));
+      setStep(1);
+    }
+  };
+
+  const handleApply = () => {
+    if (!result) return;
+    const updates = {};
+    if (result.total_tagihan > 0)     updates.outstanding  = String(Math.round(result.total_tagihan));
+    if (result.tanggal_jatuh_tempo)   updates.renewalDate  = result.tanggal_jatuh_tempo;
+    if (result.sisa_limit > 0) {
+      const used = result.total_tagihan || 0;
+      updates.plafon = String(Math.round(result.sisa_limit + used));
+    }
+    onApply(updates);
+    onClose();
+  };
+
+  const fV = v => v ? `Rp ${Number(v).toLocaleString('id-ID')}` : '—';
+  const overlay = { position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:1000, display:'flex', alignItems:'flex-end', justifyContent:'center' };
+  const sheet   = { background:T.card, borderRadius:'16px 16px 0 0', width:'100%', maxWidth:480, maxHeight:'85vh', overflow:'auto', paddingBottom:24 };
+
+  return (
+    <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={sheet}>
+        <div style={{ padding:'16px 20px 12px', borderBottom:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <div style={{ fontWeight:700, fontSize:15, color:T.text }}>📄 Upload E-Statement CC</div>
+            <div style={{ fontSize:11, color:T.muted, marginTop:2 }}>{debt.name}</div>
+          </div>
+          <button onClick={onClose} style={{ background:T.surface, border:'none', borderRadius:20, padding:'6px 12px', color:T.textSoft, cursor:'pointer', fontSize:13 }}>✕</button>
+        </div>
+
+        <div style={{ padding:'16px 20px' }}>
+          {error && <div style={{ padding:'10px 14px', background:T.red+'20', border:`1px solid ${T.red}44`, borderRadius:8, color:T.red, fontSize:12, marginBottom:12 }}>{error}</div>}
+
+          {/* Step 1: Upload */}
+          {step === 1 && (
+            <div>
+              <div style={{ fontSize:11, color:T.muted, marginBottom:12, lineHeight:1.6 }}>
+                Upload foto atau screenshot e-statement kartu kredit. AI akan mengekstrak total tagihan, tanggal jatuh tempo, dan sisa limit.
+              </div>
+              {!preview ? (
+                <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'28px', borderRadius:12, border:`2px dashed ${T.accentSoft}`, background:T.surface, cursor:'pointer', gap:8 }}>
+                  <span style={{ fontSize:36 }}>📷</span>
+                  <span style={{ color:T.accent, fontSize:13, fontWeight:700 }}>Pilih Gambar E-Statement</span>
+                  <span style={{ color:T.muted, fontSize:11 }}>JPG, PNG, WebP</span>
+                  <input type="file" accept="image/*" style={{ display:'none' }} onChange={e => handleFile(e.target.files?.[0])} />
+                </label>
+              ) : (
+                <div>
+                  <img src={preview} alt="preview" style={{ width:'100%', borderRadius:10, maxHeight:220, objectFit:'contain', background:T.surface }} />
+                  <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                    <button onClick={() => { setFile(null); setPreview(null); }} style={{ flex:1, padding:'9px', borderRadius:9, border:`1px solid ${T.border}`, background:T.surface, color:T.textSoft, cursor:'pointer', fontSize:12 }}>Ganti Gambar</button>
+                    <button onClick={doScan} style={{ flex:2, padding:'9px', borderRadius:9, border:'none', background:T.accent, color:'#000', cursor:'pointer', fontSize:12, fontWeight:700 }}>
+                      Scan E-Statement
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 2: Scanning */}
+          {step === 2 && (
+            <div style={{ textAlign:'center', padding:'32px 16px' }}>
+              <div style={{ fontSize:48, marginBottom:12 }}>🤖</div>
+              <div style={{ fontWeight:700, fontSize:15, color:T.text, marginBottom:8 }}>AI sedang membaca e-statement...</div>
+              <div style={{ fontSize:12, color:T.muted, marginBottom:20 }}>Mengekstrak total tagihan, tanggal jatuh tempo, dan sisa limit</div>
+              <div style={{ display:'flex', justifyContent:'center', gap:8 }}>
+                {[0,1,2].map(i => (
+                  <div key={i} style={{ width:10, height:10, borderRadius:'50%', background:T.accent, animation:`wcPulse 1.2s ${i*0.4}s ease-in-out infinite` }} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Review & Apply */}
+          {step === 3 && result && (
+            <div>
+              <div style={{ fontSize:12, color:T.muted, marginBottom:12 }}>Konfirmasi data berikut akan diterapkan ke hutang <strong style={{ color:T.text }}>{debt.name}</strong>:</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
+                {[
+                  { label:'Total Tagihan', value: fV(result.total_tagihan), highlight: true },
+                  { label:'Tanggal Jatuh Tempo', value: result.tanggal_jatuh_tempo || '—' },
+                  { label:'Sisa Cicilan', value: result.sisa_cicilan > 0 ? fV(result.sisa_cicilan) : '—' },
+                  { label:'Sisa Limit', value: result.sisa_limit > 0 ? fV(result.sisa_limit) : '—' },
+                ].map(row => (
+                  <div key={row.label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 12px', background:T.surface, borderRadius:9 }}>
+                    <span style={{ fontSize:12, color:T.muted }}>{row.label}</span>
+                    <span style={{ fontSize:13, fontWeight:700, color: row.highlight ? T.red : T.text }}>{row.value}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding:'10px 12px', background:T.accentDim, borderRadius:9, fontSize:11, color:T.accent, marginBottom:14 }}>
+                ℹ️ Total tagihan akan digunakan sebagai <strong>Outstanding</strong>. Tanggal jatuh tempo sebagai <strong>Renewal Date</strong>.
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={() => { setStep(1); setResult(null); }} style={{ flex:1, padding:'10px', borderRadius:9, border:`1px solid ${T.border}`, background:T.surface, color:T.textSoft, cursor:'pointer', fontSize:12 }}>← Scan Ulang</button>
+                <button onClick={handleApply} style={{ flex:2, padding:'10px', borderRadius:9, border:'none', background:T.accent, color:'#000', cursor:'pointer', fontSize:13, fontWeight:700 }}>✅ Terapkan</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // MAIN SCENE
 // ============================================================
 function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideValues = false, isPro = false, isProPlus = false, ajWallets = [], ajTransactions = [] }) {
   const fV = (v) => fM(v, dispCur, hideValues);
-  const [mode, setMode]     = useState('list');
+  const [mode, setMode]         = useState('list');
   const [editDebt, setEditDebt] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
+  const [statementDebt, setStatementDebt] = useState(null); // debt being statement-uploaded
 
   const totalOutstanding = debts.reduce((s, d) => s + parseVal(d.outstanding), 0);
   const getAllTypes = () => [...KONSUMTIF, ...PRODUKTIF];
@@ -609,6 +769,10 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
     }
     setMode('list');
     setEditDebt(null);
+  };
+
+  const applyStatement = (debtId, updates) => {
+    setDebts(p => p.map(d => d.id === debtId ? { ...d, ...updates } : d));
   };
 
   const deleteDebt = (id) => setDebts(p => p.filter(d => d.id !== id));
@@ -847,6 +1011,26 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
 
                 {d.notes && <div style={{ color:T.muted, fontSize:10, marginBottom:8, fontStyle:'italic' }}>{d.notes}</div>}
 
+                {/* E-Statement upload for CC/Paylater */}
+                {isRev && (d.type === 'cc' || d.type === 'paylater') && (() => {
+                  const isSynced = ajWallets.some(w => w.debtId === d.id);
+                  return isSynced ? (
+                    <div style={{ marginBottom:8, padding:'8px 12px', background:T.surface, borderRadius:9, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:18 }}>📄</span>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11, fontWeight:600, color:T.muted }}>Upload E-Statement</div>
+                        <div style={{ fontSize:10, color:T.accent, marginTop:1 }}>🔗 Upload dilakukan di Artha Journey</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setStatementDebt(d)}
+                      style={{ width:'100%', marginBottom:8, padding:'8px 12px', borderRadius:9, border:`1px solid ${T.border}`, background:T.surface, color:T.textSoft, cursor:'pointer', fontSize:11, fontWeight:600, display:'flex', alignItems:'center', gap:6, justifyContent:'center' }}
+                    >
+                      📄 Upload E-Statement
+                    </button>
+                  );
+                })()}
                 <div style={{ display:'flex', gap:8 }}>
                   <TBtn T={T} variant="ghost" onClick={()=>{setEditDebt(d);setMode('edit');window.scrollTo({top:0,behavior:'smooth'});}} style={{ flex:1, padding:'7px 0', fontSize:11 }}>✎ Edit</TBtn>
                   <TBtn T={T} variant="danger" onClick={()=>deleteDebt(d.id)} style={{ padding:'7px 14px', fontSize:11 }}>✕</TBtn>
@@ -861,6 +1045,16 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
             </div>
           )}
         </>
+      )}
+
+      {/* E-Statement modal */}
+      {statementDebt && (
+        <EStatementModal
+          debt={statementDebt}
+          T={T}
+          onClose={() => setStatementDebt(null)}
+          onApply={updates => applyStatement(statementDebt.id, updates)}
+        />
       )}
 
       {/* Empty state */}

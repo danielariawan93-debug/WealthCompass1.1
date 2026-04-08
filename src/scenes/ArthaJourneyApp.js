@@ -1192,16 +1192,272 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
   );
 }
 
+// ─── E-Statement Scanner (3-stage CC flow) ────────────────────────────────────
+// Stage 1: Upload + select CC wallet → AI extracts transactions
+// Stage 2: Review/categorize — expenses get category, credit_entries get type
+// Stage 3: Confirm → bulk save transactions
+function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, setPulseCredits }) {
+  const ccWallets = wallets.filter(w => CREDIT_WALLET_TYPES.includes(w.type));
+  const [step, setStep]       = useState(1);
+  const [file, setFile]       = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [walletId, setWalletId] = useState(ccWallets[0]?.id || "");
+  const [txList, setTxList]   = useState([]); // [{id,name,amount,date,txType,category,classifiedAs,toWalletId}]
+  const [error, setError]     = useState("");
+
+  const setTx = (id, key, val) =>
+    setTxList(prev => prev.map(t => t.id === id ? { ...t, [key]: val } : t));
+
+  const doScan = async () => {
+    if (!file || pulseCredits < 1) {
+      if (pulseCredits < 1) setError("Pulse tidak cukup. Beli Pulse untuk melanjutkan.");
+      return;
+    }
+    setStep(2);
+    setError("");
+    try {
+      const reader = new FileReader();
+      await new Promise((resolve, reject) => {
+        reader.onload = resolve;
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const base64 = reader.result.split(",")[1];
+      const mimeType = file.type || "image/jpeg";
+      const res = await fetch("/api/scan-statement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mimeType, mode: "transactions" }),
+      });
+      if (!res.ok) {
+        let msg = "Scan gagal (server error)";
+        try { const b = await res.json(); msg = b.error || msg; } catch {}
+        throw new Error(msg);
+      }
+      const data = await res.json();
+      const raw = data.transactions || [];
+      if (raw.length === 0) throw new Error("Tidak ada transaksi terdeteksi. Pastikan gambar e-statement jelas dan terbaca.");
+      setPulseCredits(p => p - 1);
+      setTxList(raw.map((t, i) => ({
+        id: String(i),
+        name: t.name || "Transaksi " + (i + 1),
+        amount: Number(t.amount) || 0,
+        date: t.date || new Date().toISOString().slice(0, 10),
+        txType: t.txType || "expense",     // "expense" | "credit_entry"
+        include: true,
+        category: t.txType === "expense" ? "Belanja" : "",
+        classifiedAs: "",   // for credit_entry: "income" | "debt_payment" | "transfer"
+        toWalletId: "",
+      })));
+      setStep(3);
+    } catch (err) {
+      setError("Scan gagal: " + (err.message || "Terjadi kesalahan."));
+      setStep(1);
+    }
+  };
+
+  const finish = () => {
+    const wallet = wallets.find(w => w.id === walletId);
+    const linked = wallet?.debtId ? debts?.find(d => d.id === wallet.debtId) : null;
+    const txs = txList.filter(t => t.include && t.amount > 0).map(t => {
+      if (t.txType === "expense") {
+        return { id: genId(), date: t.date, type: "expense", category: t.category || "Belanja", amount: t.amount, walletId, description: t.name };
+      }
+      // credit_entry — user classified as income / debt_payment / transfer
+      const ca = t.classifiedAs || "income";
+      if (ca === "income") {
+        return { id: genId(), date: t.date, type: "income", category: "Transfer Masuk", amount: t.amount, walletId, description: t.name };
+      }
+      if (ca === "debt_payment") {
+        return { id: genId(), date: t.date, type: "debt_payment", category: linked?.name || "Bayar Hutang", amount: t.amount, walletId, debtId: linked?.id || "", description: t.name };
+      }
+      // transfer
+      return { id: genId(), date: t.date, type: "transfer", category: "Transfer", amount: t.amount, walletId: t.toWalletId || walletId, toWalletId: walletId, description: t.name };
+    });
+    onDone(txs);
+  };
+
+  const unclassified = txList.filter(t => t.include && t.txType === "credit_entry" && !t.classifiedAs).length;
+  const totalIncluded = txList.filter(t => t.include).reduce((s, t) => s + t.amount, 0);
+
+  const CREDIT_ENTRY_OPTS = [
+    { v: "income",        l: "💰 Pemasukan",        sub: "Pembayaran masuk / refund" },
+    { v: "debt_payment",  l: "💳 Bayar Hutang",      sub: "Cicilan / pelunasan" },
+    { v: "transfer",      l: "↔️ Transfer Wallet",   sub: "Dana dari wallet lain" },
+  ];
+
+  const inp = { width: "100%", background: T.inputBg || T.surface, border: `1px solid ${T.border}`, color: T.text, borderRadius: 9, padding: "8px 10px", fontSize: 12, outline: "none", boxSizing: "border-box" };
+  const overlay = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" };
+  const sheet   = { background: T.card, borderRadius: "16px 16px 0 0", width: "100%", maxWidth: 520, maxHeight: "90vh", overflow: "auto", paddingBottom: 24 };
+
+  return (
+    <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={sheet}>
+        <div style={{ padding: "16px 20px 12px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: T.card }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>📄 Upload E-Statement CC</div>
+            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>⚡ 1 Pulse per scan · sisa {pulseCredits} Pulse</div>
+          </div>
+          <button onClick={onClose} style={{ background: T.surface, border: "none", borderRadius: 20, padding: "6px 12px", color: T.textSoft, cursor: "pointer", fontSize: 13 }}>✕</button>
+        </div>
+
+        {/* Step indicator */}
+        <div style={{ display: "flex", alignItems: "center", padding: "12px 20px", gap: 0 }}>
+          {["Upload","Scan AI","Klasifikasi"].map((s, i) => {
+            const n = i + 1; const active = step === n; const done = step > n;
+            return (
+              <React.Fragment key={s}>
+                {i > 0 && <div style={{ flex: 1, height: 2, background: done ? T.accent : T.border, margin: "0 4px" }} />}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: done ? T.accent : active ? T.accentDim : T.surface, border: `2px solid ${active || done ? T.accent : T.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: done ? "#000" : active ? T.accent : T.muted }}>
+                    {done ? "✓" : n}
+                  </div>
+                  <span style={{ fontSize: 9, color: active ? T.accent : T.muted, whiteSpace: "nowrap" }}>{s}</span>
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+
+        <div style={{ padding: "0 20px" }}>
+          {error && <div style={{ padding: "10px 14px", background: T.red + "20", border: `1px solid ${T.red}44`, borderRadius: 8, color: T.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
+
+          {/* Step 1: Upload */}
+          {step === 1 && (
+            <div>
+              {ccWallets.length > 1 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ color: T.muted, fontSize: 10, marginBottom: 4 }}>Wallet Kartu Kredit</div>
+                  <select value={walletId} onChange={e => setWalletId(e.target.value)} style={inp}>
+                    {ccWallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {!preview ? (
+                <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "28px", borderRadius: 12, border: `2px dashed ${T.accentSoft || T.accent + "55"}`, background: T.surface, cursor: "pointer", gap: 8 }}>
+                  <span style={{ fontSize: 36 }}>📷</span>
+                  <span style={{ color: T.accent, fontSize: 13, fontWeight: 700 }}>Pilih Gambar E-Statement</span>
+                  <span style={{ color: T.muted, fontSize: 11 }}>JPG, PNG, WebP</span>
+                  <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) { setFile(f); const r = new FileReader(); r.onload = ev => setPreview(ev.target.result); r.readAsDataURL(f); } }} />
+                </label>
+              ) : (
+                <div>
+                  <img src={preview} alt="preview" style={{ width: "100%", borderRadius: 10, maxHeight: 200, objectFit: "contain", background: T.surface }} />
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button onClick={() => { setFile(null); setPreview(null); }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.textSoft, cursor: "pointer", fontSize: 12 }}>Ganti</button>
+                    <button onClick={doScan} disabled={pulseCredits < 1} style={{ flex: 2, padding: "9px", borderRadius: 9, border: "none", background: pulseCredits < 1 ? T.border : T.accent, color: pulseCredits < 1 ? T.muted : "#000", cursor: pulseCredits < 1 ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 700 }}>
+                      ⚡ Scan (1 Pulse)
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 2: Scanning */}
+          {step === 2 && (
+            <div style={{ textAlign: "center", padding: "32px 16px" }}>
+              <div style={{ fontSize: 52, marginBottom: 14 }}>🤖</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 8 }}>AI membaca e-statement...</div>
+              <div style={{ fontSize: 12, color: T.muted, marginBottom: 20 }}>Mengekstrak daftar transaksi, nominal, dan tanggal</div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 24 }}>
+                {[0,1,2].map(i => <div key={i} style={{ width: 10, height: 10, borderRadius: "50%", background: T.accent, animation: `wcPulse 1.2s ${i*0.4}s ease-in-out infinite` }} />)}
+              </div>
+              <div style={{ padding: "12px 16px", background: T.orange + "22", border: `1px solid ${T.orange}55`, borderRadius: 10, fontSize: 12, color: T.orange, lineHeight: 1.5 }}>
+                ⚠️ <strong>Jangan tutup browser</strong><br />Proses sedang berjalan...
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Review + Classify */}
+          {step === 3 && (
+            <div>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 12 }}>
+                {txList.length} transaksi ditemukan.{" "}
+                {unclassified > 0 && <span style={{ color: T.orange }}>⚠ {unclassified} perlu diklasifikasi.</span>}
+              </div>
+              {txList.map(t => (
+                <div key={t.id} style={{ marginBottom: 10, padding: "10px 12px", background: T.surface, borderRadius: 10, border: `1px solid ${t.include && t.txType === "credit_entry" && !t.classifiedAs ? T.orange + "88" : T.border}`, opacity: t.include ? 1 : 0.5 }}>
+                  {/* Header row */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: t.include ? 8 : 0 }}>
+                    <input type="checkbox" checked={t.include} onChange={e => setTx(t.id, "include", e.target.checked)} style={{ width: 15, height: 15, flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <input value={t.name} onChange={e => setTx(t.id, "name", e.target.value)} style={{ width: "100%", background: "transparent", border: "none", color: T.text, fontSize: 12, fontWeight: 600, outline: "none", padding: 0 }} />
+                      <div style={{ fontSize: 10, color: T.muted }}>{t.date}</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <input type="number" value={t.amount} onChange={e => setTx(t.id, "amount", Number(e.target.value))}
+                        style={{ width: 90, padding: "3px 6px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.card, color: t.txType === "credit_entry" ? T.green : T.red, fontSize: 12, textAlign: "right", outline: "none" }} />
+                      <div style={{ fontSize: 9, color: t.txType === "credit_entry" ? T.green : T.muted, textAlign: "right", marginTop: 1 }}>
+                        {t.txType === "credit_entry" ? "kredit" : "debit"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {t.include && t.txType === "expense" && (
+                    <CategoryPicker T={T} value={t.category} onChange={v => setTx(t.id, "category", v)} type="expense" />
+                  )}
+
+                  {t.include && t.txType === "credit_entry" && (
+                    <div>
+                      <div style={{ fontSize: 10, color: T.muted, marginBottom: 6 }}>Jenis transaksi masuk:</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {CREDIT_ENTRY_OPTS.map(opt => (
+                          <button key={opt.v} onClick={() => setTx(t.id, "classifiedAs", opt.v)}
+                            style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.classifiedAs === opt.v ? T.accent : T.border}`, background: t.classifiedAs === opt.v ? T.accentDim : T.surface, cursor: "pointer", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: t.classifiedAs === opt.v ? T.accent : T.text }}>{opt.l}</span>
+                            <span style={{ fontSize: 10, color: T.muted }}>{opt.sub}</span>
+                          </button>
+                        ))}
+                      </div>
+                      {t.classifiedAs === "transfer" && (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 10, color: T.muted, marginBottom: 4 }}>Wallet Sumber</div>
+                          <select value={t.toWalletId} onChange={e => setTx(t.id, "toWalletId", e.target.value)} style={inp}>
+                            <option value="">Pilih wallet...</option>
+                            {wallets.filter(w => w.id !== walletId).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Summary & confirm */}
+              <div style={{ position: "sticky", bottom: 0, background: T.card, paddingTop: 12, paddingBottom: 4 }}>
+                <div style={{ padding: "10px 14px", background: T.accentDim, borderRadius: 10, display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                  <span style={{ fontSize: 13, color: T.textSoft }}>Total ({txList.filter(t => t.include).length} transaksi)</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{fmtRp(totalIncluded)}</span>
+                </div>
+                <button
+                  onClick={finish}
+                  disabled={unclassified > 0}
+                  style={{ width: "100%", padding: "12px", borderRadius: 9, border: "none", background: unclassified > 0 ? T.border : T.accent, color: unclassified > 0 ? T.muted : "#000", cursor: unclassified > 0 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700 }}
+                >
+                  {unclassified > 0 ? `⚠ Klasifikasi ${unclassified} transaksi dulu` : `✅ Buat ${txList.filter(t=>t.include).length} Transaksi`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Transaksi Scene ──────────────────────────────────────────────────────────
 function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets, debts, setDebts, pulseCredits, setPulseCredits }) {
   const today = new Date().toISOString().slice(0, 10);
   // Auto-select first wallet
   const defaultWallet = wallets[0]?.id || "";
   const emptyForm = { type: "expense", date: today, amount: "", category: "", walletId: defaultWallet, toWalletId: "", debtId: "", description: "" };
-  const [showForm, setShowForm] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
+  const [showForm, setShowForm]           = useState(false);
+  const [showScanner, setShowScanner]     = useState(false);
+  const [showEStatement, setShowEStatement] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [filter, setFilter] = useState("all");
+  const ccWallets = wallets.filter(w => CREDIT_WALLET_TYPES.includes(w.type));
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   // When wallets load after initial render, set default wallet
@@ -1266,6 +1522,11 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
     setShowScanner(false);
   };
 
+  const handleEStatementDone = (txs) => {
+    setTransactions(prev => [...prev, ...txs]);
+    setShowEStatement(false);
+  };
+
   const del = (id) => {
     if (!window.confirm("Hapus transaksi ini?")) return;
     // Removing the tx triggers the recalc useEffect automatically (Rule 4)
@@ -1281,11 +1542,19 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
 
   return (
     <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto", paddingBottom: 80 }}>
-      {/* Filter chips */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+      {/* Filter chips + E-Statement shortcut */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
         {[["all","Semua"],["income","Pemasukan"],["expense","Pengeluaran"],["debt_payment","Bayar Hutang"],["transfer","Transfer"]].map(([k,l]) => (
           <button key={k} onClick={() => setFilter(k)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${filter===k ? T.accent : T.border}`, background: filter===k ? T.accentDim : T.surface, color: filter===k ? T.accent : T.textSoft, fontSize: 11, cursor: "pointer", fontWeight: filter===k ? 700 : 400 }}>{l}</button>
         ))}
+        {ccWallets.length > 0 && (
+          <button
+            onClick={() => setShowEStatement(true)}
+            style={{ marginLeft: "auto", padding: "5px 10px", borderRadius: 20, border: `1px solid ${T.accent}44`, background: T.accentDim, color: T.accent, fontSize: 11, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}
+          >
+            📄 E-Statement
+          </button>
+        )}
       </div>
 
       {/* Add transaction form */}
@@ -1432,6 +1701,16 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
           pulseCredits={pulseCredits} setPulseCredits={setPulseCredits}
           onDone={handleScanDone}
           onClose={() => setShowScanner(false)}
+        />
+      )}
+
+      {/* E-Statement Scanner modal (CC/Paylater only) */}
+      {showEStatement && (
+        <EStatementScanner
+          T={T} wallets={wallets} debts={debts}
+          pulseCredits={pulseCredits} setPulseCredits={setPulseCredits}
+          onDone={handleEStatementDone}
+          onClose={() => setShowEStatement(false)}
         />
       )}
     </div>
