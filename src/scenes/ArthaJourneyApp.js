@@ -690,21 +690,14 @@ function isLainnya(cat) { return cat?.endsWith("Lainnya"); }
 function BudgetCard({ T, b, spent, onDelete, onEdit }) {
   const [editing, setEditing] = useState(false);
   const [editVal, setEditVal] = useState(String(b.limit));
-  const isAuto = !b.is_set;
-  const hasLimit = b.limit > 0;
-  const pct = hasLimit ? Math.min((spent / b.limit) * 100, 100) : 0;
+  const pct = b.limit > 0 ? Math.min((spent / b.limit) * 100, 100) : 0;
   const barColor = pct > 90 ? T.red : pct > 60 ? T.orange : T.green;
   return (
-    <div style={{ padding: "12px 14px", background: T.surface, borderRadius: 10, marginBottom: 8, border: isAuto ? `1px dashed ${T.border}` : "none" }}>
+    <div style={{ padding: "12px 14px", background: T.surface, borderRadius: 10, marginBottom: 8 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{ fontSize: 16 }}>{CAT_ICONS[b.category] || "📦"}</span>
           <span style={{ fontWeight: 600, fontSize: 13, color: T.text }}>{b.category}</span>
-          {isAuto && (
-            <span style={{ fontSize: 9, fontWeight: 700, color: "#f59e0b", background: "#f59e0b18", border: "1px solid #f59e0b44", borderRadius: 4, padding: "1px 5px", letterSpacing: 0.3 }}>
-              AUTO
-            </span>
-          )}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           {editing ? (
@@ -718,29 +711,21 @@ function BudgetCard({ T, b, spent, onDelete, onEdit }) {
             </>
           ) : (
             <button onClick={() => { setEditing(true); setEditVal(String(b.limit)); }}
-              style={{ fontSize: 11, color: isAuto ? "#f59e0b" : T.muted, background: T.card, border: `1px solid ${isAuto ? "#f59e0b66" : T.border}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>
-              {isAuto && !hasLimit ? "＋ Set Limit" : `✏️ ${fmtRp(b.limit)}`}
+              style={{ fontSize: 11, color: T.muted, background: T.card, border: `1px solid ${T.border}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>
+              ✏️ {fmtRp(b.limit)}
             </button>
           )}
           <button onClick={() => onDelete(b.id)}
             style={{ fontSize: 11, color: T.muted, background: "none", border: "none", cursor: "pointer", padding: "3px 4px" }}>🗑</button>
         </div>
       </div>
-      {hasLimit ? (
-        <>
-          <div style={{ height: 6, background: T.border, borderRadius: 3, overflow: "hidden", marginBottom: 5 }}>
-            <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 3, transition: "width .3s" }} />
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
-            <span style={{ color: barColor }}>{fmtRp(spent)} terpakai</span>
-            <span style={{ color: T.muted }}>{pct.toFixed(0)}% dari {fmtRp(b.limit)}</span>
-          </div>
-        </>
-      ) : (
-        <div style={{ fontSize: 11, color: T.muted, fontStyle: "italic" }}>
-          {fmtRp(spent)} terpakai &mdash; belum ada limit, klik <strong>＋ Set Limit</strong> untuk mengatur anggaran
-        </div>
-      )}
+      <div style={{ height: 6, background: T.border, borderRadius: 3, overflow: "hidden", marginBottom: 5 }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 3, transition: "width .3s" }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+        <span style={{ color: barColor }}>{fmtRp(spent)} terpakai</span>
+        <span style={{ color: T.muted }}>{pct.toFixed(0)}% dari {fmtRp(b.limit)}</span>
+      </div>
     </div>
   );
 }
@@ -780,26 +765,15 @@ function BudgetScene({ T, budgets, setBudgets, transactions, assets, activeIncom
   const addBudget = () => {
     const finalCat = isLainnya(newCat) ? (customCat.trim() || newCat) : newCat;
     if (!finalCat || !newLim) return;
-    setBudgets(prev => {
-      // If an auto-budget already exists for this (month, category), upgrade it
-      const existing = prev.find(b => b.month === viewMonth && b.category === finalCat);
-      if (existing) {
-        return prev.map(b => b.id === existing.id
-          ? { ...b, limit: parseNum(newLim), area: showAddArea, is_set: true }
-          : b
-        );
-      }
-      return [...prev, {
-        id: genId(), category: finalCat, limit: parseNum(newLim),
-        month: viewMonth, area: showAddArea, is_set: true,
-      }];
-    });
+    setBudgets(prev => [...prev, {
+      id: genId(), category: finalCat, limit: parseNum(newLim),
+      month: viewMonth, area: showAddArea,
+    }]);
     setNewCat(""); setCustomCat(""); setNewLim(""); setShowAddArea(null);
   };
 
   const delBudget = (id) => setBudgets(prev => prev.filter(b => b.id !== id));
-  // Editing the limit always promotes an auto-budget to is_set:true (manual override)
-  const editBudgetLimit = (id, val) => setBudgets(prev => prev.map(b => b.id === id ? { ...b, limit: parseNum(val), is_set: true } : b));
+  const editBudgetLimit = (id, val) => setBudgets(prev => prev.map(b => b.id === id ? { ...b, limit: parseNum(val) } : b));
 
   const getBudgetsForArea = (area) => monthBudgets.filter(b => (b.area || inferArea(b.category)) === area);
   const getAreaTotal = (area) => getBudgetsForArea(area).reduce((s, b) => s + Number(b.limit || 0), 0);
@@ -879,13 +853,6 @@ function BudgetScene({ T, budgets, setBudgets, transactions, assets, activeIncom
         </div>
       )}
 
-      {/* Auto-sync info banner — shown when this month has auto-generated budget entries */}
-      {monthBudgets.some(b => !b.is_set) && (
-        <div style={{ background: "#f59e0b0f", border: "1px solid #f59e0b44", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: T.textSoft, lineHeight: 1.6 }}>
-          ✨ <strong style={{ color: "#f59e0b" }}>Auto Budget Sync aktif</strong> — kategori bertanda <span style={{ fontSize: 9, fontWeight: 700, color: "#f59e0b", background: "#f59e0b18", border: "1px solid #f59e0b44", borderRadius: 4, padding: "1px 5px" }}>AUTO</span> dibuat otomatis dari transaksimu. Klik <strong>＋ Set Limit</strong> untuk mengatur anggaran manual.
-        </div>
-      )}
-
       {/* 3 Area sections */}
       {Object.entries(AREA_DEFS).map(([areaKey, areaDef]) => {
         const areaBudgets = getBudgetsForArea(areaKey);
@@ -914,7 +881,7 @@ function BudgetScene({ T, budgets, setBudgets, transactions, assets, activeIncom
             {/* Budget entries for this area */}
             {areaBudgets.length === 0 && !isOpen && (
               <div style={{ padding: "12px 0", textAlign: "center", fontSize: 12, color: T.muted, borderBottom: `1px dashed ${T.border}`, marginBottom: 10 }}>
-                Belum ada anggaran &mdash; catat transaksi pengeluaran dan budget akan muncul otomatis
+                Belum ada anggaran untuk area ini
               </div>
             )}
             {areaBudgets.map(b => (
@@ -1530,8 +1497,23 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
   const [showEStatement, setShowEStatement] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [filter, setFilter] = useState("all");
-  const [viewMonth, setViewMonth] = useState(getMonth());
+  const [filterMonth, setFilterMonth] = useState(today.slice(0, 7)); // "YYYY-MM"
+  const [page, setPage] = useState(1);
   const ccWallets = wallets.filter(w => CREDIT_WALLET_TYPES.includes(w.type));
+
+  const PAGE_SIZE = 20;
+
+  // Month navigation helpers
+  const shiftMonth = (delta) => {
+    const [y, m] = filterMonth.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    setFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    setPage(1);
+  };
+  const monthLabel = (() => {
+    const [y, m] = filterMonth.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  })();
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   // When wallets load after initial render, set default wallet
@@ -1607,30 +1589,33 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
     setTransactions(prev => prev.filter(t => t.id !== id));
   };
 
-  const monthTxs = transactions.filter(t => getMonth(t.date) === viewMonth);
+  const monthTxs = transactions.filter(t => t.date && t.date.slice(0, 7) === filterMonth);
+  const monthIncome  = monthTxs.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount || 0), 0);
+  const monthExpense = monthTxs.filter(t => t.type === "expense" || t.type === "debt_payment").reduce((s, t) => s + Number(t.amount || 0), 0);
+  const monthNet     = monthIncome - monthExpense;
+
   const filtered = [...monthTxs]
     .filter(t => filter === "all" || t.type === filter)
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  // Monthly summary totals
-  const monthIncome  = monthTxs.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount || 0), 0);
-  const monthExpense = monthTxs.filter(t => t.type === "expense" || t.type === "debt_payment").reduce((s, t) => s + Number(t.amount || 0), 0);
-  const monthNet     = monthIncome - monthExpense;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage   = Math.min(page, totalPages);
+  const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const walletName = (id) => wallets.find(w => w.id === id)?.name || "—";
 
   return (
     <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto", paddingBottom: 80 }}>
       {/* Month navigation */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-        <button onClick={() => setViewMonth(prevMonth(viewMonth))} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 14px", color: T.textSoft, cursor: "pointer", fontSize: 15 }}>‹</button>
-        <div style={{ flex: 1, textAlign: "center", fontWeight: 700, fontSize: 14, color: T.text }}>{monthLabel(viewMonth)}</div>
-        <button onClick={() => setViewMonth(nextMonth(viewMonth))} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 14px", color: T.textSoft, cursor: "pointer", fontSize: 15 }}>›</button>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, background: T.surface, borderRadius: 12, padding: "8px 12px" }}>
+        <button onClick={() => shiftMonth(-1)} style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${T.border}`, background: T.card, color: T.text, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+        <span style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{monthLabel}</span>
+        <button onClick={() => shiftMonth(1)} style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${T.border}`, background: T.card, color: T.text, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>›</button>
       </div>
 
       {/* Monthly summary chips */}
       {monthTxs.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
           {[["Pemasukan", monthIncome, T.green], ["Pengeluaran", monthExpense, T.red], ["Selisih", monthNet, monthNet >= 0 ? T.green : T.red]].map(([l, v, c]) => (
             <div key={l} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
               <div style={{ fontSize: 9, color: T.muted, marginBottom: 4 }}>{l}</div>
@@ -1643,7 +1628,7 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
       {/* Filter chips + E-Statement shortcut */}
       <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
         {[["all","Semua"],["income","Pemasukan"],["expense","Pengeluaran"],["debt_payment","Bayar Hutang"],["transfer","Transfer"]].map(([k,l]) => (
-          <button key={k} onClick={() => setFilter(k)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${filter===k ? T.accent : T.border}`, background: filter===k ? T.accentDim : T.surface, color: filter===k ? T.accent : T.textSoft, fontSize: 11, cursor: "pointer", fontWeight: filter===k ? 700 : 400 }}>{l}</button>
+          <button key={k} onClick={() => { setFilter(k); setPage(1); }} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${filter===k ? T.accent : T.border}`, background: filter===k ? T.accentDim : T.surface, color: filter===k ? T.accent : T.textSoft, fontSize: 11, cursor: "pointer", fontWeight: filter===k ? 700 : 400 }}>{l}</button>
         ))}
         {ccWallets.length > 0 && (
           <button
@@ -1737,9 +1722,13 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
       {filtered.length === 0 && !showForm ? (
         <Card T={T} style={{ textAlign: "center", padding: "36px 16px", border: `1px dashed ${T.border}` }}>
           <div style={{ fontSize: 36, marginBottom: 10 }}>💸</div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 6 }}>Belum ada transaksi di {monthLabel(viewMonth)}</div>
-          <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>Catat manual atau scan struk/nota.</div>
-          {wallets.length > 0 && (
+          <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 6 }}>Belum ada transaksi</div>
+          <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>
+            {filtered.length === 0 && transactions.length > 0
+              ? `Tidak ada transaksi di ${monthLabel}.`
+              : "Catat manual atau scan struk/nota."}
+          </div>
+          {wallets.length > 0 && transactions.length === 0 && (
             <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
               <Btn T={T} variant="primary" onClick={() => setShowForm(true)}>+ Catat Manual</Btn>
               <Btn T={T} onClick={() => setShowScanner(true)}>📸 Scan Struk</Btn>
@@ -1748,7 +1737,7 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
         </Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {filtered.map(t => {
+          {paginated.map(t => {
             const meta = TYPE_META[t.type] || TYPE_META.expense;
             const isIncome = t.type === "income";
             return (
@@ -1773,6 +1762,30 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
               </Card>
             );
           })}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "14px 0 4px", marginTop: 4 }}>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${T.border}`, background: safePage <= 1 ? T.surface : T.card, color: safePage <= 1 ? T.muted : T.text, cursor: safePage <= 1 ? "not-allowed" : "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}
+              >‹</button>
+              <span style={{ fontSize: 12, color: T.textSoft, fontWeight: 600, minWidth: 80, textAlign: "center" }}>
+                Hal. {safePage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${T.border}`, background: safePage >= totalPages ? T.surface : T.card, color: safePage >= totalPages ? T.muted : T.text, cursor: safePage >= totalPages ? "not-allowed" : "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}
+              >›</button>
+            </div>
+          )}
+          {filtered.length > 0 && (
+            <div style={{ textAlign: "center", fontSize: 10, color: T.muted, paddingBottom: 4 }}>
+              {filtered.length} transaksi · menampilkan {((safePage-1)*PAGE_SIZE)+1}–{Math.min(safePage*PAGE_SIZE, filtered.length)}
+            </div>
+          )}
         </div>
       )}
 
@@ -2179,43 +2192,6 @@ export default function ArthaJourneyApp({
     if (!setDebts) return;
     setDebts(prev => recalcAllCreditDebts(prev, ajTransactions, ajWallets) || prev);
   }, [ajTransactions, ajWallets]); // eslint-disable-line
-
-  // ── Auto Budget Sync: create/remove budget entries from expense transactions ──
-  // Creates is_set:false budgets for new (month,category) pairs and removes stale
-  // auto-budgets when all transactions for that pair are gone. Manual budgets
-  // (is_set:true) are never auto-deleted. actual_spending stays dynamic (getSpent).
-  useEffect(() => {
-    // Collect unique (month, category) pairs from expense transactions
-    const expensePairs = new Map(); // key: "month|category" → {month, category, area}
-    for (const t of ajTransactions) {
-      if ((t.type !== "expense" && t.type !== "debt_payment") || !t.category) continue;
-      const month = getMonth(t.date);
-      const key = `${month}|${t.category}`;
-      if (!expensePairs.has(key)) {
-        expensePairs.set(key, { month, category: t.category, area: inferArea(t.category) });
-      }
-    }
-
-    let changed = false;
-    // Remove auto-budgets whose (month, category) no longer has transactions
-    let synced = ajBudgets.filter(b => {
-      if (b.is_set) return true; // manual budget: never auto-remove
-      if (expensePairs.has(`${b.month}|${b.category}`)) return true;
-      changed = true;
-      return false;
-    });
-
-    // Auto-create budget entry for each new (month, category) pair
-    for (const [key, { month, category, area }] of expensePairs) {
-      const exists = synced.some(b => b.month === month && b.category === category);
-      if (!exists) {
-        synced = [...synced, { id: genId(), category, limit: 0, month, area, is_set: false }];
-        changed = true;
-      }
-    }
-
-    if (changed) setAjBudgets(synced);
-  }, [ajTransactions]); // eslint-disable-line
 
   // ── Rule 1: Sync debt plafon (limit) → linked wallet limits ──────────────────────
   // Source of truth = debt.plafon (Wealth Pulse). Wallets are read-only derivates.
