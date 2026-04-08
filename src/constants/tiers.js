@@ -56,7 +56,7 @@ const PULSE_PACKAGES = [
   { id: "p15",  pulse: 15,  price: 0.99, idrPrice: 17000,  label: "15 Pulse"  },
   { id: "p40",  pulse: 40,  price: 1.99, idrPrice: 34000,  label: "40 Pulse"  },
   { id: "p125", pulse: 125, price: 4.99, idrPrice: 85000,  label: "125 Pulse" },
-  { id: "p350", pulse: 350, price: 9.99, idrPrice: 170000, label: "350 Pulse" },
+  { id: "p325", pulse: 325, price: 9.99, idrPrice: 170000, label: "325 Pulse" },
 ];
 
 // ─── UPLOAD HELPERS (use account state, not localStorage) ─────────────────────

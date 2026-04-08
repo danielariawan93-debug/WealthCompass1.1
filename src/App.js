@@ -81,7 +81,7 @@ function WealthPulseV7() {
   const latestSaveState = React.useRef({});
   const [logoutSaving, setLogoutSaving] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
-  const [keepSignIn] = useState(() => localStorage.getItem('wc_keep_signin') !== 'false');
+  const [keepSignIn, setKeepSignIn] = useState(() => localStorage.getItem('wc_keep_signin') !== 'false');
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem("wc_theme") || "dark";
@@ -464,7 +464,31 @@ function WealthPulseV7() {
     } catch {}
   };
 
+  // Persist keepSignIn preference
+  const handleSetKeepSignIn = (val) => {
+    setKeepSignIn(val);
+    try { localStorage.setItem('wc_keep_signin', val ? 'true' : 'false'); } catch {}
+  };
 
+  // Auto-logout after 1 hour inactivity when keepSignIn is false
+  useEffect(() => {
+    if (!user || keepSignIn) return;
+    const TIMEOUT = 60 * 60 * 1000; // 1 hour
+    let timer = null;
+    const reset = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        handleLogout();
+      }, TIMEOUT);
+    };
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    reset(); // start timer immediately
+    return () => {
+      if (timer) clearTimeout(timer);
+      events.forEach(e => window.removeEventListener(e, reset));
+    };
+  }, [user, keepSignIn]); // handleLogout is stable (defined once in component body)
 
   // -- Fetch crypto + metals + USD/IDR via CoinCap (60 menit) -------
   const fetchCryptoAndMetals = useCallback(async () => {
@@ -770,7 +794,7 @@ function WealthPulseV7() {
       <div style={{ color: T.muted, fontSize: 13 }}>Memuat...</div>
     </div>
   );
-  if (!user) return <LoginScreen onLogin={handleLogin} T={T} />;
+  if (!user) return <LoginScreen onLogin={handleLogin} T={T} keepSignIn={keepSignIn} setKeepSignIn={handleSetKeepSignIn} />;
 
   // Onboarding — hard lock for new users until 10-step tutorial is complete
   if (!onboardingComplete) {

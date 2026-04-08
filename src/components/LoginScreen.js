@@ -27,7 +27,7 @@ const googleProvider = new GoogleAuthProvider();
 
 export { auth };
 
-function LoginScreen({ onLogin, T }) {
+function LoginScreen({ onLogin, T, keepSignIn, setKeepSignIn }) {
   const [mode, setMode] = useState('login'); // login | register | forgot
   const [form, setForm] = useState({ email: '', password: '', name: '' });
   const [error, setError] = useState('');
@@ -222,6 +222,21 @@ function LoginScreen({ onLogin, T }) {
               <div style={{ padding: '9px 12px', background: T.greenDim, border: `1px solid ${T.green}33`, borderRadius: 9, color: T.green, fontSize: 12 }}>
                 {info}
               </div>
+            )}
+
+            {/* Keep sign in checkbox - only shown on login/register mode */}
+            {mode !== 'forgot' && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', marginTop: 2 }}>
+                <input
+                  type="checkbox"
+                  checked={keepSignIn ?? true}
+                  onChange={e => setKeepSignIn && setKeepSignIn(e.target.checked)}
+                  style={{ width: 15, height: 15, accentColor: T.accent, cursor: 'pointer', flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 12, color: T.textSoft }}>
+                  Tetap masuk <span style={{ color: T.muted, fontSize: 11 }}>(jika tidak dicentang, logout otomatis setelah 1 jam tidak aktif)</span>
+                </span>
+              </label>
             )}
 
             {/* Tombol submit */}
