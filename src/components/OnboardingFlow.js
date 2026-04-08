@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { RISK_QUESTIONS, RISK_PROFILES } from "../constants/data";
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
 function fmtRp(n) { return "Rp " + Number(n || 0).toLocaleString("id-ID"); }
@@ -7,28 +8,6 @@ function curMonth() { return new Date().toISOString().slice(0, 7); }
 const WALLET_ICONS = ["🏦","💳","💵","🪙","💰","🏧","👛","📱"];
 const WALLET_COLORS = ["#5b9cf6","#3ecf8e","#f59e0b","#f26b6b","#9b7ef8","#ec4899","#06b6d4","#84cc16"];
 
-const RISK_OPTIONS = [
-  {
-    key: "conservative",
-    label: "Konservatif 🛡️",
-    desc: "Prioritas keamanan modal. Cocok untuk jangka pendek ≤ 3 tahun.",
-  },
-  {
-    key: "moderate",
-    label: "Moderate 🌿",
-    desc: "Keseimbangan pertumbuhan & keamanan. Jangka menengah 3–7 tahun.",
-  },
-  {
-    key: "growth",
-    label: "Growth ⚖️",
-    desc: "Pertumbuhan lebih agresif, toleran fluktuasi. Jangka 5–10 tahun.",
-  },
-  {
-    key: "aggressive",
-    label: "Agresif 🚀",
-    desc: "Maksimalkan return, siap risiko tinggi. Jangka panjang > 10 tahun.",
-  },
-];
 
 const ASSET_OPTIONS = [
   { key: "cash",            label: "Dana Tunai / Deposito",  icon: "🏦" },
@@ -97,8 +76,11 @@ export function OnboardingFlow({ T, onComplete, setAjWallets, setAjBudgets, setR
   // Step 5 — settings demo clicked
   const [settingsClicked, setSettingsClicked] = useState(false);
 
-  // Step 8 — risk profile
-  const [riskKey, setRiskKey] = useState(null);
+  // Step 8 — risk profile (7 questions, same as RiskScene)
+  const [riskAnswers, setRiskAnswers] = useState({});
+  const riskAnswered = Object.keys(riskAnswers).length;
+  const riskScore    = Object.values(riskAnswers).reduce((a, b) => a + b, 0);
+  const riskAllDone  = riskAnswered === RISK_QUESTIONS.length;
 
   // Step 9 — asset
   const [aName,  setAName]  = useState("");
@@ -138,8 +120,11 @@ export function OnboardingFlow({ T, onComplete, setAjWallets, setAjBudgets, setR
   };
 
   const saveRisk = () => {
-    if (!riskKey) return;
-    setRiskProfile(riskKey);
+    if (!riskAllDone) return;
+    const key = Object.entries(RISK_PROFILES).find(
+      ([, v]) => riskScore >= v.range[0] && riskScore <= v.range[1]
+    )?.[0] || "moderate";
+    setRiskProfile(key);
     next();
   };
 
@@ -363,33 +348,51 @@ export function OnboardingFlow({ T, onComplete, setAjWallets, setAjBudgets, setR
           </>
         );
 
-      // ─ Step 8: Risk Profile ───────────────────────────────────────────
+      // ─ Step 8: Risk Profile — 7 questions with scoring ───────────────
       case 8:
         return (
           <>
-            <div style={{ fontWeight: 700, fontSize: 17, color: T.text, marginBottom: 4 }}>📋 Profil Risiko</div>
-            <div style={{ fontSize: 12, color: T.muted, marginBottom: 14 }}>
-              Pilih profil yang paling sesuai dengan tujuan dan toleransi risiko investasi Anda.
+            <div style={{ fontWeight: 700, fontSize: 17, color: T.text, marginBottom: 4 }}>📋 Profil Risiko Investasi</div>
+            <div style={{ fontSize: 12, color: T.textSoft, marginBottom: 10, padding: "8px 12px", background: "#9b7ef811", borderRadius: 8, borderLeft: "3px solid #9b7ef8", lineHeight: 1.6 }}>
+              Jawab {RISK_QUESTIONS.length} pertanyaan dengan jujur untuk menentukan strategi investasi yang tepat.
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {RISK_OPTIONS.map(opt => (
-                <button
-                  key={opt.key}
-                  onClick={() => setRiskKey(opt.key)}
-                  style={{
-                    padding: "12px 14px", borderRadius: 10, textAlign: "left", cursor: "pointer",
-                    border: `2px solid ${riskKey === opt.key ? "#9b7ef8" : T.border}`,
-                    background: riskKey === opt.key ? "#9b7ef811" : T.surface,
-                    transition: "all .15s",
-                  }}
-                >
-                  <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>{opt.label}</div>
-                  <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>{opt.desc}</div>
-                </button>
-              ))}
+            {/* Progress */}
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: T.muted, marginBottom: 4 }}>
+              <span>{riskAnswered}/{RISK_QUESTIONS.length} terjawab</span>
+              {riskAllDone && <span style={{ color: "#3ecf8e" }}>✓ Selesai · Skor: {riskScore}/28</span>}
             </div>
-            <PrimaryBtn onClick={saveRisk} disabled={!riskKey} color="#9b7ef8">
-              Simpan & Lanjut →
+            <div style={{ height: 4, background: T.border, borderRadius: 4, marginBottom: 14 }}>
+              <div style={{ height: "100%", width: `${(riskAnswered / RISK_QUESTIONS.length) * 100}%`, background: "#9b7ef8", borderRadius: 4, transition: "width .3s" }} />
+            </div>
+            {/* Questions */}
+            {RISK_QUESTIONS.map((q, qi) => (
+              <div key={qi} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${T.border}` }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  <span style={{ color: "#9b7ef8", fontWeight: "bold", fontSize: 14, minWidth: 20 }}>{qi + 1}</span>
+                  <span style={{ fontSize: 12, color: T.text, lineHeight: 1.6 }}>{q.q}</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginLeft: 28 }}>
+                  {q.opts.map(([optLabel, val], oi) => (
+                    <button
+                      key={oi}
+                      onClick={() => setRiskAnswers(p => ({ ...p, [qi]: val }))}
+                      style={{
+                        padding: "8px 10px", borderRadius: 8, textAlign: "left", cursor: "pointer",
+                        border: `1px solid ${riskAnswers[qi] === val ? "#9b7ef8" : T.border}`,
+                        background: riskAnswers[qi] === val ? "#9b7ef811" : T.surface,
+                        color: riskAnswers[qi] === val ? "#9b7ef8" : T.textSoft,
+                        fontSize: 11, lineHeight: 1.5, transition: "all .15s",
+                      }}
+                    >
+                      <span style={{ color: T.muted, fontSize: 9, marginRight: 4 }}>{["A","B","C","D"][oi]}</span>
+                      {optLabel}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <PrimaryBtn onClick={saveRisk} disabled={!riskAllDone} color="#9b7ef8">
+              {riskAllDone ? "Analisa & Lanjut →" : `${RISK_QUESTIONS.length - riskAnswered} pertanyaan lagi`}
             </PrimaryBtn>
           </>
         );

@@ -43,6 +43,7 @@ import { NAV_ITEMS, Sidebar } from "./components/Sidebar";
 import UpgradePanel from "./components/UpgradePanel";
 import LoginScreen from "./components/LoginScreen";
 import { OnboardingFlow } from "./components/OnboardingFlow";
+import { FeaturePopup } from "./components/FeaturePopup";
 import ProfileScene from "./scenes/ProfileScene";
 import PortfolioScene from "./scenes/PortfolioScene";
 import RiskScene from "./scenes/RiskScene";
@@ -1063,6 +1064,28 @@ function WealthPulseV7() {
         {/* Content */}
         <div style={{ flex: 1, overflowY: "auto", padding: "18px 16px 80px" }}>
           <div style={{ maxWidth: 640, margin: "0 auto" }}>
+            {/* First-time feature popup — show once per WP tab, keyed so it resets per tab */}
+            {(() => {
+              const WP_POPUPS = {
+                profile:       { icon: "👤", title: "Profil Keuangan",      content: "Di halaman ini Anda dapat melihat ringkasan kekayaan bersih, segmen keuangan, alokasi aset saat ini, serta skor kesehatan keuangan Anda secara keseluruhan." },
+                portfolio:     { icon: "💼", title: "Portofolio Aset",       content: "Di halaman ini Anda dapat mencatat dan memantau semua aset investasi Anda — saham, obligasi, reksa dana, properti, kripto, dan lainnya." },
+                rebalance:     { icon: "⚖️", title: "Rebalance Portofolio",  content: "Di halaman ini Anda dapat melihat deviasi antara alokasi aset saat ini dengan target profil risiko, dan mendapatkan rekomendasi rebalancing." },
+                goal:          { icon: "🎯", title: "Goals Keuangan",        content: "Di halaman ini Anda dapat menetapkan dan melacak tujuan keuangan jangka panjang — dari dana darurat, DP rumah, hingga dana pensiun." },
+                "finance-tools": { icon: "📊", title: "Finance Tools",       content: "Di halaman ini tersedia berbagai kalkulator keuangan: simulasi investasi, DCA, cicilan KPR, dana pensiun, dan analisis keuangan lainnya." },
+                debt:          { icon: "💳", title: "Manajemen Hutang",      content: "Di halaman ini Anda dapat mencatat, memantau, dan merencanakan pelunasan semua hutang — dari KPR, kartu kredit, hingga pinjaman personal." },
+                networth:      { icon: "📈", title: "Net Worth Tracker",     content: "Di halaman ini Anda dapat melacak pertumbuhan kekayaan bersih dari waktu ke waktu, lengkap dengan grafik historis dan proyeksi." },
+                "real-assets": { icon: "🏡", title: "Properti & Bisnis",    content: "Di halaman ini Anda dapat mencatat aset riil seperti properti dan kepemilikan bisnis, termasuk estimasi nilai pasar dan arus kas." },
+                insurance:     { icon: "🛡️", title: "Asuransi",             content: "Di halaman ini Anda dapat mencatat polis asuransi yang dimiliki — jiwa, kesehatan, kendaraan — dan memantau kecukupan proteksi Anda." },
+                risk:          { icon: "🎲", title: "Profil Risiko",         content: "Di halaman ini Anda dapat mengisi kuesioner profil risiko untuk mendapatkan rekomendasi alokasi aset yang sesuai dengan tujuan investasi Anda." },
+                ai:            { icon: "✦",  title: "AI Advisor",            content: "Di halaman ini Anda dapat berkonsultasi dengan AI Advisor untuk analisis portofolio, perencanaan keuangan, dan rekomendasi investasi personal." },
+                peers:         { icon: "👥", title: "Peer Benchmark",        content: "Di halaman ini Anda dapat membandingkan kondisi keuangan Anda dengan peer group yang serupa — segera hadir!" },
+                family:        { icon: "👨‍👩‍👧", title: "Family Wealth",      content: "Di halaman ini Anda dapat mengelola keuangan keluarga secara kolaboratif — segera hadir!" },
+                community:     { icon: "🤝", title: "Komunitas",             content: "Di halaman ini Anda dapat terhubung dengan komunitas investor dan berbagi insight keuangan — segera hadir!" },
+              };
+              const cfg = WP_POPUPS[tab];
+              if (!cfg) return null;
+              return <FeaturePopup key={tab} T={T} featureKey={"wp_" + tab} icon={cfg.icon} title={cfg.title} content={cfg.content} />;
+            })()}
             {tab === "profile" && (
               <ProfileScene
                 {...tabProps}

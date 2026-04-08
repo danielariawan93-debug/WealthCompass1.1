@@ -1884,6 +1884,8 @@ function HutangScene({ T, debts }) {
 
   return (
     <div style={{ padding: "24px 20px", maxWidth: 680, margin: "0 auto" }}>
+      <FeaturePopup T={T} featureKey="aj_hutang" icon="💳" title="Ringkasan Hutang"
+        content="Di halaman ini Anda dapat melihat semua hutang yang diimpor dari Wealth Pulse, termasuk kartu kredit dan paylater yang sudah di-link ke wallet Anda." />
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div>
@@ -2018,6 +2020,8 @@ function ToolsScene({ T, transactions, wallets }) {
 
   return (
     <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
+      <FeaturePopup T={T} featureKey="aj_tools" icon="🔧" title="Tools Analisis"
+        content="Di halaman ini Anda dapat melihat analisis arus kas bulanan, tabungan rate, dan breakdown pengeluaran per kategori untuk memahami pola keuangan Anda." />
       {/* Cash flow this month */}
       <Card T={T} style={{ marginBottom: 14 }}>
         <SectionTitle>Arus Kas — {monthLabel(curMonth)}</SectionTitle>
@@ -2128,6 +2132,8 @@ function ReportScene({ T, transactions, budgets }) {
 
   return (
     <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
+      <FeaturePopup T={T} featureKey="aj_report" icon="📈" title="Laporan Keuangan"
+        content="Di halaman ini Anda dapat melihat laporan keuangan bulanan, tren 6 bulan, dan breakdown pengeluaran per kategori dengan visualisasi yang mudah dipahami." />
       {/* Month picker */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <button onClick={() => setViewMonth(prevMonth(viewMonth))} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 12px", color: T.textSoft, cursor: "pointer", fontSize: 14 }}>‹</button>
