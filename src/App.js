@@ -478,7 +478,7 @@ function WealthPulseV7() {
       if (timer) clearTimeout(timer);
       events.forEach(e => window.removeEventListener(e, reset));
     };
-  }, [user, keepSignIn]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, keepSignIn]); // handleLogout is stable (defined once in component body)
 
   // -- Fetch crypto + metals + USD/IDR via CoinCap (60 menit) -------
   const fetchCryptoAndMetals = useCallback(async () => {
