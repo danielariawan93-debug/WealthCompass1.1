@@ -2534,7 +2534,7 @@ export default function ArthaJourneyApp({
   const activeNav = AJ_NAV.find((n) => n.id === tab);
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: T.bg, overflow: "hidden", fontFamily: "inherit" }}>
+    <div style={{ display: "flex", height: "100vh", background: T.bg, overflow: "hidden", fontFamily: "inherit", zoom: fontScale }}>
       {/* Sidebar */}
       <AJSidebar
         tab={tab}
@@ -2588,8 +2588,10 @@ export default function ArthaJourneyApp({
             >
               ✦ {pulseCredits} Pulse
             </span>
-            {/* Tier badge */}
-            <span
+            {/* Tier badge — clicking opens upgrade panel */}
+            <button
+              onClick={() => setShowUpgrade && setShowUpgrade(true)}
+              title={isProPlus ? "Paket Pro+" : isPro ? "Paket Pro aktif" : "Upgrade ke Pro"}
               style={{
                 fontSize: 10,
                 fontWeight: 700,
@@ -2598,10 +2600,11 @@ export default function ArthaJourneyApp({
                 border: `1px solid ${isPro ? T.accent : T.border}`,
                 padding: "3px 10px",
                 borderRadius: 20,
+                cursor: "pointer",
               }}
             >
-              {isProPlus ? "💎 PRO+" : isPro ? "⭐ PRO" : "Free"}
-            </span>
+              {isProPlus ? "💎 PRO+" : isPro ? "⭐ PRO" : "Free ↑"}
+            </button>
           </div>
         </div>
 
