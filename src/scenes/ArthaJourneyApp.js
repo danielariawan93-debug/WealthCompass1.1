@@ -1530,6 +1530,7 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
   const [showEStatement, setShowEStatement] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [filter, setFilter] = useState("all");
+  const [viewMonth, setViewMonth] = useState(getMonth());
   const ccWallets = wallets.filter(w => CREDIT_WALLET_TYPES.includes(w.type));
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -1606,15 +1607,39 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
     setTransactions(prev => prev.filter(t => t.id !== id));
   };
 
-  const filtered = [...transactions]
+  const monthTxs = transactions.filter(t => getMonth(t.date) === viewMonth);
+  const filtered = [...monthTxs]
     .filter(t => filter === "all" || t.type === filter)
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .slice(0, 60);
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  // Monthly summary totals
+  const monthIncome  = monthTxs.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount || 0), 0);
+  const monthExpense = monthTxs.filter(t => t.type === "expense" || t.type === "debt_payment").reduce((s, t) => s + Number(t.amount || 0), 0);
+  const monthNet     = monthIncome - monthExpense;
 
   const walletName = (id) => wallets.find(w => w.id === id)?.name || "—";
 
   return (
     <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto", paddingBottom: 80 }}>
+      {/* Month navigation */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+        <button onClick={() => setViewMonth(prevMonth(viewMonth))} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 14px", color: T.textSoft, cursor: "pointer", fontSize: 15 }}>‹</button>
+        <div style={{ flex: 1, textAlign: "center", fontWeight: 700, fontSize: 14, color: T.text }}>{monthLabel(viewMonth)}</div>
+        <button onClick={() => setViewMonth(nextMonth(viewMonth))} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 14px", color: T.textSoft, cursor: "pointer", fontSize: 15 }}>›</button>
+      </div>
+
+      {/* Monthly summary chips */}
+      {monthTxs.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+          {[["Pemasukan", monthIncome, T.green], ["Pengeluaran", monthExpense, T.red], ["Selisih", monthNet, monthNet >= 0 ? T.green : T.red]].map(([l, v, c]) => (
+            <div key={l} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+              <div style={{ fontSize: 9, color: T.muted, marginBottom: 4 }}>{l}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: c }}>{l === "Selisih" && monthNet >= 0 ? "+" : ""}{fmtRp(v)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Filter chips + E-Statement shortcut */}
       <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
         {[["all","Semua"],["income","Pemasukan"],["expense","Pengeluaran"],["debt_payment","Bayar Hutang"],["transfer","Transfer"]].map(([k,l]) => (
@@ -1712,7 +1737,7 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
       {filtered.length === 0 && !showForm ? (
         <Card T={T} style={{ textAlign: "center", padding: "36px 16px", border: `1px dashed ${T.border}` }}>
           <div style={{ fontSize: 36, marginBottom: 10 }}>💸</div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 6 }}>Belum ada transaksi</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 6 }}>Belum ada transaksi di {monthLabel(viewMonth)}</div>
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>Catat manual atau scan struk/nota.</div>
           {wallets.length > 0 && (
             <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
