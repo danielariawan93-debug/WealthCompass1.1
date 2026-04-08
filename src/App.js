@@ -1275,6 +1275,8 @@ function WealthPulseV7() {
                 isProPlus={isProPlus}
                 ajWallets={ajWallets}
                 ajTransactions={ajTransactions}
+                pulseCredits={totalAvailablePulse}
+                setPulseCredits={consumePulse_compat}
               />
             )}
             {tab === "ai" && (

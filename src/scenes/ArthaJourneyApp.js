@@ -167,6 +167,9 @@ function getWalletBalance(wallet, transactions) {
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
 function parseNum(v) { return parseFloat(String(v || "0").replace(/[^\d.]/g, "")) || 0; }
 
+// Dynamic Pulse cost: based on number of parsed items (transactions / assets)
+const calcPulseCost = (count) => count > 50 ? 3 : count > 20 ? 2 : 1;
+
 const TX_INCOME_CATS = ["Gaji/Salary","Bonus","Freelance","Passive Income","Penjualan","Transfer Masuk","Lainnya"];
 const TX_EXPENSE_CATS = ["Makan & Minum","Transportasi","Belanja","Tagihan & Utilitas","Hiburan","Kesehatan","Pendidikan","Perawatan Diri","Lainnya"];
 const BUDGET_CATS = ["Makan & Minum","Transportasi","Belanja","Tagihan & Utilitas","Hiburan","Kesehatan","Pendidikan","Perawatan Diri","Lainnya"];
@@ -971,6 +974,7 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
   const [items, setItems] = useState([]);
   const [walletId, setWalletId] = useState(wallets[0]?.id || "");
   const [error, setError] = useState("");
+  const [pulseCost, setPulseCost] = useState(1); // determined after parsing
 
   const handleFile = (f) => {
     if (!f) return;
@@ -1009,12 +1013,13 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
           throw new Error("Tidak ada item terdeteksi. Pastikan foto struk jelas, terang, dan tidak blur.");
         }
         setScanData(data);
-        setItems((data.items || []).map((it, i) => ({
+        const parsed = (data.items || []).map((it, i) => ({
           id: String(i), name: it.name || "Item " + (i + 1),
           amount: Number(it.total || it.amount || 0), qty: Number(it.qty || 1),
           category: "", include: true,
-        })));
-        setPulseCredits(prev => Math.max(0, prev - 1));
+        }));
+        setItems(parsed);
+        setPulseCost(calcPulseCost(parsed.length)); // determine cost now that we know count
         setStep(3);
       } catch (err) {
         setError("Scan gagal: " + (err.message || "Terjadi kesalahan. Coba lagi."));
@@ -1027,6 +1032,7 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
   const setItem = (id, key, val) => setItems(prev => prev.map(it => it.id === id ? { ...it, [key]: val } : it));
 
   const finish = () => {
+    if (pulseCredits < pulseCost) { setError(`Pulse tidak cukup. Dibutuhkan ${pulseCost} Pulse.`); return; }
     const txs = items.filter(i => i.include && i.amount > 0).map(i => ({
       id: genId(),
       date: scanData?.date || new Date().toISOString().slice(0, 10),
@@ -1036,6 +1042,7 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
       walletId,
       description: i.name + (scanData?.storeName ? ` (${scanData.storeName})` : ""),
     }));
+    setPulseCredits(prev => Math.max(0, prev - pulseCost));
     onDone(txs);
   };
 
@@ -1050,7 +1057,12 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
         <div style={{ padding: "16px 20px 12px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: T.card }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>📄 Scan Struk / Nota</div>
-            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>⚡ 1 Pulse per scan berhasil · sisa {pulseCredits} Pulse</div>
+            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+              {step >= 3
+                ? <span style={{ color: pulseCredits < pulseCost ? T.red : T.accent, fontWeight: 700 }}>⚡ {pulseCost} Pulse · sisa {pulseCredits}</span>
+                : <span>⚡ 1–3 Pulse · sisa {pulseCredits} Pulse</span>
+              }
+            </div>
           </div>
           <button onClick={onClose} style={{ background: T.surface, border: "none", borderRadius: 20, padding: "6px 12px", color: T.textSoft, cursor: "pointer", fontSize: 13 }}>✕</button>
         </div>
@@ -1183,12 +1195,16 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
                   <CategoryPicker T={T} value={it.category} onChange={v => setItem(it.id, "category", v)} type="expense" />
                 </div>
               ))}
-              <div style={{ marginTop: 14, padding: "12px 14px", background: T.accentDim, borderRadius: 10, display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ marginTop: 14, padding: "12px 14px", background: T.accentDim, borderRadius: 10, display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                 <span style={{ fontSize: 13, color: T.textSoft }}>Total transaksi</span>
                 <span style={{ fontSize: 15, fontWeight: 700, color: T.accent }}>{fmtRp(totalSelected)}</span>
               </div>
-              <Btn T={T} variant="primary" onClick={finish} style={{ width: "100%" }}>
-                ✅ Buat {items.filter(i=>i.include).length} Transaksi
+              <div style={{ padding: "8px 12px", background: pulseCredits < pulseCost ? T.red + "22" : T.surface, border: `1px solid ${pulseCredits < pulseCost ? T.red : T.border}`, borderRadius: 9, fontSize: 11, marginBottom: 10, display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: T.muted }}>Biaya analisis ({items.length} item)</span>
+                <span style={{ fontWeight: 700, color: pulseCredits < pulseCost ? T.red : T.accent }}>⚡ {pulseCost} Pulse</span>
+              </div>
+              <Btn T={T} variant="primary" onClick={finish} disabled={pulseCredits < pulseCost} style={{ width: "100%", opacity: pulseCredits < pulseCost ? 0.5 : 1 }}>
+                {pulseCredits < pulseCost ? `Pulse kurang (perlu ${pulseCost})` : `✅ Buat ${items.filter(i=>i.include).length} Transaksi`}
               </Btn>
             </div>
           )}
@@ -1210,6 +1226,7 @@ function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, s
   const [walletId, setWalletId] = useState(ccWallets[0]?.id || "");
   const [txList, setTxList]   = useState([]); // [{id,name,amount,date,txType,category,classifiedAs,toWalletId}]
   const [error, setError]     = useState("");
+  const [pulseCost, setPulseCost] = useState(1); // determined after parsing
 
   const setTx = (id, key, val) =>
     setTxList(prev => prev.map(t => t.id === id ? { ...t, [key]: val } : t));
@@ -1243,7 +1260,7 @@ function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, s
       const data = await res.json();
       const raw = data.transactions || [];
       if (raw.length === 0) throw new Error("Tidak ada transaksi terdeteksi. Pastikan gambar e-statement jelas dan terbaca.");
-      setPulseCredits(p => p - 1);
+      setPulseCost(calcPulseCost(raw.length)); // set dynamic cost before showing review
       setTxList(raw.map((t, i) => ({
         id: String(i),
         name: t.name || "Transaksi " + (i + 1),
@@ -1263,6 +1280,7 @@ function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, s
   };
 
   const finish = () => {
+    if (pulseCredits < pulseCost) { setError(`Pulse tidak cukup. Dibutuhkan ${pulseCost} Pulse.`); return; }
     const wallet = wallets.find(w => w.id === walletId);
     const linked = wallet?.debtId ? debts?.find(d => d.id === wallet.debtId) : null;
     const txs = txList.filter(t => t.include && t.amount > 0).map(t => {
@@ -1280,6 +1298,7 @@ function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, s
       // transfer
       return { id: genId(), date: t.date, type: "transfer", category: "Transfer", amount: t.amount, walletId: t.toWalletId || walletId, toWalletId: walletId, description: t.name };
     });
+    setPulseCredits(prev => Math.max(0, prev - pulseCost));
     onDone(txs);
   };
 
@@ -1302,7 +1321,12 @@ function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, s
         <div style={{ padding: "16px 20px 12px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: T.card }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>📄 Upload E-Statement CC</div>
-            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>⚡ 1 Pulse per scan · sisa {pulseCredits} Pulse</div>
+            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
+              {step >= 3
+                ? <span style={{ color: pulseCredits < pulseCost ? T.red : T.accent, fontWeight: 700 }}>⚡ {pulseCost} Pulse · sisa {pulseCredits}</span>
+                : <span>⚡ 1–3 Pulse · sisa {pulseCredits} Pulse</span>
+              }
+            </div>
           </div>
           <button onClick={onClose} style={{ background: T.surface, border: "none", borderRadius: 20, padding: "6px 12px", color: T.textSoft, cursor: "pointer", fontSize: 13 }}>✕</button>
         </div>
@@ -1438,16 +1462,20 @@ function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, s
 
               {/* Summary & confirm */}
               <div style={{ position: "sticky", bottom: 0, background: T.card, paddingTop: 12, paddingBottom: 4 }}>
-                <div style={{ padding: "10px 14px", background: T.accentDim, borderRadius: 10, display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                <div style={{ padding: "10px 14px", background: T.accentDim, borderRadius: 10, display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 13, color: T.textSoft }}>Total ({txList.filter(t => t.include).length} transaksi)</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color: T.accent }}>{fmtRp(totalIncluded)}</span>
                 </div>
+                <div style={{ padding: "8px 12px", background: pulseCredits < pulseCost ? T.red + "22" : T.surface, border: `1px solid ${pulseCredits < pulseCost ? T.red : T.border}`, borderRadius: 9, fontSize: 11, marginBottom: 10, display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: T.muted }}>Biaya analisis ({txList.length} transaksi)</span>
+                  <span style={{ fontWeight: 700, color: pulseCredits < pulseCost ? T.red : T.accent }}>⚡ {pulseCost} Pulse</span>
+                </div>
                 <button
                   onClick={finish}
-                  disabled={unclassified > 0}
-                  style={{ width: "100%", padding: "12px", borderRadius: 9, border: "none", background: unclassified > 0 ? T.border : T.accent, color: unclassified > 0 ? T.muted : "#000", cursor: unclassified > 0 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700 }}
+                  disabled={unclassified > 0 || pulseCredits < pulseCost}
+                  style={{ width: "100%", padding: "12px", borderRadius: 9, border: "none", background: (unclassified > 0 || pulseCredits < pulseCost) ? T.border : T.accent, color: (unclassified > 0 || pulseCredits < pulseCost) ? T.muted : "#000", cursor: (unclassified > 0 || pulseCredits < pulseCost) ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700 }}
                 >
-                  {unclassified > 0 ? `⚠ Klasifikasi ${unclassified} transaksi dulu` : `✅ Buat ${txList.filter(t=>t.include).length} Transaksi`}
+                  {pulseCredits < pulseCost ? `Pulse kurang (perlu ${pulseCost})` : unclassified > 0 ? `⚠ Klasifikasi ${unclassified} transaksi dulu` : `✅ Buat ${txList.filter(t=>t.include).length} Transaksi`}
                 </button>
               </div>
             </div>

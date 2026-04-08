@@ -577,7 +577,8 @@ function formatRenewalDate(dateStr) {
 // E-STATEMENT MODAL (Wealth Pulse — unsynced CC/Paylater only)
 // Extracts: total_tagihan, tanggal_jatuh_tempo, sisa_cicilan, sisa_limit
 // ============================================================
-function EStatementModal({ debt, T, onClose, onApply }) {
+// EStatementModal always costs 1 Pulse (summary mode = 1 data record)
+function EStatementModal({ debt, T, onClose, onApply, pulseCredits = Infinity, setPulseCredits }) {
   const [step, setStep]       = useState(1); // 1=upload, 2=scanning, 3=review
   const [file, setFile]       = useState(null);
   const [preview, setPreview] = useState(null);
@@ -632,6 +633,7 @@ function EStatementModal({ debt, T, onClose, onApply }) {
 
   const handleApply = () => {
     if (!result) return;
+    if (pulseCredits < 1) { return; } // guard — button is disabled, but be safe
     const updates = {};
     if (result.total_tagihan > 0)     updates.outstanding  = String(Math.round(result.total_tagihan));
     if (result.tanggal_jatuh_tempo)   updates.renewalDate  = result.tanggal_jatuh_tempo;
@@ -639,6 +641,7 @@ function EStatementModal({ debt, T, onClose, onApply }) {
       const used = result.total_tagihan || 0;
       updates.plafon = String(Math.round(result.sisa_limit + used));
     }
+    setPulseCredits?.(prev => Math.max(0, prev - 1));
     onApply(updates);
     onClose();
   };
@@ -725,12 +728,16 @@ function EStatementModal({ debt, T, onClose, onApply }) {
                   </div>
                 ))}
               </div>
-              <div style={{ padding:'10px 12px', background:T.accentDim, borderRadius:9, fontSize:11, color:T.accent, marginBottom:14 }}>
+              <div style={{ padding:'10px 12px', background:T.accentDim, borderRadius:9, fontSize:11, color:T.accent, marginBottom:8 }}>
                 ℹ️ Total tagihan akan digunakan sebagai <strong>Outstanding</strong>. Tanggal jatuh tempo sebagai <strong>Renewal Date</strong>.
+              </div>
+              <div style={{ padding:'8px 12px', background: pulseCredits < 1 ? T.red+'22' : T.surface, border:`1px solid ${pulseCredits < 1 ? T.red : T.border}`, borderRadius:9, fontSize:11, marginBottom:12, display:'flex', justifyContent:'space-between' }}>
+                <span style={{ color:T.muted }}>Biaya analisis (ringkasan)</span>
+                <span style={{ fontWeight:700, color: pulseCredits < 1 ? T.red : T.accent }}>⚡ 1 Pulse{pulseCredits < 1 ? ' (kurang)' : ''}</span>
               </div>
               <div style={{ display:'flex', gap:8 }}>
                 <button onClick={() => { setStep(1); setResult(null); }} style={{ flex:1, padding:'10px', borderRadius:9, border:`1px solid ${T.border}`, background:T.surface, color:T.textSoft, cursor:'pointer', fontSize:12 }}>← Scan Ulang</button>
-                <button onClick={handleApply} style={{ flex:2, padding:'10px', borderRadius:9, border:'none', background:T.accent, color:'#000', cursor:'pointer', fontSize:13, fontWeight:700 }}>✅ Terapkan</button>
+                <button onClick={handleApply} disabled={pulseCredits < 1} style={{ flex:2, padding:'10px', borderRadius:9, border:'none', background: pulseCredits < 1 ? T.border : T.accent, color: pulseCredits < 1 ? T.muted : '#000', cursor: pulseCredits < 1 ? 'not-allowed' : 'pointer', fontSize:13, fontWeight:700 }}>✅ Terapkan</button>
               </div>
             </div>
           )}
@@ -743,7 +750,7 @@ function EStatementModal({ debt, T, onClose, onApply }) {
 // ============================================================
 // MAIN SCENE
 // ============================================================
-function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideValues = false, isPro = false, isProPlus = false, ajWallets = [], ajTransactions = [] }) {
+function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideValues = false, isPro = false, isProPlus = false, ajWallets = [], ajTransactions = [], pulseCredits = Infinity, setPulseCredits }) {
   const fV = (v) => fM(v, dispCur, hideValues);
   const [mode, setMode]         = useState('list');
   const [editDebt, setEditDebt] = useState(null);
@@ -1062,6 +1069,8 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
           T={T}
           onClose={() => setStatementDebt(null)}
           onApply={updates => applyStatement(statementDebt.id, updates)}
+          pulseCredits={pulseCredits}
+          setPulseCredits={setPulseCredits}
         />
       )}
 
