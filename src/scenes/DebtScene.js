@@ -175,7 +175,21 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
     return { minOutstandingFromAJ: net, ajGrossSpend: grossSpend, ajPayments: payments };
   }, [editData, isRevolving, ajWallets, ajTransactions, f.key]);
 
-  const canSave = f.name.trim() && derivedOutstanding > 0 && derivedOutstanding >= minOutstandingFromAJ;
+  // Synced = CC/Paylater debt that has at least one linked AJ wallet.
+  // When synced, outstanding is read-only (source of truth = Artha Journey).
+  const isSynced = useMemo(() => {
+    if (!editData || !isRevolving) return false;
+    const debtTypeKeys = { cc: "Kartu Kredit", paylater: "Paylater" };
+    const walletType = debtTypeKeys[editData.type || f.key];
+    if (!walletType) return false;
+    return ajWallets.some(w =>
+      w.debtId === editData.id ||
+      (w.type === walletType && !w.debtId)
+    );
+  }, [editData, isRevolving, ajWallets, f.key]);
+
+  // Synced debts skip the floor check — outstanding is managed by AJ automatically
+  const canSave = f.name.trim() && derivedOutstanding > 0 && (isSynced || derivedOutstanding >= minOutstandingFromAJ);
 
   const handleSave = () => {
     if (!canSave) return;
@@ -347,19 +361,31 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
             <input value={f.plafon} onChange={e=>setFF('plafon',e.target.value)} placeholder="500000000" style={inp} />
           </div>
           <div>
-            <div style={{ color:T.muted, fontSize:10, marginBottom:4 }}>
-              Outstanding Saat Ini (IDR) *
-              <span style={{ color:T.muted, fontSize:9 }}> - yang dihitung sebagai hutang</span>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
+              Outstanding Saat Ini (IDR){!isSynced && ' *'}
+              {!isSynced && <span style={{ color:T.muted, fontSize:9 }}> - yang dihitung sebagai hutang</span>}
+              {isSynced && <InfoBtn T={T} content={"Data otomatis dari Artha Journey. Update melalui Artha Journey."} />}
             </div>
             <input
               value={f.outstanding}
-              onChange={e => setFF('outstanding', e.target.value)}
+              readOnly={isSynced}
+              onChange={isSynced ? undefined : e => setFF('outstanding', e.target.value)}
               placeholder="200000000"
-              style={{ ...inp, borderColor: (minOutstandingFromAJ > 0 && parseVal(f.outstanding) < minOutstandingFromAJ) ? T.red : inp.borderColor }}
+              style={{
+                ...inp,
+                ...(isSynced ? { background: T.surface, color: T.muted, cursor: 'not-allowed', opacity: 0.75 } : {}),
+                borderColor: (!isSynced && minOutstandingFromAJ > 0 && parseVal(f.outstanding) < minOutstandingFromAJ) ? T.red : inp.borderColor,
+              }}
             />
-            {/* AJ integration warning: cannot go below total AJ credit spend */}
+            {/* Synced badge: outstanding managed by Artha Journey */}
+            {isSynced && (
+              <div style={{ marginTop: 6, padding: '8px 12px', background: T.accentDim, border: `1px solid ${T.accentSoft||T.accent}`, borderRadius: 8, fontSize: 11, color: T.accent, display: 'flex', alignItems: 'center', gap: 6 }}>
+                🔗 Data otomatis dari Artha Journey. Update melalui Artha Journey.
+              </div>
+            )}
+            {/* AJ integration breakdown — shown for synced (info) and non-synced (floor guard) */}
             {(minOutstandingFromAJ > 0 || ajGrossSpend > 0) && (
-              <div style={{ marginTop: 6, padding: '10px 12px', background: (parseVal(f.outstanding) < minOutstandingFromAJ && minOutstandingFromAJ > 0) ? T.red + '22' : T.surface, border: `1px solid ${(parseVal(f.outstanding) < minOutstandingFromAJ && minOutstandingFromAJ > 0) ? T.red : T.border}`, borderRadius: 8, fontSize: 11, lineHeight: 1.7 }}>
+              <div style={{ marginTop: 6, padding: '10px 12px', background: (!isSynced && parseVal(f.outstanding) < minOutstandingFromAJ && minOutstandingFromAJ > 0) ? T.red + '22' : T.surface, border: `1px solid ${(!isSynced && parseVal(f.outstanding) < minOutstandingFromAJ && minOutstandingFromAJ > 0) ? T.red : T.border}`, borderRadius: 8, fontSize: 11, lineHeight: 1.7 }}>
                 {/* Spend / Payment breakdown */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ color: T.muted }}>Pengeluaran via Artha Journey</span>
@@ -370,11 +396,11 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
                   <span style={{ color: T.green, fontWeight: 600 }}>- Rp {ajPayments.toLocaleString('id-ID')}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 5, borderTop: `1px solid ${T.border}`, fontWeight: 700 }}>
-                  <span style={{ color: T.text }}>Net minimum outstanding</span>
+                  <span style={{ color: T.text }}>Net outstanding periode ini</span>
                   <span style={{ color: minOutstandingFromAJ > 0 ? T.orange : T.green }}>Rp {minOutstandingFromAJ.toLocaleString('id-ID')}</span>
                 </div>
-                {/* Error when below floor */}
-                {parseVal(f.outstanding) < minOutstandingFromAJ && minOutstandingFromAJ > 0 && (
+                {/* Error when below floor — only for non-synced */}
+                {!isSynced && parseVal(f.outstanding) < minOutstandingFromAJ && minOutstandingFromAJ > 0 && (
                   <div style={{ marginTop: 8, padding: '7px 10px', background: T.red + '22', borderRadius: 6, color: T.red, fontWeight: 600 }}>
                     ⛔ Outstanding tidak boleh lebih rendah dari net pengeluaran. Lakukan pembayaran hutang terlebih dahulu di Artha Journey.
                   </div>
