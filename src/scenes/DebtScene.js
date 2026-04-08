@@ -588,9 +588,11 @@ function EStatementModal({ debt, T, onClose, onApply }) {
     if (!f) return;
     setFile(f);
     setError('');
-    const reader = new FileReader();
-    reader.onload = e => setPreview(e.target.result);
-    reader.readAsDataURL(f);
+    if (f.type !== 'application/pdf') {
+      const reader = new FileReader();
+      reader.onload = e => setPreview(e.target.result);
+      reader.readAsDataURL(f);
+    }
   };
 
   const doScan = async () => {
@@ -665,18 +667,24 @@ function EStatementModal({ debt, T, onClose, onApply }) {
               <div style={{ fontSize:11, color:T.muted, marginBottom:12, lineHeight:1.6 }}>
                 Upload foto atau screenshot e-statement kartu kredit. AI akan mengekstrak total tagihan, tanggal jatuh tempo, dan sisa limit.
               </div>
-              {!preview ? (
-                <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'28px', borderRadius:12, border:`2px dashed ${T.accentSoft}`, background:T.surface, cursor:'pointer', gap:8 }}>
-                  <span style={{ fontSize:36 }}>📷</span>
-                  <span style={{ color:T.accent, fontSize:13, fontWeight:700 }}>Pilih Gambar E-Statement</span>
-                  <span style={{ color:T.muted, fontSize:11 }}>JPG, PNG, WebP</span>
-                  <input type="file" accept="image/*" style={{ display:'none' }} onChange={e => handleFile(e.target.files?.[0])} />
+              {!file ? (
+                <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'28px', borderRadius:12, border:`2px dashed ${T.accentSoft||T.accent+'55'}`, background:T.surface, cursor:'pointer', gap:8 }}>
+                  <span style={{ fontSize:36 }}>📄</span>
+                  <span style={{ color:T.accent, fontSize:13, fontWeight:700 }}>Pilih E-Statement</span>
+                  <span style={{ color:T.muted, fontSize:11 }}>JPG, PNG, WebP, PDF</span>
+                  <input type="file" accept="image/*,.pdf,application/pdf" style={{ display:'none' }} onChange={e => handleFile(e.target.files?.[0])} />
                 </label>
               ) : (
                 <div>
-                  <img src={preview} alt="preview" style={{ width:'100%', borderRadius:10, maxHeight:220, objectFit:'contain', background:T.surface }} />
+                  {file.type === 'application/pdf'
+                    ? <div style={{ display:'flex', alignItems:'center', gap:10, padding:'14px 16px', background:T.surface, borderRadius:10, border:`1px solid ${T.border}` }}>
+                        <span style={{ fontSize:32 }}>📄</span>
+                        <div><div style={{ fontWeight:600, fontSize:13, color:T.text }}>{file.name}</div><div style={{ fontSize:11, color:T.muted, marginTop:2 }}>PDF · {(file.size/1024).toFixed(0)} KB</div></div>
+                      </div>
+                    : <img src={preview} alt="preview" style={{ width:'100%', borderRadius:10, maxHeight:220, objectFit:'contain', background:T.surface }} />
+                  }
                   <div style={{ display:'flex', gap:8, marginTop:10 }}>
-                    <button onClick={() => { setFile(null); setPreview(null); }} style={{ flex:1, padding:'9px', borderRadius:9, border:`1px solid ${T.border}`, background:T.surface, color:T.textSoft, cursor:'pointer', fontSize:12 }}>Ganti Gambar</button>
+                    <button onClick={() => { setFile(null); setPreview(null); }} style={{ flex:1, padding:'9px', borderRadius:9, border:`1px solid ${T.border}`, background:T.surface, color:T.textSoft, cursor:'pointer', fontSize:12 }}>Ganti File</button>
                     <button onClick={doScan} style={{ flex:2, padding:'9px', borderRadius:9, border:'none', background:T.accent, color:'#000', cursor:'pointer', fontSize:12, fontWeight:700 }}>
                       Scan E-Statement
                     </button>

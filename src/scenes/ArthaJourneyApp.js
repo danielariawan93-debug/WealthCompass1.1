@@ -1079,11 +1079,17 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
           {/* Step 1: Upload */}
           {step === 1 && (
             <div>
-              {preview ? (
+              {file ? (
                 <div style={{ marginBottom: 14 }}>
-                  <img src={preview} alt="preview" style={{ width: "100%", maxHeight: 260, objectFit: "contain", borderRadius: 10, border: `1px solid ${T.border}` }} />
+                  {file.type === "application/pdf"
+                    ? <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", background: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                        <span style={{ fontSize: 32 }}>📄</span>
+                        <div><div style={{ fontWeight: 600, fontSize: 13, color: T.text }}>{file.name}</div><div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>PDF · {(file.size/1024).toFixed(0)} KB</div></div>
+                      </div>
+                    : <img src={preview} alt="preview" style={{ width: "100%", maxHeight: 260, objectFit: "contain", borderRadius: 10, border: `1px solid ${T.border}` }} />
+                  }
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <button onClick={() => { setFile(null); setPreview(null); }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.textSoft, cursor: "pointer", fontSize: 12 }}>Ganti Foto</button>
+                    <button onClick={() => { setFile(null); setPreview(null); }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.textSoft, cursor: "pointer", fontSize: 12 }}>Ganti File</button>
                     <button onClick={doScan} disabled={pulseCredits < 1} style={{ flex: 2, padding: "9px", borderRadius: 9, border: "none", background: pulseCredits < 1 ? T.border : T.accent, color: pulseCredits < 1 ? T.muted : "#000", cursor: pulseCredits < 1 ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 700 }}>
                       ⚡ Scan Sekarang (1 Pulse)
                     </button>
@@ -1091,11 +1097,11 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
                 </div>
               ) : (
                 <label style={{ display: "block", padding: "36px 20px", border: `2px dashed ${T.accent}66`, borderRadius: 14, textAlign: "center", cursor: "pointer", background: T.accentDim + "40" }}>
-                  <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
+                  <input type="file" accept="image/*,.pdf,application/pdf" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
                   <div style={{ fontSize: 48, marginBottom: 10 }}>📸</div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 6 }}>Foto Struk / Nota</div>
-                  <div style={{ fontSize: 12, color: T.muted }}>Tap untuk pilih foto dari galeri atau kamera</div>
-                  <div style={{ marginTop: 10, fontSize: 11, color: T.accent }}>Format: JPG, PNG, HEIC, WebP</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 6 }}>Foto atau PDF Struk / Nota</div>
+                  <div style={{ fontSize: 12, color: T.muted }}>Tap untuk pilih file dari galeri atau file manager</div>
+                  <div style={{ marginTop: 10, fontSize: 11, color: T.accent }}>Format: JPG, PNG, WebP, PDF</div>
                 </label>
               )}
               {/* Wallet selector */}
@@ -1333,16 +1339,22 @@ function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, s
                   </select>
                 </div>
               )}
-              {!preview ? (
+              {!file ? (
                 <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "28px", borderRadius: 12, border: `2px dashed ${T.accentSoft || T.accent + "55"}`, background: T.surface, cursor: "pointer", gap: 8 }}>
-                  <span style={{ fontSize: 36 }}>📷</span>
-                  <span style={{ color: T.accent, fontSize: 13, fontWeight: 700 }}>Pilih Gambar E-Statement</span>
-                  <span style={{ color: T.muted, fontSize: 11 }}>JPG, PNG, WebP</span>
-                  <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) { setFile(f); const r = new FileReader(); r.onload = ev => setPreview(ev.target.result); r.readAsDataURL(f); } }} />
+                  <span style={{ fontSize: 36 }}>📄</span>
+                  <span style={{ color: T.accent, fontSize: 13, fontWeight: 700 }}>Pilih E-Statement</span>
+                  <span style={{ color: T.muted, fontSize: 11 }}>JPG, PNG, WebP, PDF</span>
+                  <input type="file" accept="image/*,.pdf,application/pdf" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) { setFile(f); if (f.type !== "application/pdf") { const r = new FileReader(); r.onload = ev => setPreview(ev.target.result); r.readAsDataURL(f); } } }} />
                 </label>
               ) : (
                 <div>
-                  <img src={preview} alt="preview" style={{ width: "100%", borderRadius: 10, maxHeight: 200, objectFit: "contain", background: T.surface }} />
+                  {file.type === "application/pdf"
+                    ? <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", background: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                        <span style={{ fontSize: 32 }}>📄</span>
+                        <div><div style={{ fontWeight: 600, fontSize: 13, color: T.text }}>{file.name}</div><div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>PDF · {(file.size/1024).toFixed(0)} KB</div></div>
+                      </div>
+                    : <img src={preview} alt="preview" style={{ width: "100%", borderRadius: 10, maxHeight: 200, objectFit: "contain", background: T.surface }} />
+                  }
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     <button onClick={() => { setFile(null); setPreview(null); }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.textSoft, cursor: "pointer", fontSize: 12 }}>Ganti</button>
                     <button onClick={doScan} disabled={pulseCredits < 1} style={{ flex: 2, padding: "9px", borderRadius: 9, border: "none", background: pulseCredits < 1 ? T.border : T.accent, color: pulseCredits < 1 ? T.muted : "#000", cursor: pulseCredits < 1 ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 700 }}>

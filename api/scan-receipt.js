@@ -26,8 +26,10 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'No image provided' });
   }
 
-  const validMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  const finalMimeType = validMimeTypes.includes(mimeType) ? mimeType : 'image/jpeg';
+  const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  const isPdf = mimeType === 'application/pdf';
+  const finalMimeType = isPdf ? 'application/pdf'
+    : validImageTypes.includes(mimeType) ? mimeType : 'image/jpeg';
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -44,14 +46,9 @@ module.exports = async function handler(req, res) {
           {
             role: 'user',
             content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: finalMimeType,
-                  data: imageBase64,
-                },
-              },
+              isPdf
+                ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: imageBase64 } }
+                : { type: 'image', source: { type: 'base64', media_type: finalMimeType, data: imageBase64 } },
               {
                 type: 'text',
                 text: 'Ekstrak semua data dari struk/receipt ini. Kembalikan HANYA JSON valid tanpa teks lain:\n{"storeName":"nama toko","date":"YYYY-MM-DD","items":[{"name":"nama item","qty":1,"amount":0}],"total":0}\n\nGunakan tanggal hari ini jika tanggal tidak terbaca. Jumlah dalam angka bulat (Rupiah). Jika bukan struk, kembalikan {"storeName":"","date":"","items":[],"total":0}',

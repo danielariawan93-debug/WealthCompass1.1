@@ -23,11 +23,13 @@ module.exports = async function handler(req, res) {
 
   const { imageBase64, mimeType, mode } = req.body || {};
   if (!imageBase64) {
-    return res.status(400).json({ error: 'No image provided' });
+    return res.status(400).json({ error: 'No file provided' });
   }
 
-  const validMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  const finalMimeType = validMimeTypes.includes(mimeType) ? mimeType : 'image/jpeg';
+  const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  const isPdf = mimeType === 'application/pdf';
+  const finalMimeType = isPdf ? 'application/pdf'
+    : validImageTypes.includes(mimeType) ? mimeType : 'image/jpeg';
 
   // mode: "summary" (Wealth Pulse) | "transactions" (Artha Journey)
   const isTransactions = mode === 'transactions';
@@ -51,10 +53,9 @@ module.exports = async function handler(req, res) {
           {
             role: 'user',
             content: [
-              {
-                type: 'image',
-                source: { type: 'base64', media_type: finalMimeType, data: imageBase64 },
-              },
+              isPdf
+                ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: imageBase64 } }
+                : { type: 'image', source: { type: 'base64', media_type: finalMimeType, data: imageBase64 } },
               { type: 'text', text: prompt },
             ],
           },
