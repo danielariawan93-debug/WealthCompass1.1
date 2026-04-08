@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import SettingsPopup from "./SettingsPopup";
+import { recalcAllCreditDebts } from "../utils/creditSync";
 
 // ─── Sidebar nav items for Artha Journey ────────────────────────────────────
 const AJ_NAV = [
@@ -1224,58 +1225,28 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
     (form.type === "debt_payment" ? form.debtId : form.type === "transfer" ? form.toWalletId : form.category);
 
   // Sync credit wallet expense → increment linked debt outstanding in WealthPulse
-  const syncCreditDebt = (walletId, amount, reverse = false) => {
-    if (!setDebts || !debts) return;
+  // Auto-link credit wallet → debt on first use (finds matching debt by type/name)
+  const autoLinkCreditWallet = (walletId) => {
+    if (!setWallets || !debts) return;
     const wallet = wallets.find(w => w.id === walletId);
-    if (!wallet || !CREDIT_WALLET_TYPES.includes(wallet.type)) return;
-
-    let targetDebtId = wallet.debtId;
-
-    // Auto-detect linked debt when wallet.debtId not set (existing wallets pre-dating the link feature)
-    if (!targetDebtId) {
-      const debtTypeKey = WALLET_TYPE_DEBT_KEY[wallet.type];
-      const candidates = debts.filter(d => d.type === debtTypeKey);
-      if (candidates.length === 1) {
-        targetDebtId = candidates[0].id;
-      } else if (candidates.length > 1) {
-        // Name-similarity match: pick the debt whose name overlaps most with the wallet name
-        const wName = wallet.name.toLowerCase();
-        const match = candidates.find(d =>
-          (d.name || "").toLowerCase().split(/\s+/).some(w => wName.includes(w) && w.length > 2)
-        ) || candidates.find(d => wName.includes((d.name || "").toLowerCase()));
-        if (match) targetDebtId = match.id;
-      }
-      // Auto-link wallet for future transactions
-      if (targetDebtId && setWallets) {
-        setWallets(prev => prev.map(w => w.id === walletId ? { ...w, debtId: targetDebtId } : w));
-      }
+    if (!wallet || wallet.debtId || !CREDIT_WALLET_TYPES.includes(wallet.type)) return;
+    const debtTypeKey = WALLET_TYPE_DEBT_KEY[wallet.type];
+    const candidates = debts.filter(d => d.type === debtTypeKey);
+    let match = candidates.length === 1 ? candidates[0] : null;
+    if (!match && candidates.length > 1) {
+      const wName = wallet.name.toLowerCase();
+      match = candidates.find(d =>
+        (d.name || "").toLowerCase().split(/\s+/).some(tok => wName.includes(tok) && tok.length > 2)
+      ) || candidates.find(d => wName.includes((d.name || "").toLowerCase()));
     }
-
-    if (!targetDebtId) return;
-    setDebts(prev => prev.map(d =>
-      d.id === targetDebtId
-        ? { ...d, outstanding: Math.max(0, parseNum(d.outstanding) + (reverse ? -amount : amount)).toString() }
-        : d
-    ));
+    if (match) setWallets(prev => prev.map(w => w.id === walletId ? { ...w, debtId: match.id } : w));
   };
 
   const save = () => {
     if (!canSave) return;
     const amt = parseNum(form.amount);
-
-    // debt_payment → decrement outstanding in WealthPulse
-    if (form.type === "debt_payment" && form.debtId && setDebts) {
-      setDebts(prev => prev.map(d =>
-        d.id === form.debtId
-          ? { ...d, outstanding: Math.max(0, parseNum(d.outstanding) - amt).toString() }
-          : d
-      ));
-    }
-    // expense via Paylater/Kartu Kredit → increment linked debt outstanding
-    if (form.type === "expense") {
-      syncCreditDebt(form.walletId, amt);
-    }
-
+    // Auto-link credit wallet if not yet linked (enables recalc useEffect to find it)
+    if (form.type === "expense") autoLinkCreditWallet(form.walletId);
     setTransactions(prev => [...prev, {
       id: genId(), date: form.date || today, type: form.type,
       category: form.type === "debt_payment"
@@ -1289,43 +1260,15 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
     setShowForm(false);
   };
 
-  // Called when ReceiptScanner finishes — accumulate credit debt changes per debtId
+  // Outstanding recalc is handled by the useEffect in ArthaJourneyApp (Rule 2 & 4)
   const handleScanDone = (txs) => {
-    if (setDebts && txs.length > 0) {
-      const debtChanges = {};
-      txs.forEach(tx => {
-        if (tx.type === "expense") {
-          const wallet = wallets.find(w => w.id === tx.walletId);
-          if (wallet?.debtId && CREDIT_WALLET_TYPES.includes(wallet.type)) {
-            debtChanges[wallet.debtId] = (debtChanges[wallet.debtId] || 0) + tx.amount;
-          }
-        }
-      });
-      if (Object.keys(debtChanges).length > 0) {
-        setDebts(prev => prev.map(d =>
-          debtChanges[d.id] !== undefined
-            ? { ...d, outstanding: (parseNum(d.outstanding) + debtChanges[d.id]).toString() }
-            : d
-        ));
-      }
-    }
     setTransactions(prev => [...prev, ...txs]);
     setShowScanner(false);
   };
 
   const del = (id) => {
     if (!window.confirm("Hapus transaksi ini?")) return;
-    // Reverse credit debt change on deletion
-    const tx = transactions.find(t => t.id === id);
-    if (tx?.type === "expense") syncCreditDebt(tx.walletId, tx.amount, true);
-    if (tx?.type === "debt_payment" && tx.debtId && setDebts) {
-      // Restore outstanding when deleting a debt payment
-      setDebts(prev => prev.map(d =>
-        d.id === tx.debtId
-          ? { ...d, outstanding: (parseNum(d.outstanding) + tx.amount).toString() }
-          : d
-      ));
-    }
+    // Removing the tx triggers the recalc useEffect automatically (Rule 4)
     setTransactions(prev => prev.filter(t => t.id !== id));
   };
 
@@ -1851,6 +1794,31 @@ export default function ArthaJourneyApp({
   const [tab, setTab] = useState("wallet");
   const [showSettings, setShowSettings] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
+
+  // ── Rule 2 & 4: Recalculate CC/Paylater outstanding after every transaction change ──
+  // Full recalc (not increment/decrement) eliminates drift and handles all mutations:
+  // create, delete, and edit. Billing-period aware via creditSync.js.
+  useEffect(() => {
+    if (!setDebts) return;
+    setDebts(prev => recalcAllCreditDebts(prev, ajTransactions, ajWallets) || prev);
+  }, [ajTransactions, ajWallets]); // eslint-disable-line
+
+  // ── Rule 1: Sync debt plafon (limit) → linked wallet limits ──────────────────────
+  // Source of truth = debt.plafon (Wealth Pulse). Wallets are read-only derivates.
+  useEffect(() => {
+    if (!debts?.length || !ajWallets?.length) return;
+    let changed = false;
+    const updated = ajWallets.map(w => {
+      if (!CREDIT_WALLET_TYPES.includes(w.type) || !w.debtId) return w;
+      const debt = debts.find(d => d.id === w.debtId);
+      if (!debt) return w;
+      const newLimit = Number(debt.plafon) || w.limit;
+      if (newLimit === w.limit) return w;
+      changed = true;
+      return { ...w, limit: newLimit };
+    });
+    if (changed) setAjWallets(updated);
+  }, [debts]); // eslint-disable-line
 
   const renderScene = () => {
     switch (tab) {

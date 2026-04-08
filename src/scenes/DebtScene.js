@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Card, SL, Bar, TInput, TSelect, TBtn, InfoBtn } from '../components/ui';
 import { fM, parseVal } from '../utils/helpers';
+import { getBillingPeriod } from '../utils/creditSync';
 
 // ============================================================
 // DEBT DEFINITIONS
@@ -135,8 +136,8 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
   const utilisasi = isRevolving && parseVal(f.plafon) > 0
     ? (parseVal(f.outstanding) / parseVal(f.plafon)) * 100 : 0;
 
-  // Net minimum outstanding = gross expenses − debt payments made via AJ for this debt.
-  // This respects partial payments: if user paid 8jt of 10jt spend → floor is only 2jt.
+  // Net minimum outstanding = gross expenses − debt payments within current billing period.
+  // Billing period: if renewalDate set → cycle from renewal day; else calendar month.
   const { minOutstandingFromAJ, ajGrossSpend, ajPayments } = useMemo(() => {
     const zero = { minOutstandingFromAJ: 0, ajGrossSpend: 0, ajPayments: 0 };
     if (!editData || !isRevolving) return zero;
@@ -152,14 +153,22 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
     if (linkedWallets.length === 0) return zero;
     const linkedIds = new Set(linkedWallets.map(w => w.id));
 
-    // Gross spending via these wallets
+    // Filter to current billing period (matching Rule 5 / creditSync.js)
+    const { start, end } = getBillingPeriod(editData);
+    const inPeriod = (dateStr) => {
+      if (!dateStr) return false;
+      const d = new Date(dateStr + "T00:00:00");
+      return d >= start && d <= end;
+    };
+
+    // Gross spending via these wallets within billing period
     const grossSpend = ajTransactions
-      .filter(t => t.type === "expense" && linkedIds.has(t.walletId))
+      .filter(t => t.type === "expense" && linkedIds.has(t.walletId) && inPeriod(t.date))
       .reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
-    // Debt payments recorded against this debt in AJ
+    // Debt payments recorded against this debt in AJ within billing period
     const payments = ajTransactions
-      .filter(t => t.type === "debt_payment" && t.debtId === editData.id)
+      .filter(t => t.type === "debt_payment" && t.debtId === editData.id && inPeriod(t.date))
       .reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
     const net = Math.max(0, grossSpend - payments);
