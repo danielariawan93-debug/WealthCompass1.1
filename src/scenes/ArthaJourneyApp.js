@@ -305,22 +305,41 @@ function PlaceholderScene({ icon, title, desc, features, ctaLabel, T, extra }) {
 }
 
 // ─── Wallet Scene ─────────────────────────────────────────────────────────────
-const CREDIT_WALLET_TYPES = ["Paylater", "Kartu Kredit"];
-const WALLET_TYPE_DEBT_KEY = { "Paylater": "paylater", "Kartu Kredit": "cc" };
+const DANA_WALLET_TYPES   = ["Bank", "E-Wallet", "Tunai"];
+const KREDIT_WALLET_TYPES = ["Paylater", "Kartu Kredit", "Rekening Koran"];
+// CREDIT_WALLET_TYPES kept for creditSync.js backward compat (Rekening Koran excluded —
+// it maps to WP "krek" debt type via WALLET_TYPE_DEBT_KEY extension below)
+const CREDIT_WALLET_TYPES = ["Paylater", "Kartu Kredit", "Rekening Koran"];
+const WALLET_TYPE_DEBT_KEY = { "Paylater": "paylater", "Kartu Kredit": "cc", "Rekening Koran": "krek" };
 const EMPTY_WALLET_FORM = { name: "", type: "Bank", icon: "🏦", color: "#5b9cf6", initialBalance: "", debtId: "", limit: "" };
 
 function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [], setDebts = () => {}, isPro, isProPlus }) {
-  const maxWallets = isProPlus ? Infinity : isPro ? 10 : 3;
+  // Per-category limits: Free 3 Dana + 2 Kredit, Pro 7 + 7, Pro+ unlimited
+  const maxDana    = isProPlus ? Infinity : isPro ? 7 : 3;
+  const maxKredit  = isProPlus ? Infinity : isPro ? 7 : 2;
   const maxDebts   = isProPlus ? Infinity : isPro ? 15 : 5;
-  const atLimit    = wallets.length >= maxWallets;
-  const atDebtLimit = debts.length >= maxDebts;
+  const danaCount   = wallets.filter(w => DANA_WALLET_TYPES.includes(w.type)).length;
+  const kreditCount = wallets.filter(w => KREDIT_WALLET_TYPES.includes(w.type)).length;
+  const atDanaLimit   = danaCount >= maxDana;
+  const atKreditLimit = kreditCount >= maxKredit;
+  const atDebtLimit   = debts.length >= maxDebts;
 
-  const [showForm, setShowForm] = useState(false);
+  // "dana" | "kredit" | null — which section's add-form is open
+  const [showFormFor, setShowFormFor] = useState(null);
   const [form, setForm] = useState(EMPTY_WALLET_FORM);
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const openForm = (section) => {
+    const defaultType = section === "kredit" ? "Paylater" : "Bank";
+    setForm({ ...EMPTY_WALLET_FORM, type: defaultType });
+    setShowFormFor(section);
+  };
+  const closeForm = () => { setShowFormFor(null); setForm(EMPTY_WALLET_FORM); };
 
-  const cashAssets  = (assets || []).filter(a => a.classKey === "cash");
-  const totalBalance = wallets.reduce((s, w) => s + getWalletBalance(w, transactions), 0);
+  const cashAssets    = (assets || []).filter(a => a.classKey === "cash");
+  // Any wallet type not in KREDIT_WALLET_TYPES is treated as Dana (incl. "Lainnya")
+  const danaWallets   = wallets.filter(w => !KREDIT_WALLET_TYPES.includes(w.type));
+  const kreditWallets = wallets.filter(w =>  KREDIT_WALLET_TYPES.includes(w.type));
+  const totalDanaBalance = danaWallets.reduce((s, w) => s + getWalletBalance(w, transactions), 0);
 
   const isCredit = CREDIT_WALLET_TYPES.includes(form.type);
 
@@ -377,195 +396,192 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
       ...(isCredit && { debtId, limit: creditLimit }),
       createdAt: new Date().toISOString(),
     }]);
-    setForm(EMPTY_WALLET_FORM);
-    setShowForm(false);
+    closeForm();
+  };
+
+  // Reusable wallet card renderer
+  const renderWalletCard = (w) => {
+    const bal      = getWalletBalance(w, transactions);
+    const txCount  = transactions.filter(t => t.walletId === w.id || t.toWalletId === w.id).length;
+    const isWCredit = KREDIT_WALLET_TYPES.includes(w.type);
+    const used     = isWCredit ? Math.abs(bal) : 0;
+    const lim      = isWCredit ? (w.limit || 0) : 0;
+    const avail    = isWCredit ? Math.max(0, lim - used) : 0;
+    const usePct   = lim > 0 ? Math.min(100, (used / lim) * 100) : 0;
+    const barColor = usePct >= 90 ? "#f26b6b" : usePct >= 70 ? "#f59e0b" : "#3ecf8e";
+    return (
+      <Card T={T} key={w.id} style={{ marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: w.color + "22", border: `1.5px solid ${w.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
+            {w.icon}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 14, color: T.text }}>{w.name}</div>
+            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{w.type} · {txCount} transaksi</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            {isWCredit ? (
+              <>
+                <div style={{ fontSize: 11, color: T.muted }}>Tersedia</div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: avail > 0 ? T.green : T.red }}>{fmtRp(avail)}</div>
+              </>
+            ) : (
+              <div style={{ fontWeight: 700, fontSize: 15, color: bal >= 0 ? T.green : T.red }}>
+                {bal < 0 && <span style={{ fontSize: 12 }}>−</span>}{fmtRp(Math.abs(bal))}
+              </div>
+            )}
+            <button
+              onClick={() => { if (window.confirm(`Hapus wallet "${w.name}"?`)) setWallets(prev => prev.filter(x => x.id !== w.id)); }}
+              style={{ fontSize: 10, color: T.muted, background: "none", border: "none", cursor: "pointer", marginTop: 4, padding: "2px 6px" }}
+            >🗑 hapus</button>
+          </div>
+        </div>
+        {isWCredit && lim > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ height: 5, background: T.border, borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: usePct + "%", background: barColor, borderRadius: 4, transition: "width .3s" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, color: T.muted }}>
+              <span style={{ color: barColor }}>Terpakai {fmtRp(used)}</span>
+              <span>Limit {fmtRp(lim)}</span>
+            </div>
+          </div>
+        )}
+      </Card>
+    );
+  };
+
+  // Reusable add-wallet form (shown inline inside each section)
+  const renderAddForm = (section) => {
+    const isDanaForm   = section === "dana";
+    const typeOptions  = isDanaForm
+      ? ["Bank", "E-Wallet", "Tunai", "Lainnya"]
+      : (isPro || isProPlus)
+          ? ["Paylater", "Kartu Kredit", "Rekening Koran"]
+          : ["Paylater", "Kartu Kredit"];
+    return (
+      <Card T={T} style={{ marginBottom: 10, border: `1px solid ${isDanaForm ? T.accent : "#f59e0b"}44` }}>
+        <SectionTitle>Tambah {isDanaForm ? "Akun Dana" : "Akun Kredit"}</SectionTitle>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <Inp T={T} value={form.name} onChange={e => setF("name", e.target.value)} placeholder={`Nama (cth: ${isDanaForm ? "BCA Utama" : "CC BCA"})`} />
+          <Sel T={T} value={form.type} onChange={e => handleTypeChange(e.target.value)}>
+            {typeOptions.map(t => <option key={t}>{t}</option>)}
+          </Sel>
+          {isCredit && (
+            <div style={{ background: T.surface, borderRadius: 10, padding: "12px 14px", border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>💳 Hubungkan dengan hutang revolving di Wealth Kompas</div>
+              <Sel T={T} value={form.debtId} onChange={e => setF("debtId", e.target.value)}>
+                <option value="">— Pilih hutang —</option>
+                {revolvingDebts.map(d => (
+                  <option key={d.id} value={d.id}>{d.name || form.type} · {d.limit ? "Limit " + fmtRp(d.limit) : fmtRp(d.outstanding || 0)}</option>
+                ))}
+                <option value="new">+ Tambah hutang baru</option>
+              </Sel>
+              {form.debtId === "new" && (
+                <div style={{ marginTop: 10 }}>
+                  {atDebtLimit ? (
+                    <div style={{ padding: "10px 12px", background: T.red + "22", border: `1px solid ${T.red}44`, borderRadius: 8, fontSize: 12, color: T.red }}>
+                      ⛔ Batas {maxDebts} hutang tercapai.{!isProPlus && <span style={{ color: T.accent }}> Upgrade untuk menambah.</span>}
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Plafon / Limit ({form.type})</div>
+                      <Inp T={T} type="number" value={form.limit} onChange={e => setF("limit", e.target.value)}
+                        placeholder={`Limit kredit (cth: ${form.type === "Paylater" ? "3.000.000" : "10.000.000"})`} />
+                      <div style={{ fontSize: 10, color: T.muted, marginTop: 5 }}>
+                        Hutang {form.type} dibuat otomatis di Wealth Kompas
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {form.debtId && form.debtId !== "new" && (() => {
+                const d = debts.find(x => x.id === form.debtId);
+                return d ? <div style={{ marginTop: 8, fontSize: 11, color: T.muted }}>✅ Linked · {d.limit ? `Limit ${fmtRp(d.limit)}` : ""}</div> : null;
+              })()}
+            </div>
+          )}
+          {!isCredit && (
+            <Inp T={T} value={form.initialBalance} onChange={e => setF("initialBalance", e.target.value)} placeholder="Saldo awal (contoh: 5000000)" type="number" />
+          )}
+          <div>
+            <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Ikon</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {WALLET_ICONS.map(ic => <button key={ic} onClick={() => setF("icon", ic)} style={{ fontSize: 20, padding: "6px 8px", borderRadius: 8, border: `2px solid ${form.icon === ic ? T.accent : T.border}`, background: form.icon === ic ? T.accentDim : T.surface, cursor: "pointer" }}>{ic}</button>)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Warna</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {WALLET_COLORS.map(c => <button key={c} onClick={() => setF("color", c)} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: `3px solid ${form.color === c ? T.text : "transparent"}`, cursor: "pointer" }} />)}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <Btn T={T} variant="primary" onClick={save} disabled={!canSave} style={{ flex: 1, opacity: canSave ? 1 : 0.5 }}>Simpan</Btn>
+            <Btn T={T} onClick={closeForm} style={{ flex: 1 }}>Batal</Btn>
+          </div>
+        </div>
+      </Card>
+    );
   };
 
   return (
     <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
-      {/* Header summary */}
+      {/* Header summary — Akun Dana balance */}
       <Card T={T} style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <div style={{ fontSize: 10, color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>Total Saldo Semua Wallet</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: totalBalance >= 0 ? T.green : T.red }}>
-            {totalBalance < 0 && <span style={{ fontSize: 14, marginRight: 2 }}>−</span>}
-            {fmtRp(Math.abs(totalBalance))}
+          <div style={{ fontSize: 10, color: T.muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>Total Saldo Akun Dana</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: totalDanaBalance >= 0 ? T.green : T.red }}>
+            {totalDanaBalance < 0 && <span style={{ fontSize: 14, marginRight: 2 }}>−</span>}
+            {fmtRp(Math.abs(totalDanaBalance))}
           </div>
         </div>
-        <div style={{ textAlign: "right", fontSize: 12, color: T.muted }}>
-          {wallets.length}/{maxWallets === Infinity ? "∞" : maxWallets} wallet
+        <div style={{ textAlign: "right", fontSize: 11, color: T.muted, lineHeight: 1.8 }}>
+          <div>🏦 {danaCount}/{maxDana === Infinity ? "∞" : maxDana} Dana</div>
+          <div>💳 {kreditCount}/{maxKredit === Infinity ? "∞" : maxKredit} Kredit</div>
         </div>
       </Card>
 
-      {/* Wallet list */}
-      {wallets.length === 0 && !showForm && (
-        <Card T={T} style={{ textAlign: "center", padding: "36px 20px", marginBottom: 16, border: `1px dashed ${T.border}` }}>
-          <div style={{ fontSize: 36, marginBottom: 10 }}>👛</div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: T.text, marginBottom: 6 }}>Belum ada wallet</div>
-          <div style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>Tambahkan rekening bank, e-wallet, atau dompet tunai untuk mulai mencatat transaksi.</div>
-          <Btn T={T} variant="primary" onClick={() => setShowForm(true)}>+ Tambah Wallet Pertama</Btn>
-        </Card>
+      {/* ── Akun Dana Section ──────────────────────────── */}
+      <div style={{ borderLeft: `3px solid ${T.accent}`, paddingLeft: 10, marginBottom: 6 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>🏦 Akun Dana</div>
+        <div style={{ fontSize: 11, color: T.muted }}>Tunai · Bank · E-Wallet · Transfer antar akun dana</div>
+      </div>
+      {danaWallets.length === 0 && showFormFor !== "dana" && (
+        <div style={{ textAlign: "center", padding: "16px", fontSize: 12, color: T.muted, marginBottom: 8 }}>
+          Belum ada Akun Dana — tambahkan untuk mulai mencatat transaksi.
+        </div>
+      )}
+      {danaWallets.map(renderWalletCard)}
+      {showFormFor === "dana" ? renderAddForm("dana") : (
+        <button
+          onClick={() => { if (!atDanaLimit) openForm("dana"); }}
+          disabled={atDanaLimit}
+          style={{ width: "100%", padding: "8px", borderRadius: 8, border: `1px dashed ${atDanaLimit ? T.border : T.accent}`, background: "transparent", color: atDanaLimit ? T.muted : T.accent, cursor: atDanaLimit ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, marginBottom: 16 }}
+        >
+          {atDanaLimit ? `Batas ${maxDana} Akun Dana (upgrade untuk lebih)` : "+ Tambah Akun Dana"}
+        </button>
       )}
 
-      {wallets.map(w => {
-        const bal      = getWalletBalance(w, transactions);
-        const txCount  = transactions.filter(t => t.walletId === w.id || t.toWalletId === w.id).length;
-        const isCredit = CREDIT_WALLET_TYPES.includes(w.type);
-        const used     = isCredit ? Math.abs(bal) : 0;
-        const lim      = isCredit ? (w.limit || 0) : 0;
-        const avail    = isCredit ? Math.max(0, lim - used) : 0;
-        const usePct   = lim > 0 ? Math.min(100, (used / lim) * 100) : 0;
-        const barColor = usePct >= 90 ? "#f26b6b" : usePct >= 70 ? "#f59e0b" : "#3ecf8e";
-
-        return (
-          <Card T={T} key={w.id} style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: w.color + "22", border: `1.5px solid ${w.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-                {w.icon}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: T.text }}>{w.name}</div>
-                <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{w.type} · {txCount} transaksi</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                {isCredit ? (
-                  <>
-                    <div style={{ fontSize: 11, color: T.muted }}>Tersedia</div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: avail > 0 ? T.green : T.red }}>{fmtRp(avail)}</div>
-                  </>
-                ) : (
-                  <div style={{ fontWeight: 700, fontSize: 15, color: bal >= 0 ? T.green : T.red }}>
-                    {bal < 0 && <span style={{ fontSize: 12 }}>−</span>}{fmtRp(Math.abs(bal))}
-                  </div>
-                )}
-                <button
-                  onClick={() => { if (window.confirm(`Hapus wallet "${w.name}"?`)) setWallets(prev => prev.filter(x => x.id !== w.id)); }}
-                  style={{ fontSize: 10, color: T.muted, background: "none", border: "none", cursor: "pointer", marginTop: 4, padding: "2px 6px" }}
-                >🗑 hapus</button>
-              </div>
-            </div>
-
-            {/* Credit wallet progress bar */}
-            {isCredit && lim > 0 && (
-              <div style={{ marginTop: 10 }}>
-                <div style={{ height: 5, background: T.border, borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: usePct + "%", background: barColor, borderRadius: 4, transition: "width .3s" }} />
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, color: T.muted }}>
-                  <span style={{ color: barColor }}>Terpakai {fmtRp(used)}</span>
-                  <span>Limit {fmtRp(lim)}</span>
-                </div>
-              </div>
-            )}
-          </Card>
-        );
-      })}
-
-      {/* Add wallet form */}
-      {showForm ? (
-        <Card T={T} style={{ marginBottom: 16 }}>
-          <SectionTitle>Tambah Wallet Baru</SectionTitle>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <Inp T={T} value={form.name} onChange={e => setF("name", e.target.value)} placeholder="Nama wallet (cth: BCA Utama)" />
-
-            {/* Wallet type */}
-            <Sel T={T} value={form.type} onChange={e => handleTypeChange(e.target.value)}>
-              {["Bank","E-Wallet","Tunai","Paylater","Kartu Kredit","Lainnya"].map(t => <option key={t}>{t}</option>)}
-            </Sel>
-
-            {/* Credit wallet: debt linking */}
-            {isCredit && (
-              <div style={{ background: T.surface, borderRadius: 10, padding: "12px 14px", border: `1px solid ${T.border}` }}>
-                <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>
-                  💳 Hubungkan dengan hutang revolving di Wealth Kompas
-                </div>
-
-                {/* Debt picker */}
-                <Sel T={T} value={form.debtId} onChange={e => setF("debtId", e.target.value)}>
-                  <option value="">— Pilih hutang —</option>
-                  {revolvingDebts.map(d => (
-                    <option key={d.id} value={d.id}>
-                      {d.name || d.label || (form.type)} · {d.limit ? "Limit " + fmtRp(d.limit) : fmtRp(d.outstanding || 0)}
-                    </option>
-                  ))}
-                  <option value="new">+ Tambah hutang baru</option>
-                </Sel>
-
-                {/* New debt form */}
-                {form.debtId === "new" && (
-                  <div style={{ marginTop: 10 }}>
-                    {atDebtLimit ? (
-                      <div style={{ padding: "10px 12px", background: T.red + "22", border: `1px solid ${T.red}44`, borderRadius: 8, fontSize: 12, color: T.red }}>
-                        ⛔ Batas {maxDebts} hutang untuk tier {isProPlus ? "Pro+" : isPro ? "Pro" : "Free"} tercapai.
-                        {!isProPlus && <span style={{ color: T.accent }}> Upgrade untuk menambah lebih.</span>}
-                      </div>
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>
-                          Plafon / Limit ({form.type})
-                        </div>
-                        <Inp T={T} type="number" value={form.limit}
-                          onChange={e => setF("limit", e.target.value)}
-                          placeholder={`Limit kredit (cth: ${form.type === "Paylater" ? "3000000" : "10000000"})`} />
-                        <div style={{ fontSize: 10, color: T.muted, marginTop: 5 }}>
-                          Hutang {form.type} akan otomatis dibuat di Wealth Kompas
-                          · bunga {form.type === "Paylater" ? "24%" : "27%"}/tahun
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* Show linked debt info */}
-                {form.debtId && form.debtId !== "new" && (() => {
-                  const d = debts.find(x => x.id === form.debtId);
-                  return d ? (
-                    <div style={{ marginTop: 8, fontSize: 11, color: T.muted }}>
-                      ✅ Saldo wallet akan mencerminkan penggunaan hutang ini
-                      {d.limit ? ` · Limit ${fmtRp(d.limit)}` : ""}
-                    </div>
-                  ) : null;
-                })()}
-              </div>
-            )}
-
-            {/* Initial balance — only for non-credit wallets */}
-            {!isCredit && (
-              <Inp T={T} value={form.initialBalance} onChange={e => setF("initialBalance", e.target.value)} placeholder="Saldo awal (contoh: 5000000)" type="number" />
-            )}
-
-            {/* Icon picker */}
-            <div>
-              <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Ikon</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {WALLET_ICONS.map(ic => (
-                  <button key={ic} onClick={() => setF("icon", ic)} style={{ fontSize: 20, padding: "6px 8px", borderRadius: 8, border: `2px solid ${form.icon === ic ? T.accent : T.border}`, background: form.icon === ic ? T.accentDim : T.surface, cursor: "pointer" }}>{ic}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* Color picker */}
-            <div>
-              <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Warna</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {WALLET_COLORS.map(c => (
-                  <button key={c} onClick={() => setF("color", c)} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: `3px solid ${form.color === c ? T.text : "transparent"}`, cursor: "pointer" }} />
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-              <Btn T={T} variant="primary" onClick={save} disabled={!canSave} style={{ flex: 1, opacity: canSave ? 1 : 0.5 }}>Simpan</Btn>
-              <Btn T={T} onClick={() => { setShowForm(false); setForm(EMPTY_WALLET_FORM); }} style={{ flex: 1 }}>Batal</Btn>
-            </div>
-          </div>
-        </Card>
-      ) : (
-        wallets.length > 0 && (
-          <Btn T={T} variant={atLimit ? "ghost" : "primary"} disabled={atLimit} onClick={() => setShowForm(true)} style={{ width: "100%", marginBottom: 16 }}>
-            {atLimit ? `Batas ${maxWallets} wallet (upgrade untuk lebih)` : "+ Tambah Wallet"}
-          </Btn>
-        )
+      {/* ── Akun Kredit Section ────────────────────────── */}
+      <div style={{ borderLeft: "3px solid #f59e0b", paddingLeft: 10, marginBottom: 6, marginTop: 4 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>💳 Akun Kredit</div>
+        <div style={{ fontSize: 11, color: T.muted }}>Paylater · Kartu Kredit{(isPro || isProPlus) ? " · Rekening Koran" : ""} · Wajib link ke Hutang di Wealth Kompas</div>
+      </div>
+      {kreditWallets.length === 0 && showFormFor !== "kredit" && (
+        <div style={{ textAlign: "center", padding: "16px", fontSize: 12, color: T.muted, marginBottom: 8 }}>
+          Belum ada Akun Kredit.
+        </div>
+      )}
+      {kreditWallets.map(renderWalletCard)}
+      {showFormFor === "kredit" ? renderAddForm("kredit") : (
+        <button
+          onClick={() => { if (!atKreditLimit) openForm("kredit"); }}
+          disabled={atKreditLimit}
+          style={{ width: "100%", padding: "8px", borderRadius: 8, border: `1px dashed ${atKreditLimit ? T.border : "#f59e0b"}`, background: "transparent", color: atKreditLimit ? T.muted : "#f59e0b", cursor: atKreditLimit ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, marginBottom: 16 }}
+        >
+          {atKreditLimit ? `Batas ${maxKredit} Akun Kredit (upgrade untuk lebih)` : "+ Tambah Akun Kredit"}
+        </button>
       )}
 
       {/* WealthPulse cash assets reference */}
@@ -766,10 +782,10 @@ function BudgetScene({ T, budgets, setBudgets, transactions, assets, activeIncom
   const totalActiveIncome = activeMonthly + fixedMonthly;
   const totalIncome = passiveMonthly + totalActiveIncome;
 
-  // Spending & limits per category
+  // Spending & limits per category — debt_payment excluded (not a real expense)
   const getSpent = (cat) =>
     transactions
-      .filter(t => (t.type === "expense" || t.type === "debt_payment") && getMonth(t.date) === viewMonth && t.category === cat)
+      .filter(t => t.type === "expense" && getMonth(t.date) === viewMonth && t.category === cat)
       .reduce((s, t) => s + Number(t.amount || 0), 0);
 
   const totalBudget = monthBudgets.reduce((s, b) => s + Number(b.limit || 0), 0);
@@ -1520,13 +1536,18 @@ function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, s
 }
 
 // ─── Transaksi Scene ──────────────────────────────────────────────────────────
-function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets, debts, setDebts, pulseCredits, setPulseCredits }) {
+function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets, debts, setDebts, pulseCredits, setPulseCredits, openScannerOnMount, onScannerMounted }) {
   const today = new Date().toISOString().slice(0, 10);
-  // Auto-select first wallet
-  const defaultWallet = wallets[0]?.id || "";
+  // Default to first Dana wallet (preferred source); fall back to any wallet
+  const defaultWallet = (wallets.find(w => !KREDIT_WALLET_TYPES.includes(w.type)) || wallets[0])?.id || "";
   const emptyForm = { type: "expense", date: today, amount: "", category: "", walletId: defaultWallet, toWalletId: "", debtId: "", description: "" };
   const [showForm, setShowForm]           = useState(false);
   const [showScanner, setShowScanner]     = useState(false);
+
+  // Auto-open scanner if requested by UploadCenter
+  useEffect(() => {
+    if (openScannerOnMount) { setShowScanner(true); onScannerMounted && onScannerMounted(); }
+  }, [openScannerOnMount]); // eslint-disable-line
   const [showEStatement, setShowEStatement] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [filter, setFilter] = useState("all");
@@ -1612,10 +1633,11 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
     .filter(t => filter === "all" || t.type === filter)
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  // Monthly summary totals
+  // Monthly summary totals — debt_payment is a cash outflow but not an expense
   const monthIncome  = monthTxs.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount || 0), 0);
-  const monthExpense = monthTxs.filter(t => t.type === "expense" || t.type === "debt_payment").reduce((s, t) => s + Number(t.amount || 0), 0);
-  const monthNet     = monthIncome - monthExpense;
+  const monthExpense = monthTxs.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount || 0), 0);
+  const monthHutang  = monthTxs.filter(t => t.type === "debt_payment").reduce((s, t) => s + Number(t.amount || 0), 0);
+  const monthNet     = monthIncome - monthExpense - monthHutang;
 
   const walletName = (id) => wallets.find(w => w.id === id)?.name || "—";
 
@@ -1630,11 +1652,16 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
 
       {/* Monthly summary chips */}
       {monthTxs.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
-          {[["Pemasukan", monthIncome, T.green], ["Pengeluaran", monthExpense, T.red], ["Selisih", monthNet, monthNet >= 0 ? T.green : T.red]].map(([l, v, c]) => (
-            <div key={l} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, marginBottom: 14 }}>
+          {[
+            ["Pemasukan",    monthIncome,  T.green],
+            ["Pengeluaran",  monthExpense, T.red],
+            ["Bayar Hutang", monthHutang,  "#f59e0b"],
+            ["Selisih",      monthNet,     monthNet >= 0 ? T.green : T.red],
+          ].map(([l, v, c]) => (
+            <div key={l} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 6px", textAlign: "center" }}>
               <div style={{ fontSize: 9, color: T.muted, marginBottom: 4 }}>{l}</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: c }}>{l === "Selisih" && monthNet >= 0 ? "+" : ""}{fmtRp(v)}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: c }}>{l === "Selisih" && monthNet >= 0 ? "+" : ""}{fmtRp(v)}</div>
             </div>
           ))}
         </div>
@@ -1702,17 +1729,30 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
               </Sel>
             )}
 
-            {/* Source wallet */}
-            <Sel T={T} value={form.walletId} onChange={e => setF("walletId", e.target.value)}>
-              <option value="">-- Dari Wallet --</option>
-              {wallets.map(w => <option key={w.id} value={w.id}>{w.icon} {w.name} ({fmtRp(getWalletBalance(w, transactions))})</option>)}
-            </Sel>
+            {/* Source wallet — Dana only for transfer & debt_payment */}
+            {(() => {
+              const danaOnly = form.type === "transfer" || form.type === "debt_payment";
+              const srcWallets = danaOnly ? wallets.filter(w => !KREDIT_WALLET_TYPES.includes(w.type)) : wallets;
+              return (
+                <>
+                  <Sel T={T} value={form.walletId} onChange={e => setF("walletId", e.target.value)}>
+                    <option value="">-- {danaOnly ? "Dari Akun Dana" : "Dari Wallet"} --</option>
+                    {srcWallets.map(w => <option key={w.id} value={w.id}>{w.icon} {w.name} ({fmtRp(getWalletBalance(w, transactions))})</option>)}
+                  </Sel>
+                  {danaOnly && srcWallets.length === 0 && (
+                    <div style={{ fontSize: 11, color: T.muted, padding: "6px 10px", background: T.surface, borderRadius: 8 }}>
+                      Tambahkan Akun Dana (Bank/E-Wallet/Tunai) terlebih dahulu.
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
-            {/* Transfer to wallet */}
+            {/* Transfer to wallet — Dana only */}
             {form.type === "transfer" && (
               <Sel T={T} value={form.toWalletId} onChange={e => setF("toWalletId", e.target.value)}>
-                <option value="">-- Ke Wallet --</option>
-                {wallets.filter(w => w.id !== form.walletId).map(w => <option key={w.id} value={w.id}>{w.icon} {w.name}</option>)}
+                <option value="">-- Ke Akun Dana --</option>
+                {wallets.filter(w => !KREDIT_WALLET_TYPES.includes(w.type) && w.id !== form.walletId).map(w => <option key={w.id} value={w.id}>{w.icon} {w.name}</option>)}
               </Sel>
             )}
 
@@ -2036,15 +2076,16 @@ function ReportScene({ T, transactions, budgets }) {
   });
 
   const getIncome  = (m) => transactions.filter(t => t.type === "income" && getMonth(t.date) === m).reduce((s, t) => s + Number(t.amount || 0), 0);
-  const getExpense = (m) => transactions.filter(t => (t.type === "expense" || t.type === "debt_payment") && getMonth(t.date) === m).reduce((s, t) => s + Number(t.amount || 0), 0);
+  // debt_payment is excluded from expense — it's a cash outflow but not a spending category
+  const getExpense = (m) => transactions.filter(t => t.type === "expense" && getMonth(t.date) === m).reduce((s, t) => s + Number(t.amount || 0), 0);
 
   const income  = getIncome(viewMonth);
   const expense = getExpense(viewMonth);
   const net     = income - expense;
 
-  // Category breakdown for selected month
+  // Category breakdown for selected month — expense only, debt_payment excluded
   const catMap = {};
-  transactions.filter(t => (t.type === "expense" || t.type === "debt_payment") && getMonth(t.date) === viewMonth)
+  transactions.filter(t => t.type === "expense" && getMonth(t.date) === viewMonth)
     .forEach(t => { catMap[t.category] = (catMap[t.category] || 0) + Number(t.amount || 0); });
   const cats = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
   const maxCat = cats[0]?.[1] || 1;
@@ -2157,6 +2198,213 @@ function ReportScene({ T, transactions, budgets }) {
   );
 }
 
+// ─── Upload Center Modal ─────────────────────────────────────────────────────
+function UploadCenterModal({ T, wallets, debts, setDebts, setTransactions, pulseCredits, setPulseCredits, setActiveApp, onClose, onOpenScanner }) {
+  const [step, setStep]           = useState("choose"); // "choose"|"estatement_select"|"estatement_upload"|"scanning"|"review"
+  const [fileB64, setFileB64]     = useState(null);
+  const [fileName, setFileName]   = useState("");
+  const [selectedDebtId, setSelectedDebtId] = useState("");
+  const [txResult, setTxResult]   = useState(null);
+  const [summaryResult, setSummaryResult] = useState(null);
+  const [scanning, setScanning]   = useState(false);
+  const [error, setError]         = useState("");
+  const [txList, setTxList]       = useState([]); // for review/edit
+
+  const ccDebts = (debts || []).filter(d => d.type === "cc" || d.type === "paylater" || d.type === "krek");
+
+  const toB64 = (file) => new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(",")[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setFileB64(await toB64(file));
+  };
+
+  const runScan = async () => {
+    if (!fileB64 || !selectedDebtId) return;
+    setScanning(true);
+    setError("");
+    try {
+      const pulseCost = 3; // 1 summary + 2 transactions
+      if (pulseCredits < pulseCost) { setError(`Pulse tidak cukup (perlu ${pulseCost})`); setScanning(false); return; }
+
+      const [txRes, sumRes] = await Promise.all([
+        fetch("/api/scan-statement", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: fileB64, mode: "transactions" }) }).then(r => r.json()),
+        fetch("/api/scan-statement", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: fileB64, mode: "summary" }) }).then(r => r.json()),
+      ]);
+
+      setPulseCredits(prev => (typeof prev === "function" ? prev : (fn) => fn)(p => Math.max(0, (typeof p === "number" ? p : 0) - pulseCost)));
+      setTxResult(txRes);
+      setSummaryResult(sumRes);
+      const parsedTxs = (txRes.transactions || txRes.items || []).map(t => ({ ...t, include: true }));
+      setTxList(parsedTxs);
+      setStep("review");
+    } catch (e) {
+      setError("Gagal scan: " + e.message);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const confirm = () => {
+    // Save transactions to AJ
+    const debt = (debts || []).find(d => d.id === selectedDebtId);
+    const ccWallet = (wallets || []).find(w => w.debtId === selectedDebtId);
+    const txsToAdd = txList.filter(t => t.include).map(t => ({
+      id: genId(),
+      date: t.date || new Date().toISOString().slice(0, 10),
+      type: t.type || "expense",
+      category: t.category || "Belanja",
+      amount: Number(t.amount) || 0,
+      walletId: ccWallet?.id || "",
+      toWalletId: "",
+      debtId: t.type === "debt_payment" ? selectedDebtId : "",
+      description: t.description || t.merchant || "",
+    }));
+    if (txsToAdd.length > 0) setTransactions(prev => [...prev, ...txsToAdd]);
+
+    // Update debt summary in WP if summary found
+    if (summaryResult && debt) {
+      setDebts(prev => prev.map(d => {
+        if (d.id !== selectedDebtId) return d;
+        const updates = {};
+        if (summaryResult.total_tagihan) updates.outstanding = String(Math.round(Number(summaryResult.total_tagihan)));
+        if (summaryResult.limit) updates.plafon = String(Math.round(Number(summaryResult.limit)));
+        if (summaryResult.tanggal_jatuh_tempo) updates.dueDate = summaryResult.tanggal_jatuh_tempo;
+        return { ...d, ...updates };
+      }));
+    }
+    onClose();
+  };
+
+  const overlay = { position: "fixed", inset: 0, background: "#0009", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 };
+  const box = { background: T.card, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", padding: 20 };
+
+  return (
+    <div style={overlay} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={box}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: T.text }}>📤 Upload Center</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, fontSize: 20, cursor: "pointer" }}>✕</button>
+        </div>
+
+        {step === "choose" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ fontSize: 12, color: T.textSoft, marginBottom: 4 }}>Pilih jenis upload:</div>
+            {[
+              { key: "struk",      icon: "📸", label: "Scan Struk / Nota",       desc: "AI ekstrak item belanja → Artha Journey",          color: "#3ecf8e" },
+              { key: "estatement", icon: "💳", label: "E-Statement Kartu Kredit", desc: "Transaksi → AJ · Ringkasan tagihan → Wealth Kompas",color: "#f59e0b" },
+              { key: "portfolio",  icon: "📄", label: "Portfolio Aset (PDF)",     desc: "Data aset → Wealth Pulse",                         color: "#5b9cf6" },
+            ].map(opt => (
+              <button key={opt.key} onClick={() => {
+                if (opt.key === "struk") { onClose(); onOpenScanner(); }
+                else if (opt.key === "portfolio") { setActiveApp && setActiveApp("wealthpulse"); onClose(); }
+                else setStep("estatement_select");
+              }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 12, border: `1px solid ${opt.color}44`, background: opt.color + "0d", cursor: "pointer", textAlign: "left" }}>
+                <span style={{ fontSize: 24 }}>{opt.icon}</span>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: T.text }}>{opt.label}</div>
+                  <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{opt.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {step === "estatement_select" && (
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 10 }}>Pilih Kartu Kredit / Paylater</div>
+            {ccDebts.length === 0 ? (
+              <div style={{ fontSize: 12, color: T.muted, padding: "12px 0" }}>Belum ada hutang CC/Paylater di Wealth Kompas.</div>
+            ) : (
+              ccDebts.map(d => (
+                <button key={d.id} onClick={() => { setSelectedDebtId(d.id); setStep("estatement_upload"); }}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "12px 14px", marginBottom: 8, borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, cursor: "pointer" }}>
+                  <span style={{ fontSize: 13, color: T.text, fontWeight: 600 }}>{d.name}</span>
+                  <span style={{ fontSize: 11, color: T.muted }}>{d.type === "cc" ? "Kartu Kredit" : d.type === "paylater" ? "Paylater" : "Rekening Koran"}</span>
+                </button>
+              ))
+            )}
+            <button onClick={() => setStep("choose")} style={{ width: "100%", marginTop: 8, padding: "8px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.muted, cursor: "pointer", fontSize: 12 }}>← Kembali</button>
+          </div>
+        )}
+
+        {step === "estatement_upload" && (
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 10 }}>
+              Upload E-Statement · {(debts || []).find(d => d.id === selectedDebtId)?.name}
+            </div>
+            <label style={{ display: "block", padding: "24px", borderRadius: 12, border: `2px dashed ${T.border}`, background: T.surface, cursor: "pointer", textAlign: "center", marginBottom: 12 }}>
+              <input type="file" accept="image/*,.pdf,application/pdf" onChange={handleFileChange} style={{ display: "none" }} />
+              {fileB64 ? (
+                <div style={{ fontSize: 12, color: T.green }}>✅ {fileName}</div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 28, marginBottom: 6 }}>📎</div>
+                  <div style={{ fontSize: 12, color: T.muted }}>Klik atau drag gambar / PDF e-statement</div>
+                </>
+              )}
+            </label>
+            {error && <div style={{ fontSize: 12, color: T.red, marginBottom: 8 }}>{error}</div>}
+            <div style={{ fontSize: 11, color: T.muted, marginBottom: 12 }}>
+              Biaya: <strong style={{ color: "#f59e0b" }}>3 Pulse</strong> (scan transaksi + ringkasan tagihan)
+              · Saldo: {pulseCredits} Pulse
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={runScan} disabled={!fileB64 || scanning} style={{ flex: 1, padding: "10px", borderRadius: 9, border: "none", background: (!fileB64 || scanning) ? T.border : T.accent, color: (!fileB64 || scanning) ? T.muted : "#000", cursor: (!fileB64 || scanning) ? "not-allowed" : "pointer", fontWeight: 700, fontSize: 13 }}>
+                {scanning ? "⏳ Scanning..." : "🔍 Scan Sekarang"}
+              </button>
+              <button onClick={() => setStep("estatement_select")} style={{ padding: "10px 16px", borderRadius: 9, border: `1px solid ${T.border}`, background: "transparent", color: T.muted, cursor: "pointer", fontSize: 12 }}>←</button>
+            </div>
+          </div>
+        )}
+
+        {step === "review" && (
+          <div>
+            {/* Summary card */}
+            {summaryResult && (
+              <div style={{ background: "#f59e0b0f", border: "1px solid #f59e0b44", borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#f59e0b", marginBottom: 6 }}>💎 Wealth Kompas Update</div>
+                {summaryResult.total_tagihan && <div style={{ fontSize: 12, color: T.textSoft }}>Total Tagihan: <strong style={{ color: T.text }}>{fmtRp(summaryResult.total_tagihan)}</strong></div>}
+                {summaryResult.tanggal_jatuh_tempo && <div style={{ fontSize: 12, color: T.textSoft, marginTop: 4 }}>Jatuh Tempo: <strong style={{ color: T.text }}>{summaryResult.tanggal_jatuh_tempo}</strong></div>}
+                {summaryResult.limit && <div style={{ fontSize: 12, color: T.textSoft, marginTop: 4 }}>Limit: <strong style={{ color: T.text }}>{fmtRp(summaryResult.limit)}</strong></div>}
+              </div>
+            )}
+            {/* Transaction list */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.text, marginBottom: 8 }}>📒 Transaksi Artha Journey ({txList.filter(t => t.include).length}/{txList.length})</div>
+            <div style={{ maxHeight: 240, overflowY: "auto", marginBottom: 12 }}>
+              {txList.map((t, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: `1px solid ${T.border}` }}>
+                  <input type="checkbox" checked={!!t.include} onChange={e => setTxList(prev => prev.map((x, j) => j === i ? { ...x, include: e.target.checked } : x))} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.description || t.merchant || t.category}</div>
+                    <div style={{ fontSize: 10, color: T.muted }}>{t.date} · {t.category}</div>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: T.red, whiteSpace: "nowrap" }}>-{fmtRp(t.amount)}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={confirm} style={{ flex: 1, padding: "10px", borderRadius: 9, border: "none", background: T.accent, color: "#000", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                ✅ Simpan ({txList.filter(t => t.include).length} transaksi)
+              </button>
+              <button onClick={() => setStep("estatement_upload")} style={{ padding: "10px 14px", borderRadius: 9, border: `1px solid ${T.border}`, background: "transparent", color: T.muted, cursor: "pointer", fontSize: 12 }}>←</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ArthaJourneyApp ────────────────────────────────────────────────────
 export default function ArthaJourneyApp({
   user, T, isPro, isProPlus, pulseCredits, setPulseCredits,
@@ -2171,6 +2419,8 @@ export default function ArthaJourneyApp({
   const [tab, setTab] = useState("wallet");
   const [showSettings, setShowSettings] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
+  const [showUploadCenter, setShowUploadCenter] = useState(false);
+  const [uploadCenterOpenScanner, setUploadCenterOpenScanner] = useState(false);
 
   // ── Rule 2 & 4: Recalculate CC/Paylater outstanding after every transaction change ──
   // Full recalc (not increment/decrement) eliminates drift and handles all mutations:
@@ -2188,7 +2438,7 @@ export default function ArthaJourneyApp({
     // Collect unique (month, category) pairs from expense transactions
     const expensePairs = new Map(); // key: "month|category" → {month, category, area}
     for (const t of ajTransactions) {
-      if ((t.type !== "expense" && t.type !== "debt_payment") || !t.category) continue;
+      if (t.type !== "expense" || !t.category) continue; // debt_payment excluded from auto-budget
       const month = getMonth(t.date);
       const key = `${month}|${t.category}`;
       if (!expensePairs.has(key)) {
@@ -2241,7 +2491,7 @@ export default function ArthaJourneyApp({
       case "budget":
         return <BudgetScene T={T} budgets={ajBudgets} setBudgets={setAjBudgets} transactions={ajTransactions} assets={assets} activeIncomes={activeIncomes} monthlyFixedIncome={monthlyFixedIncome} />;
       case "transaksi":
-        return <TransaksiScene T={T} transactions={ajTransactions} setTransactions={setAjTransactions} wallets={ajWallets} setWallets={setAjWallets} debts={debts} setDebts={setDebts} pulseCredits={pulseCredits} setPulseCredits={setPulseCredits || (() => {})} />;
+        return <TransaksiScene T={T} transactions={ajTransactions} setTransactions={setAjTransactions} wallets={ajWallets} setWallets={setAjWallets} debts={debts} setDebts={setDebts} pulseCredits={pulseCredits} setPulseCredits={setPulseCredits || (() => {})} openScannerOnMount={uploadCenterOpenScanner} onScannerMounted={() => setUploadCenterOpenScanner(false)} />;
       case "hutang":
         return <HutangScene T={T} debts={debts} />;
       case "tools":
@@ -2290,6 +2540,12 @@ export default function ArthaJourneyApp({
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Upload Center button */}
+            <button
+              onClick={() => setShowUploadCenter(true)}
+              title="Upload Center"
+              style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.textSoft, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >📤</button>
             {/* Pulse credits chip */}
             <span
               style={{
@@ -2350,6 +2606,22 @@ export default function ArthaJourneyApp({
         activeApp={activeApp}
         setActiveApp={setActiveApp}
       />
+
+      {/* Upload Center */}
+      {showUploadCenter && (
+        <UploadCenterModal
+          T={T}
+          wallets={ajWallets}
+          debts={debts}
+          setDebts={setDebts}
+          setTransactions={setAjTransactions}
+          pulseCredits={pulseCredits}
+          setPulseCredits={setPulseCredits}
+          setActiveApp={setActiveApp}
+          onClose={() => setShowUploadCenter(false)}
+          onOpenScanner={() => { setTab("transaksi"); setUploadCenterOpenScanner(true); }}
+        />
+      )}
     </div>
   );
 }
