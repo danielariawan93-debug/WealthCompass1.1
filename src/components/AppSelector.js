@@ -1,7 +1,10 @@
 import React, { useState } from "react";
+import TnCModal from "./TnCModal";
 
 export default function AppSelector({ user, T, onSelect, onLogout, logoutSaving }) {
   const [hoveredApp, setHoveredApp] = useState(null);
+  const [showTnC, setShowTnC] = useState(false);
+  const [tncSection, setTncSection] = useState(null);
 
   const apps = [
     {
@@ -187,7 +190,23 @@ export default function AppSelector({ user, T, onSelect, onLogout, logoutSaving 
         >
           {logoutSaving ? "Menyimpan data..." : "Keluar dari akun ini"}
         </button>
+        <div style={{ marginTop: 12, fontSize: 10, color: T.muted, lineHeight: 2 }}>
+          <span
+            onClick={() => { setTncSection(0); setShowTnC(true); }}
+            style={{ color: T.accent, cursor: "pointer", textDecoration: "underline", marginRight: 12 }}
+          >
+            Syarat & Ketentuan
+          </span>
+          <span
+            onClick={() => { setTncSection(7); setShowTnC(true); }}
+            style={{ color: T.accent, cursor: "pointer", textDecoration: "underline" }}
+          >
+            Kebijakan Privasi
+          </span>
+        </div>
       </div>
+
+      <TnCModal show={showTnC} onClose={() => setShowTnC(false)} T={T} initialSection={tncSection} />
     </div>
   );
 }

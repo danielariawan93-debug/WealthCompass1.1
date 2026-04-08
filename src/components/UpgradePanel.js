@@ -22,7 +22,10 @@ const TIER_META = {
     badge: "⭐ PRO",
     features: [
       "50 aset · 15 utang · 10 tujuan",
+      "AJ Wallet: 7 Akun Dana + 7 Akun Kredit",
+      "Rekening Koran (limit kredit)",
       "Upload PDF 7x/bulan + Pulse",
+      "Upload E-Statement CC (output ke AJ & WP)",
       "Net Worth 1 tahun",
       "AI Advisor (1 Pulse/chat)",
       "Tema Custom",
@@ -35,7 +38,9 @@ const TIER_META = {
     features: [
       "Semua Fitur Pro",
       "Aset, utang & tujuan tak terbatas",
+      "AJ Wallet: Akun Dana & Kredit tak terbatas",
       "Upload PDF 20x/bulan + Pulse",
+      "Upload E-Statement CC tanpa batas bulanan",
       "Net Worth 5 tahun / MAX",
       "AI Advisor Claude Sonnet (1 Pulse/chat)",
       "Peer Benchmarking",
