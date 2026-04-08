@@ -42,6 +42,7 @@ import {
 import { NAV_ITEMS, Sidebar } from "./components/Sidebar";
 import UpgradePanel from "./components/UpgradePanel";
 import LoginScreen from "./components/LoginScreen";
+import { OnboardingFlow } from "./components/OnboardingFlow";
 import ProfileScene from "./scenes/ProfileScene";
 import PortfolioScene from "./scenes/PortfolioScene";
 import RiskScene from "./scenes/RiskScene";
@@ -139,6 +140,8 @@ function WealthPulseV7() {
   const [ajWallets, setAjWallets] = useState([]);
   const [ajTransactions, setAjTransactions] = useState([]);
   const [ajBudgets, setAjBudgets] = useState([]);
+  // false = new user, must complete onboarding. Existing users default to true (loaded from cloud).
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
 
   // -- DERIVED PULSE VALUES ---------------------------------------------------
   const _now = new Date();
@@ -211,6 +214,7 @@ function WealthPulseV7() {
     activeIncomes, insurances, monthlyExpense, monthlyFixedIncome,
     bonusPulse, referrals, referredBy, networthSnapshots,
     ajWallets, ajTransactions, ajBudgets,
+    onboardingComplete,
   };
 
   // -- AUTH HANDLERS (safe to reference state now) ----------------------------
@@ -257,8 +261,11 @@ function WealthPulseV7() {
     setAjWallets(d.ajWallets || []);
     setAjTransactions(d.ajTransactions || []);
     setAjBudgets(d.ajBudgets || []);
-    const lastApp = localStorage.getItem("wc_active_app");
-    setActiveApp(lastApp || null);
+    // Existing users (localSaved exists) are treated as onboarding-complete.
+    // Brand new users (no saved data) start with onboardingComplete: false.
+    setOnboardingComplete(localSaved ? (d.onboardingComplete !== false) : false);
+    // Always redirect to AppSelector on every login (post_login_redirect rule)
+    setActiveApp(null);
     // Read pending referral code — do NOT remove from localStorage yet;
     // the cloud callback will process it authoritatively after loading cloud data
     const pendingRef = localStorage.getItem("wc_pending_ref");
@@ -344,6 +351,8 @@ function WealthPulseV7() {
         setAjWallets(cloud.ajWallets || []);
         setAjTransactions(cloud.ajTransactions || []);
         setAjBudgets(cloud.ajBudgets || []);
+        // Existing cloud users default to onboarding complete if field is missing
+        setOnboardingComplete(cloud.onboardingComplete !== false);
         // Mirror cloud data to localStorage as offline cache
         saveAccountData(userData.email, cloud);
         // Delay cloudLoadDone agar React flush semua setState sebelum auto-save
@@ -762,7 +771,22 @@ function WealthPulseV7() {
   );
   if (!user) return <LoginScreen onLogin={handleLogin} T={T} />;
 
-  // App selector — shown when no app is chosen yet
+  // Onboarding — hard lock for new users until 10-step tutorial is complete
+  if (!onboardingComplete) {
+    return (
+      <OnboardingFlow
+        T={T}
+        onComplete={() => setOnboardingComplete(true)}
+        setAjWallets={setAjWallets}
+        setAjBudgets={setAjBudgets}
+        setRiskProfile={setRiskProfile}
+        setAssets={setAssets}
+        setGoals={setGoals}
+      />
+    );
+  }
+
+  // App selector — shown on every login after onboarding (post_login_redirect rule)
   const handleSetActiveApp = (app) => {
     localStorage.setItem("wc_active_app", app);
     setActiveApp(app);

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { FeaturePopup } from "../components/FeaturePopup";
 import SettingsPopup from "./SettingsPopup";
 import { recalcAllCreditDebts } from "../utils/creditSync";
 
@@ -527,6 +528,8 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
 
   return (
     <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
+      <FeaturePopup T={T} featureKey="aj_wallet" icon="🏦" title="Kelola Wallet Anda"
+        content="Di halaman ini Anda dapat mengatur Akun Dana (Bank, E-Wallet, Tunai) dan Akun Kredit (Kartu Kredit, Paylater). Setiap transaksi terhubung ke wallet untuk akurasi pencatatan." />
       {/* Header summary — Akun Dana balance */}
       <Card T={T} style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
@@ -803,6 +806,8 @@ function BudgetScene({ T, budgets, setBudgets, transactions, assets, activeIncom
 
   return (
     <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
+      <FeaturePopup T={T} featureKey="aj_budget" icon="📊" title="Atur Budget Bulanan"
+        content="Di halaman ini Anda dapat menetapkan batas pengeluaran per kategori setiap bulan. Budget otomatis terbuat saat Anda mencatat transaksi, dan progres terlihat secara real-time." />
       {/* Month picker */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
         <button onClick={() => setViewMonth(prevMonth(viewMonth))} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 14px", color: T.textSoft, cursor: "pointer", fontSize: 15 }}>‹</button>
@@ -1629,6 +1634,8 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
 
   return (
     <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto", paddingBottom: 80 }}>
+      <FeaturePopup T={T} featureKey="aj_transaksi" icon="💸" title="Catat Transaksi"
+        content="Di halaman ini Anda dapat mencatat pemasukan, pengeluaran, bayar hutang, dan transfer antar wallet. Gunakan Scan Struk 📸 untuk ekstrak otomatis dari nota belanja." />
       {/* Month navigation */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, background: T.surface, borderRadius: 12, padding: "8px 12px" }}>
         <button onClick={() => shiftMonth(-1)} style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${T.border}`, background: T.card, color: T.text, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>

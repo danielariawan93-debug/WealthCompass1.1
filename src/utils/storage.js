@@ -104,6 +104,7 @@ const DEFAULT_ACCOUNT_STATE = {
   ajWallets: [],       // Artha Journey wallets [{id,name,type,initialBalance,icon,color}]
   ajTransactions: [],  // Artha Journey transactions [{id,date,type,category,amount,walletId,...}]
   ajBudgets: [],       // Artha Journey budgets [{id,category,limit,month}]
+  onboardingComplete: false, // false = new user, must complete onboarding before full access
 };
 
 // Register this user's referral code so others can find them by code
