@@ -45,7 +45,10 @@ function getBillingPeriod(debt) {
  *
  * Returns null if:
  *   - debt is not a credit type, OR
- *   - no linked AJ wallets found (nothing to calculate from)
+ *   - no wallet is explicitly linked to this debt (wallet.debtId === debt.id)
+ *
+ * NOTE: We only use explicitly-linked wallets to avoid double-counting when
+ * multiple CC/Paylater wallets exist (common on Free tier with shared types).
  *
  * Formula: max(0, gross_expenses − debt_payments) within billing period
  */
@@ -53,10 +56,8 @@ function calcCreditOutstanding(debt, ajTransactions, ajWallets) {
   const walletType = CREDIT_DEBT_TO_WALLET[debt.type];
   if (!walletType) return null;
 
-  // Linked wallets: explicitly linked (debtId) OR unlinked wallets of same type
-  const linked = (ajWallets || []).filter(
-    w => w.debtId === debt.id || (w.type === walletType && !w.debtId)
-  );
+  // Only explicitly linked wallets — prevents ambiguous cross-debt double-counting
+  const linked = (ajWallets || []).filter(w => w.debtId === debt.id);
   if (linked.length === 0) return null;
 
   const linkedIds = new Set(linked.map(w => w.id));
