@@ -1,9 +1,8 @@
-// /api/rates.js — Vercel serverless function
+// /api/rates.js — Vercel serverless function (CommonJS, consistent with other api/*.js)
 // Fetches live IDR rates for USD, EUR, CNY, SGD from frankfurter.dev/v2.
 // Running server-side avoids CORS issues with direct browser fetches.
-// Response: { rates: { IDR:1, USD:16800, EUR:19000, CNY:2400, SGD:13000 }, ts, source }
 
-const FALLBACK = { IDR: 1, USD: 16800, EUR: 19000, CNY: 2400, SGD: 13000 };
+const FALLBACK = { IDR: 1, USD: 16800, EUR: 19000, CNY: 2400, SGD: 13500 };
 
 async function fetchRate(base) {
   const res = await fetch(
@@ -12,12 +11,12 @@ async function fetchRate(base) {
   );
   if (!res.ok) throw new Error(`${base}: HTTP ${res.status}`);
   const data = await res.json();
-  const idr = data?.rates?.IDR;
+  const idr = data && data.rates && data.rates.IDR;
   if (!idr) throw new Error(`${base}: IDR missing in response`);
   return Math.round(idr);
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -48,4 +47,4 @@ export default async function handler(req, res) {
       error: err.message,
     });
   }
-}
+};
