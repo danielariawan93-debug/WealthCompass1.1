@@ -851,7 +851,7 @@ function InsuranceAITab({ T, dispCur, fV, insurances, totalAssets, totalDebt, pa
     try {
       const res = await fetch('/api/ai', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1000,
+        body:JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:1000,
           system:'Kamu konsultan proteksi keuangan independen Indonesia. Analisa singkat dalam Bahasa Indonesia: 1) Status Proteksi per kategori, 2) Kategori yang kritis/kekurangan, 3) Rekomendasi prioritas max 3 poin dengan angka konkret. Maksimal 300 kata.',
           messages:[{role:'user',content:`Analisa proteksi:\n${ctx}`}] }),
       });

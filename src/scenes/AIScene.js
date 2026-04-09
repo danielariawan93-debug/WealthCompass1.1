@@ -72,11 +72,11 @@ function AIScene({
   // Pulse Credit system — 1 Pulse per chat message
   const blocked = pulseCredits <= 0;
 
-  // Model selection per tier
+  // Model selection per tier: Free & Pro = Haiku, Pro+ = Sonnet
   const model =
-    tier.id === "free"
-      ? "claude-haiku-4-5-20251001"
-      : "claude-sonnet-4-6";
+    tier.id === "proplus"
+      ? "claude-sonnet-4-6"
+      : "claude-haiku-4-5-20251001";
 
   const totalDebts = debts.reduce((s, d) => s + parseVal(d.outstanding), 0);
   const totalMonthlyDebt = debts.reduce(
