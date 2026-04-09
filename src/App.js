@@ -555,31 +555,57 @@ function WealthPulseV7() {
     setPriceLoading(false);
   }, []);
 
-  // -- Fetch USD/EUR/CNY/SGD via server-side /api/rates (30 menit) ----------
-  // Server-side proxy avoids CORS issues with direct browser→frankfurter calls.
+  // -- Fetch USD/EUR/CNY/SGD: server proxy → CDN fallback ------------------
   const fetchForex = useCallback(async (forceRefresh = false) => {
     const CACHE_KEY = 'wc_cache_forex';
     const TTL = 30 * 60 * 1000; // 30 minutes
+
+    const applyRates = (rates, cacheKey) => {
+      try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), rates })); } catch {}
+      Object.assign(RATES, rates);
+      setLivePrices(p => ({ ...p })); // trigger re-render so UI reads updated RATES
+    };
+
     if (!forceRefresh) {
       try {
         const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
         if (cached && Date.now() - cached.ts < TTL) {
           Object.assign(RATES, cached.rates);
-          setLivePrices(p => ({ ...p })); // trigger re-render so UI reads updated RATES
+          setLivePrices(p => ({ ...p }));
           return;
         }
       } catch {}
     }
+
+    // Layer 1: server-side proxy (/api/rates tries 3 REST APIs + CDN internally)
     try {
       const res = await fetch('/api/rates');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (data.rates) {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rates: data.rates }));
-        Object.assign(RATES, data.rates);
-        setLivePrices(p => ({ ...p })); // trigger re-render so UI reads updated RATES
+      if (data.rates && data.source !== 'fallback') {
+        applyRates(data.rates, CACHE_KEY);
+        return;
       }
-    } catch (e) { console.warn('[fetchForex] Failed:', e.message); }
+    } catch (e) { console.warn('[fetchForex] Server failed:', e.message); }
+
+    // Layer 2: browser → jsDelivr CDN (@fawazahmed0, CORS-free, no rate limits)
+    try {
+      const r = await fetch(
+        'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json'
+      );
+      if (!r.ok) throw new Error(`CDN HTTP ${r.status}`);
+      const d = await r.json();
+      const usd = d && d.usd;
+      if (!usd || !usd.idr) throw new Error('CDN: usd.idr missing');
+      const rates = {
+        IDR: 1,
+        USD: Math.round(usd.idr),
+        EUR: Math.round(usd.idr / usd.eur),
+        CNY: Math.round(usd.idr / usd.cny),
+        SGD: Math.round(usd.idr / usd.sgd),
+      };
+      applyRates(rates, CACHE_KEY);
+    } catch (e) { console.warn('[fetchForex] CDN fallback failed:', e.message); }
   }, []);
 
   useEffect(() => {
