@@ -572,6 +572,7 @@ function WealthPulseV7() {
     }
     try {
       const res = await fetch('/api/rates');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.rates) {
         localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rates: data.rates }));
