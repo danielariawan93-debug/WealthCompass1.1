@@ -460,6 +460,12 @@ function WealthPulseV7() {
     try { localStorage.setItem('wc_keep_signin', val ? 'true' : 'false'); } catch {}
   };
 
+  // Global notifications toggle — syncs all debt notifyEnabled
+  const handleToggleGlobalNotif = (val) => {
+    setSettings(p => ({ ...p, notifications: val }));
+    setDebts(p => p.map(d => ({ ...d, notifyEnabled: val })));
+  };
+
   // Auto-logout after 1 hour inactivity when keepSignIn is false
   useEffect(() => {
     if (!user || keepSignIn) return;
@@ -1332,6 +1338,7 @@ function WealthPulseV7() {
                 ajTransactions={ajTransactions}
                 pulseCredits={totalAvailablePulse}
                 setPulseCredits={consumePulse_compat}
+                globalNotif={settings.notifications}
               />
             )}
             {tab === "ai" && (
@@ -1485,6 +1492,7 @@ function WealthPulseV7() {
         setCustomPresetId={setCustomPresetId}
         activeApp={activeApp}
         setActiveApp={handleSetActiveApp}
+        onToggleGlobalNotif={handleToggleGlobalNotif}
       />
 
       {/* PDF Export Modal */}
