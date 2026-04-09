@@ -565,6 +565,7 @@ function WealthPulseV7() {
         const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
         if (cached && Date.now() - cached.ts < TTL) {
           Object.assign(RATES, cached.rates);
+          setLivePrices(p => ({ ...p })); // trigger re-render so UI reads updated RATES
           return;
         }
       } catch {}
@@ -575,6 +576,7 @@ function WealthPulseV7() {
       if (data.rates) {
         localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rates: data.rates }));
         Object.assign(RATES, data.rates);
+        setLivePrices(p => ({ ...p })); // trigger re-render so UI reads updated RATES
       }
     } catch (e) { console.warn('[fetchForex] Failed:', e.message); }
   }, []);
