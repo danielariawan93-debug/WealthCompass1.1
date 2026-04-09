@@ -565,34 +565,36 @@ function WealthPulseV7() {
     setPriceLoading(false);
   }, []);
 
-  // -- Fetch EUR/CNY/SGD via frankfurter (4 jam) --------------------
-  const fetchForex = useCallback(async () => {
+  // -- Fetch USD/EUR/CNY/SGD via server-side /api/rates (30 menit) ----------
+  // Server-side proxy avoids CORS issues with direct browser→frankfurter calls.
+  const fetchForex = useCallback(async (forceRefresh = false) => {
     const CACHE_KEY = 'wc_cache_forex';
-    const TTL = 4 * 60 * 60 * 1000;
+    const TTL = 30 * 60 * 1000; // 30 minutes
+    if (!forceRefresh) {
+      try {
+        const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+        if (cached && Date.now() - cached.ts < TTL) {
+          Object.assign(RATES, cached.rates);
+          return;
+        }
+      } catch {}
+    }
     try {
-      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-      if (cached && Date.now() - cached.ts < TTL) { Object.assign(RATES, cached.rates); return; }
-    } catch {}
-    try {
-      const res = await fetch('https://api.frankfurter.app/latest?from=IDR&to=USD,EUR,CNY,SGD');
+      const res = await fetch('/api/rates');
       const data = await res.json();
-      const newRates = {
-        IDR: 1,
-        USD: data.rates?.USD ? Math.round(1 / data.rates.USD) : 16800,
-        EUR: data.rates?.EUR ? Math.round(1 / data.rates.EUR) : 19000,
-        CNY: data.rates?.CNY ? Math.round(1 / data.rates.CNY) : 2400,
-        SGD: data.rates?.SGD ? Math.round(1 / data.rates.SGD) : 13000,
-      };
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rates: newRates }));
-      Object.assign(RATES, newRates);
-    } catch (e) { console.warn('Forex fetch failed:', e.message); }
+      if (data.rates) {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), rates: data.rates }));
+        Object.assign(RATES, data.rates);
+      }
+    } catch (e) { console.warn('[fetchForex] Failed:', e.message); }
   }, []);
 
   useEffect(() => {
+    // Force-fetch fresh rates on startup — ignore stale cache
     fetchCryptoAndMetals();
-    fetchForex();
+    fetchForex(true);
     const t1 = setInterval(fetchCryptoAndMetals, 60 * 60 * 1000);
-    const t2 = setInterval(fetchForex, 4 * 60 * 60 * 1000);
+    const t2 = setInterval(fetchForex, 30 * 60 * 1000); // refresh every 30 min
     return () => { clearInterval(t1); clearInterval(t2); };
   }, [fetchCryptoAndMetals, fetchForex]);
 
