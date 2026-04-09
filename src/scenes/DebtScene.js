@@ -83,7 +83,7 @@ const EMPTY_FORM = {
   linkedAssetId: '',
 };
 
-function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, isProPlus = false, ajWallets = [], ajTransactions = [] }) {
+function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, isProPlus = false, ajWallets = [], ajTransactions = [], globalNotif = true }) {
   const allTypes = [...KONSUMTIF, ...PRODUKTIF];
   const [f, setF] = useState(() => {
     if (editData) {
@@ -474,20 +474,24 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
       {/* Notification settings — Pro & Pro+ only, requires installmentDay or renewalDate */}
       {isPro && (isRevolving ? (f.renewalYear && f.renewalMonth) : f.installmentDay) && (
         <div style={{ padding:'12px 14px', background:T.surface, borderRadius:10, border:`1px solid ${T.border}` }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: f.notifyEnabled ? 10 : 0 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: f.notifyEnabled && globalNotif ? 10 : 0 }}>
             <div>
               <div style={{ color:T.text, fontSize:12, fontWeight:'bold' }}>🔔 Notifikasi Jatuh Tempo</div>
-              <div style={{ color:T.muted, fontSize:10 }}>{isProPlus ? 'Pro+: pilih H-1 hingga H-7' : 'Pro: default H-3'}</div>
+              <div style={{ color:T.muted, fontSize:10 }}>
+                {!globalNotif
+                  ? 'Aktifkan Notifikasi Global di Settings'
+                  : isProPlus ? 'Pro+: pilih H-1 hingga H-7' : 'Pro: default H-3'}
+              </div>
             </div>
             <button
               type="button"
-              onClick={() => setFF('notifyEnabled', !f.notifyEnabled)}
-              style={{ width:40, height:22, borderRadius:11, border:'none', cursor:'pointer', background:f.notifyEnabled?T.accent:T.border, position:'relative', transition:'all 0.2s', flexShrink:0 }}
+              onClick={() => globalNotif && setFF('notifyEnabled', !f.notifyEnabled)}
+              style={{ width:40, height:22, borderRadius:11, border:'none', cursor: globalNotif ? 'pointer' : 'not-allowed', background: (f.notifyEnabled && globalNotif) ? T.accent : T.border, position:'relative', transition:'all 0.2s', flexShrink:0, opacity: globalNotif ? 1 : 0.4 }}
             >
-              <span style={{ position:'absolute', top:2, width:18, height:18, borderRadius:9, background:'#fff', transition:'all 0.2s', left:f.notifyEnabled?20:2 }} />
+              <span style={{ position:'absolute', top:2, width:18, height:18, borderRadius:9, background:'#fff', transition:'all 0.2s', left:(f.notifyEnabled && globalNotif)?20:2 }} />
             </button>
           </div>
-          {f.notifyEnabled && (
+          {f.notifyEnabled && globalNotif && (
             isProPlus ? (
               <div>
                 <div style={{ color:T.muted, fontSize:10, marginBottom:6 }}>Ingatkan berapa hari sebelum:</div>
@@ -750,7 +754,7 @@ function EStatementModal({ debt, T, onClose, onApply, pulseCredits = Infinity, s
 // ============================================================
 // MAIN SCENE
 // ============================================================
-function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideValues = false, isPro = false, isProPlus = false, ajWallets = [], ajTransactions = [], pulseCredits = Infinity, setPulseCredits }) {
+function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideValues = false, isPro = false, isProPlus = false, ajWallets = [], ajTransactions = [], pulseCredits = Infinity, setPulseCredits, globalNotif = true }) {
   const fV = (v) => fM(v, dispCur, hideValues);
   const [mode, setMode]         = useState('list');
   const [editDebt, setEditDebt] = useState(null);
@@ -883,6 +887,7 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
             isProPlus={isProPlus}
             ajWallets={ajWallets}
             ajTransactions={ajTransactions}
+            globalNotif={globalNotif}
           />
         </Card>
       )}

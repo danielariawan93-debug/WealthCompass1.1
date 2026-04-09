@@ -61,6 +61,7 @@ function SettingsPopup({
   T,
   activeApp,
   setActiveApp,
+  onToggleGlobalNotif,
 }) {
   const [showTnC, setShowTnC] = useState(false);
   return (
@@ -490,15 +491,17 @@ function SettingsPopup({
         >
           <div>
             <div style={{ color: T.text, fontSize: 12 }}>
-              Notifikasi Rebalancing
+              Notifikasi Global
             </div>
             <div style={{ color: T.muted, fontSize: 10 }}>
-              Alert saat deviasi {">"} 10%
+              Aktifkan semua notifikasi (jatuh tempo, rebalancing, dll)
             </div>
           </div>
           <div
             onClick={() =>
-              setSettings((p) => ({ ...p, notifications: !p.notifications }))
+              onToggleGlobalNotif
+                ? onToggleGlobalNotif(!settings.notifications)
+                : setSettings((p) => ({ ...p, notifications: !p.notifications }))
             }
             style={{
               width: 42,

@@ -35,7 +35,7 @@ import {
   pdfUploadsRemaining,
   addPDFUsage,
 } from "../constants/tiers";
-import { ASSET_CLASSES } from "../constants/data";
+import { ASSET_CLASSES, RATES } from "../constants/data";
 
 function GoalScene({
   assets,
@@ -86,7 +86,6 @@ function GoalScene({
     const t = parseVal(newGoal.target),
       y = parseVal(newGoal.years);
     const cur = newGoal.currency || "IDR";
-    const RATES = { IDR: 1, USD: 16800, YUAN: 2400, EURO: 19000 };
     const targetIDR = t * (RATES[cur] || 1);
     if (!newGoal.name || !t || !y) return;
     if (goals.length >= maxGoals) return;
@@ -165,8 +164,8 @@ function GoalScene({
           >
             <option value="IDR">IDR</option>
             <option value="USD">USD</option>
-            <option value="YUAN">CNY</option>
-            <option value="EURO">EUR</option>
+            <option value="CNY">CNY</option>
+            <option value="EUR">EUR</option>
           </TSelect>
           <TInput
             T={T}
