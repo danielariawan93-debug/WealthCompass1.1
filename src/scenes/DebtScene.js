@@ -78,6 +78,8 @@ const EMPTY_FORM = {
   // Notification settings
   notifyEnabled: false,
   notifyDaysBefore: '3',
+  // Snapshot date: date when outstanding balance was recorded
+  tanggal_outstanding: '',
   // Shared
   notes: '',
   linkedAssetId: '',
@@ -188,8 +190,9 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
     );
   }, [editData, isRevolving, ajWallets, f.key]);
 
-  // Synced debts skip the floor check — outstanding is managed by AJ automatically
-  const canSave = f.name.trim() && derivedOutstanding > 0 && (isSynced || derivedOutstanding >= minOutstandingFromAJ);
+  // Synced debts: save allowed regardless of outstanding (AJ is source of truth)
+  // Non-synced debts: must be > 0 and >= floor from AJ transactions
+  const canSave = f.name.trim() && (isSynced || (derivedOutstanding > 0 && derivedOutstanding >= minOutstandingFromAJ));
 
   const handleSave = () => {
     if (!canSave) return;
@@ -214,6 +217,7 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
       installmentDay: f.installmentDay || '',
       notifyEnabled: f.notifyEnabled || false,
       notifyDaysBefore: f.notifyDaysBefore || '3',
+      tanggal_outstanding: f.tanggal_outstanding || '',
     });
   };
 
@@ -414,6 +418,24 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
                   <span style={{ color:utilisasi>80?T.red:utilisasi>60?T.orange:T.green, fontWeight:'bold' }}>{utilisasi.toFixed(1)}%</span>
                 </div>
                 <Bar pct={utilisasi} color={utilisasi>80?T.red:utilisasi>60?T.orange:T.green} h={6} T={T} />
+              </div>
+            )}
+          </div>
+          <div>
+            <div style={{ color:T.muted, fontSize:10, marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
+              Posisi per Tanggal
+              <InfoBtn T={T} content="Tanggal saat posisi outstanding ini dicatat. Transaksi Artha Journey SETELAH tanggal ini akan menambah outstanding secara otomatis." />
+            </div>
+            <input
+              type="date"
+              value={f.tanggal_outstanding}
+              onChange={e => setFF('tanggal_outstanding', e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
+              style={inp}
+            />
+            {f.tanggal_outstanding && (
+              <div style={{ marginTop:4, fontSize:10, color:T.accent }}>
+                📅 Last Update: {new Date(f.tanggal_outstanding + 'T00:00:00').toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' })}
               </div>
             )}
           </div>
@@ -641,6 +663,8 @@ function EStatementModal({ debt, T, onClose, onApply, pulseCredits = Infinity, s
       const used = result.total_tagihan || 0;
       updates.plafon = String(Math.round(result.sisa_limit + used));
     }
+    // Set snapshot date from statement (tanggal_tagihan) or today
+    updates.tanggal_outstanding = result.tanggal_tagihan || new Date().toISOString().split('T')[0];
     setPulseCredits?.(prev => Math.max(0, prev - 1));
     onApply(updates);
     onClose();
@@ -762,7 +786,7 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
   const getMonthlyForDebt = (d) => {
     const typeDef = getAllTypes().find(t => t.key === d.type);
     if (typeDef?.mode === 'revolving') {
-      const rate = parseVal(d.interestRate) || DEFAULT_RATE[d.type] || 10;
+      const rate = (d.interestRate !== '' && d.interestRate != null) ? parseVal(d.interestRate) : (DEFAULT_RATE[d.type] ?? 10);
       return parseVal(d.outstanding) * (rate / 100 / 12);
     }
     return parseVal(d.monthlyPayment);
@@ -944,7 +968,7 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
                   </div>
                   <div style={{ padding:'7px 8px', background:T.surface, borderRadius:8 }}>
                     <div style={{ color:T.muted, fontSize:9 }}>Bunga/Thn</div>
-                    <div style={{ color:T.text, fontSize:11, fontWeight:'bold' }}>{d.interestRate||'-'}%</div>
+                    <div style={{ color:T.text, fontSize:11, fontWeight:'bold' }}>{(d.interestRate !== '' && d.interestRate != null) ? d.interestRate : '-'}%</div>
                   </div>
                   {plafon > 0 ? (
                     <div style={{ padding:'7px 8px', background:T.surface, borderRadius:8 }}>
@@ -987,6 +1011,13 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
                       📅 Renewal: {formatRenewalDate(d.renewalDate)}
                     </span>
                     {d.notifyEnabled && <span style={{ fontSize:9, padding:'2px 8px', borderRadius:6, background:T.accentDim, color:T.accent, border:`1px solid ${T.accentSoft}` }}>🔔 H-{d.notifyDaysBefore||3}</span>}
+                  </div>
+                )}
+                {isRev && d.tanggal_outstanding && (
+                  <div style={{ marginBottom:6 }}>
+                    <span style={{ fontSize:9, padding:'2px 8px', borderRadius:6, background:T.accentDim, color:T.accent, border:`1px solid ${T.accent}44` }}>
+                      📅 Posisi per: {new Date(d.tanggal_outstanding + 'T00:00:00').toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' })}
+                    </span>
                   </div>
                 )}
 
