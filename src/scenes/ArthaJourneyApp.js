@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { FeaturePopup } from "../components/FeaturePopup";
 import SettingsPopup from "./SettingsPopup";
-import { recalcAllCreditDebts } from "../utils/creditSync";
+import { recalcAllCreditDebts, checkTxDateVsSnapshot } from "../utils/creditSync";
 
 // ─── Sidebar nav items for Artha Journey ────────────────────────────────────
 const AJ_NAV = [
@@ -464,14 +464,35 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
       <Card T={T} style={{ marginBottom: 10, border: `1px solid ${isDanaForm ? T.accent : "#f59e0b"}44` }}>
         <SectionTitle>Tambah {isDanaForm ? "Akun Dana" : "Akun Kredit"}</SectionTitle>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <Inp T={T} value={form.name} onChange={e => setF("name", e.target.value)} placeholder={`Nama (cth: ${isDanaForm ? "BCA Utama" : "CC BCA"})`} />
+          {(() => {
+            const isLinkedToExisting = isCredit && form.debtId && form.debtId !== "new";
+            return (
+              <div>
+                <Inp T={T} value={form.name}
+                  onChange={isLinkedToExisting ? undefined : e => setF("name", e.target.value)}
+                  placeholder={`Nama (cth: ${isDanaForm ? "BCA Utama" : "CC BCA"})`}
+                  style={isLinkedToExisting ? { opacity: 0.65, cursor: "not-allowed", pointerEvents: "none" } : {}} />
+                {isLinkedToExisting && (
+                  <div style={{ fontSize: 10, color: T.muted, marginTop: 3 }}>🔒 Nama sinkron dari hutang yang dipilih</div>
+                )}
+              </div>
+            );
+          })()}
           <Sel T={T} value={form.type} onChange={e => handleTypeChange(e.target.value)}>
             {typeOptions.map(t => <option key={t}>{t}</option>)}
           </Sel>
           {isCredit && (
             <div style={{ background: T.surface, borderRadius: 10, padding: "12px 14px", border: `1px solid ${T.border}` }}>
               <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>💳 Hubungkan dengan hutang revolving di Wealth Kompas</div>
-              <Sel T={T} value={form.debtId} onChange={e => setF("debtId", e.target.value)}>
+              <Sel T={T} value={form.debtId} onChange={e => {
+                const did = e.target.value;
+                if (did && did !== "new") {
+                  const d = debts.find(x => x.id === did);
+                  setForm(p => ({ ...p, debtId: did, name: d ? (d.name || p.name) : p.name }));
+                } else {
+                  setF("debtId", did);
+                }
+              }}>
                 <option value="">— Pilih hutang —</option>
                 {revolvingDebts.map(d => (
                   <option key={d.id} value={d.id}>{d.name || form.type} · {d.limit ? "Limit " + fmtRp(d.limit) : fmtRp(d.outstanding || 0)}</option>
@@ -1515,6 +1536,7 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
   const emptyForm = { type: "expense", date: today, amount: "", category: "", walletId: defaultWallet, toWalletId: "", debtId: "", description: "" };
   const [showForm, setShowForm]           = useState(false);
   const [showScanner, setShowScanner]     = useState(false);
+  const [pendingSnapshotConfirm, setPendingSnapshotConfirm] = useState(null); // TD4: same-date snapshot confirmation
 
   // Auto-open scanner if requested by UploadCenter
   useEffect(() => {
@@ -1580,22 +1602,52 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
     if (match) setWallets(prev => prev.map(w => w.id === walletId ? { ...w, debtId: match.id } : w));
   };
 
+  const commitTx = (txData) => {
+    setTransactions(prev => [...prev, txData]);
+    setForm({ ...emptyForm, walletId: form.walletId });
+    setShowForm(false);
+  };
+
   const save = () => {
     if (!canSave) return;
     const amt = parseNum(form.amount);
-    // Auto-link credit wallet if not yet linked (enables recalc useEffect to find it)
     if (form.type === "expense") autoLinkCreditWallet(form.walletId);
-    setTransactions(prev => [...prev, {
-      id: genId(), date: form.date || today, type: form.type,
+
+    const txDate = form.date || today;
+    const txBase = {
+      id: genId(), date: txDate, type: form.type,
       category: form.type === "debt_payment"
         ? (debts.find(d => d.id === form.debtId)?.name || "Bayar Hutang")
         : form.type === "transfer" ? "Transfer" : form.category,
       amount: amt, walletId: form.walletId,
       toWalletId: form.type === "transfer" ? form.toWalletId : "",
       debtId: form.debtId, description: form.description.trim(),
-    }]);
-    setForm({ ...emptyForm, walletId: form.walletId });
-    setShowForm(false);
+    };
+
+    // TD4: Check if tx date hits the debt snapshot date — need user confirmation
+    let debtForCheck = null;
+    if (form.type === "expense") {
+      const w = wallets.find(w => w.id === form.walletId);
+      if (w?.debtId) debtForCheck = (debts || []).find(d => d.id === w.debtId);
+    } else if (form.type === "debt_payment" && form.debtId) {
+      debtForCheck = (debts || []).find(d => d.id === form.debtId);
+    }
+
+    if (debtForCheck && checkTxDateVsSnapshot(txDate, debtForCheck) === 'same') {
+      setPendingSnapshotConfirm({ txBase, debtName: debtForCheck.name, snapshotDate: debtForCheck.tanggal_outstanding });
+      return;
+    }
+
+    commitTx(txBase);
+  };
+
+  const confirmSaveWithFlag = (affectsOutstanding) => {
+    if (!pendingSnapshotConfirm) return;
+    const tx = affectsOutstanding
+      ? { ...pendingSnapshotConfirm.txBase, affects_outstanding: true }
+      : pendingSnapshotConfirm.txBase;
+    commitTx(tx);
+    setPendingSnapshotConfirm(null);
   };
 
   // Outstanding recalc is handled by the useEffect in ArthaJourneyApp (Rule 2 & 4)
@@ -1636,6 +1688,39 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
     <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto", paddingBottom: 80 }}>
       <FeaturePopup T={T} featureKey="aj_transaksi" icon="💸" title="Catat Transaksi"
         content="Di halaman ini Anda dapat mencatat pemasukan, pengeluaran, bayar hutang, dan transfer antar wallet. Gunakan Scan Struk 📸 untuk ekstrak otomatis dari nota belanja." />
+
+      {/* TD4: Snapshot-date confirmation modal */}
+      {pendingSnapshotConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "#000a", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, padding: "24px 20px", maxWidth: 360, width: "100%", boxShadow: "0 12px 48px #0006" }}>
+            <div style={{ fontSize: 24, marginBottom: 10, textAlign: "center" }}>📅</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: T.text, marginBottom: 8, textAlign: "center" }}>
+              Tanggal Sama dengan Posisi Hutang
+            </div>
+            <div style={{ fontSize: 12, color: T.textSoft, lineHeight: 1.6, marginBottom: 16, textAlign: "center" }}>
+              Tanggal transaksi ini ({new Date(pendingSnapshotConfirm.snapshotDate + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}) sama dengan tanggal posisi <strong style={{ color: T.text }}>{pendingSnapshotConfirm.debtName}</strong>.
+              <br /><br />
+              Apakah transaksi ini <strong style={{ color: T.accent }}>sudah termasuk</strong> dalam posisi outstanding yang dicatat?
+            </div>
+            <div style={{ background: T.surface, borderRadius: 10, padding: "10px 12px", marginBottom: 16, fontSize: 11, color: T.muted }}>
+              <strong>Ya</strong> → sudah termasuk, tidak ditambahkan lagi ke outstanding<br />
+              <strong>Tidak</strong> → belum termasuk, akan menambah outstanding
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => confirmSaveWithFlag(false)} style={{ flex: 1, padding: "11px", borderRadius: 9, border: `1px solid ${T.accent}44`, background: T.accentDim, color: T.accent, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+                Tidak — Tambahkan
+              </button>
+              <button onClick={() => confirmSaveWithFlag(true)} style={{ flex: 1, padding: "11px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.textSoft, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                Ya — Sudah Ada
+              </button>
+            </div>
+            <button onClick={() => setPendingSnapshotConfirm(null)} style={{ width: "100%", marginTop: 8, padding: "8px", background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 12 }}>
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Month navigation */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, background: T.surface, borderRadius: 12, padding: "8px 12px" }}>
         <button onClick={() => shiftMonth(-1)} style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${T.border}`, background: T.card, color: T.text, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
