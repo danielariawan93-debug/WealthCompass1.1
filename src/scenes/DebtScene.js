@@ -190,8 +190,9 @@ function DebtForm({ onSave, onCancel, T, editData, assets = [], isPro = false, i
     );
   }, [editData, isRevolving, ajWallets, f.key]);
 
-  // Synced debts skip the floor check — outstanding is managed by AJ automatically
-  const canSave = f.name.trim() && derivedOutstanding > 0 && (isSynced || derivedOutstanding >= minOutstandingFromAJ);
+  // Synced debts: save allowed regardless of outstanding (AJ is source of truth)
+  // Non-synced debts: must be > 0 and >= floor from AJ transactions
+  const canSave = f.name.trim() && (isSynced || (derivedOutstanding > 0 && derivedOutstanding >= minOutstandingFromAJ));
 
   const handleSave = () => {
     if (!canSave) return;
@@ -785,7 +786,7 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
   const getMonthlyForDebt = (d) => {
     const typeDef = getAllTypes().find(t => t.key === d.type);
     if (typeDef?.mode === 'revolving') {
-      const rate = parseVal(d.interestRate) || DEFAULT_RATE[d.type] || 10;
+      const rate = (d.interestRate !== '' && d.interestRate != null) ? parseVal(d.interestRate) : (DEFAULT_RATE[d.type] ?? 10);
       return parseVal(d.outstanding) * (rate / 100 / 12);
     }
     return parseVal(d.monthlyPayment);
@@ -967,7 +968,7 @@ function DebtScene({ debts = [], setDebts, assets = [], dispCur, tier, T, hideVa
                   </div>
                   <div style={{ padding:'7px 8px', background:T.surface, borderRadius:8 }}>
                     <div style={{ color:T.muted, fontSize:9 }}>Bunga/Thn</div>
-                    <div style={{ color:T.text, fontSize:11, fontWeight:'bold' }}>{d.interestRate||'-'}%</div>
+                    <div style={{ color:T.text, fontSize:11, fontWeight:'bold' }}>{(d.interestRate !== '' && d.interestRate != null) ? d.interestRate : '-'}%</div>
                   </div>
                   {plafon > 0 ? (
                     <div style={{ padding:'7px 8px', background:T.surface, borderRadius:8 }}>

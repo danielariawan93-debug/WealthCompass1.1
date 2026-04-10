@@ -312,7 +312,7 @@ const KREDIT_WALLET_TYPES = ["Paylater", "Kartu Kredit", "Rekening Koran"];
 // it maps to WP "krek" debt type via WALLET_TYPE_DEBT_KEY extension below)
 const CREDIT_WALLET_TYPES = ["Paylater", "Kartu Kredit", "Rekening Koran"];
 const WALLET_TYPE_DEBT_KEY = { "Paylater": "paylater", "Kartu Kredit": "cc", "Rekening Koran": "krek" };
-const EMPTY_WALLET_FORM = { name: "", type: "Bank", icon: "🏦", color: "#5b9cf6", initialBalance: "", debtId: "", limit: "" };
+const EMPTY_WALLET_FORM = { name: "", type: "Bank", icon: "🏦", color: "#5b9cf6", initialBalance: "", debtId: "", limit: "", initialOutstanding: "" };
 
 function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [], setDebts = () => {}, isPro, isProPlus }) {
   // Per-category limits: Free 3 Dana + 2 Kredit, Pro 7 + 7, Pro+ unlimited
@@ -370,7 +370,7 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
           name: form.name.trim(),
           type: WALLET_TYPE_DEBT_KEY[form.type],
           category: "konsumtif",
-          outstanding: "0",
+          outstanding: String(Math.round(parseNum(form.initialOutstanding) || 0)),
           limit: parseNum(form.limit),
           interestRate: form.type === "Paylater" ? "24" : "27",
           inputMode: "B",
@@ -405,8 +405,10 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
     const bal      = getWalletBalance(w, transactions);
     const txCount  = transactions.filter(t => t.walletId === w.id || t.toWalletId === w.id).length;
     const isWCredit = KREDIT_WALLET_TYPES.includes(w.type);
-    const used     = isWCredit ? Math.abs(bal) : 0;
-    const lim      = isWCredit ? (w.limit || 0) : 0;
+    // TD1: use WP debt.outstanding as source-of-truth for "used"; fallback to AJ tx balance
+    const linkedDebt = isWCredit && w.debtId ? debts.find(d => d.id === w.debtId) : null;
+    const used     = isWCredit ? (linkedDebt ? parseNum(linkedDebt.outstanding || "0") : Math.abs(bal)) : 0;
+    const lim      = isWCredit ? (linkedDebt?.limit ? parseNum(linkedDebt.limit) : (w.limit || 0)) : 0;
     const avail    = isWCredit ? Math.max(0, lim - used) : 0;
     const usePct   = lim > 0 ? Math.min(100, (used / lim) * 100) : 0;
     const barColor = usePct >= 90 ? "#f26b6b" : usePct >= 70 ? "#f59e0b" : "#3ecf8e";
@@ -510,6 +512,9 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
                       <div style={{ fontSize: 11, color: T.muted, marginBottom: 6 }}>Plafon / Limit ({form.type})</div>
                       <Inp T={T} type="number" value={form.limit} onChange={e => setF("limit", e.target.value)}
                         placeholder={`Limit kredit (cth: ${form.type === "Paylater" ? "3.000.000" : "10.000.000"})`} />
+                      <div style={{ fontSize: 11, color: T.muted, marginBottom: 6, marginTop: 10 }}>Outstanding Saat Ini (IDR)</div>
+                      <Inp T={T} type="number" value={form.initialOutstanding} onChange={e => setF("initialOutstanding", e.target.value)}
+                        placeholder="Sudah terpakai, kosongkan jika 0" />
                       <div style={{ fontSize: 10, color: T.muted, marginTop: 5 }}>
                         Hutang {form.type} dibuat otomatis di Wealth Kompas
                       </div>

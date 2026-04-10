@@ -44,7 +44,7 @@ function DebtIncomeCard({
   const getDebtMonthly = (d) => {
     const REVOLVING_KEYS = ['cc','paylater','krek','margin'];
     if (REVOLVING_KEYS.includes(d.type)) {
-      const rate = parseVal(d.interestRate) || 10;
+      const rate = (d.interestRate !== '' && d.interestRate != null) ? parseVal(d.interestRate) : 10;
       return parseVal(d.outstanding) * (rate / 100 / 12);
     }
     return parseVal(d.monthlyPayment);
@@ -588,7 +588,7 @@ function PassiveIncomeScene({
   const REVOLVING_KEYS = ['cc','paylater','krek','margin'];
   const totalDebtMonthly = debts.reduce((s, d) => {
     if (REVOLVING_KEYS.includes(d.type)) {
-      const rate = parseVal(d.interestRate) || 10;
+      const rate = (d.interestRate !== '' && d.interestRate != null) ? parseVal(d.interestRate) : 10;
       return s + parseVal(d.outstanding) * (rate / 100 / 12);
     }
     return s + parseVal(d.monthlyPayment);
