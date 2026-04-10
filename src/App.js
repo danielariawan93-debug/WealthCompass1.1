@@ -16,6 +16,7 @@ import {
   getIDR,
   LS,
   getWealthSegment,
+  setMoneyFull,
 } from "./utils/helpers";
 import {
   saveAccountData,
@@ -121,6 +122,7 @@ function WealthPulseV7() {
     notifications: true,
     userName: "",
     modules: { realAssets: false },
+    moneyFormat: "abbreviated",
   });
   const [proExpiry, setProExpiry] = useState(null);
   const [livePrices, setLivePrices] = useState({
@@ -247,6 +249,7 @@ function WealthPulseV7() {
         userData.email?.split("@")[0] ||
         "",
       modules: d.settings?.modules || { realAssets: false },
+      moneyFormat: d.settings?.moneyFormat || "abbreviated",
     });
     setTab("profile");
     setTheme(d.theme || "dark");
@@ -321,6 +324,7 @@ function WealthPulseV7() {
           notifications: cloud.settings?.notifications !== false,
           userName: cloud.settings?.userName || userData.name || userData.email?.split("@")[0] || "",
           modules: cloud.settings?.modules || { realAssets: false },
+          moneyFormat: cloud.settings?.moneyFormat || "abbreviated",
         });
         setTheme(cloud.theme || "dark");
         setCustomPresetId(cloud.customPresetId || "midnight");
@@ -474,6 +478,11 @@ function WealthPulseV7() {
   const handleToggleGlobalNotif = (val) => {
     setSettings(p => ({ ...p, notifications: val }));
   };
+
+  // Sync money format singleton so fMoney respects the setting without prop drilling
+  useEffect(() => {
+    setMoneyFull(settings.moneyFormat === "full");
+  }, [settings.moneyFormat]);
 
   // Auto-logout after 1 hour inactivity when keepSignIn is false
   useEffect(() => {

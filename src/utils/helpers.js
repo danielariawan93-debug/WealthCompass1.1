@@ -12,9 +12,18 @@ import { RATES, CURRENCIES, RISK_PROFILES, SECTOR_MULTIPLES } from "../constants
 const toIDR   = (amt, from) => amt * (RATES[from] || 1);
 const fromIDR = (amt, to)   => amt / (RATES[to]   || 1);
 
+// Module-level singleton: when true, fMoney returns full nominal (Rp 5.200.000)
+let _moneyFull = false;
+function setMoneyFull(v) { _moneyFull = !!v; }
+
 function fMoney(idr, code = "IDR") {
   const v = fromIDR(idr || 0, code);
   const s = CURRENCIES.find((c) => c.code === code)?.symbol || "Rp";
+  if (_moneyFull) {
+    // Full nominal format: Rp 5.200.000 (IDR) or $1,234.56 (foreign)
+    if (code === "IDR") return `${s}${Math.round(v).toLocaleString("id-ID")}`;
+    return `${s}${v.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
   if (code === "IDR") {
     if (v >= 1e12) return `${s}${(v / 1e12).toFixed(2)}T`;
     if (v >= 1e9)  return `${s}${(v / 1e9).toFixed(2)}M`;
@@ -255,6 +264,7 @@ export {
   fromIDR,
   fMoney,
   fM,
+  setMoneyFull,
   parseVal,
   getIDR,
   FREQ_MULT,

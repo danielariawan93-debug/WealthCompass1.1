@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { FeaturePopup } from "../components/FeaturePopup";
 import SettingsPopup from "./SettingsPopup";
 import { recalcAllCreditDebts, checkTxDateVsSnapshot } from "../utils/creditSync";
+import { fMoney } from "../utils/helpers";
 
 // ─── Sidebar nav items for Artha Journey ────────────────────────────────────
 const AJ_NAV = [
@@ -132,12 +133,8 @@ function AJSidebar({ tab, setTab, T, sideOpen, setSideOpen, setShowSettings }) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function fmtRp(v) {
   const num = Number(v || 0);
-  const abs = Math.abs(num);
-  const sign = num < 0 ? "-" : "";
-  if (abs >= 1e9) return sign + "Rp " + (abs / 1e9).toFixed(2) + "M";
-  if (abs >= 1e6) return sign + "Rp " + (abs / 1e6).toFixed(1) + "Jt";
-  if (abs >= 1e3) return sign + "Rp " + (abs / 1e3).toFixed(0) + "rb";
-  return sign + "Rp " + abs.toLocaleString("id-ID");
+  if (num < 0) return "-" + fMoney(-num, "IDR");
+  return fMoney(num, "IDR");
 }
 function getMonth(dateStr) {
   return (dateStr ? new Date(dateStr) : new Date()).toISOString().slice(0, 7);

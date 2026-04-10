@@ -95,6 +95,7 @@ const DEFAULT_ACCOUNT_STATE = {
     notifications: true,
     userName: "",
     modules: { realAssets: false },
+    moneyFormat: "abbreviated",
   },
   proExpiry: null,
   dispCur: "IDR",

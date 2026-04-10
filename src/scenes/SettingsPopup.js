@@ -435,6 +435,39 @@ function SettingsPopup({
           </div>
         </div>
 
+        {/* Money Format */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 8 }}>
+            FORMAT NOMINAL
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {[
+              ["abbreviated", "Disingkat", "Rp 5,2Jt · Rp 1,2M"],
+              ["full", "Nominal lengkap", "Rp 5.200.000"],
+            ].map(([v, label, example]) => (
+              <button
+                key={v}
+                onClick={() => setSettings((p) => ({ ...p, moneyFormat: v }))}
+                style={{
+                  flex: 1,
+                  padding: "9px 8px",
+                  borderRadius: 9,
+                  border: `1px solid ${(settings.moneyFormat || "abbreviated") === v ? T.accent : T.border}`,
+                  background: (settings.moneyFormat || "abbreviated") === v ? T.accentDim : T.card,
+                  color: (settings.moneyFormat || "abbreviated") === v ? T.accent : T.muted,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: (settings.moneyFormat || "abbreviated") === v ? "bold" : "normal" }}>
+                  {label}
+                </div>
+                <div style={{ fontSize: 9, marginTop: 2, color: T.muted }}>{example}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Language & notif */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 8 }}>
