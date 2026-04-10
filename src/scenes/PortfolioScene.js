@@ -39,6 +39,28 @@ import {
 } from "../constants/data";
 import { TIERS, canUploadFree, uploadsRemaining } from "../constants/tiers";
 
+// Adaptive column config per asset classKey (PDF review UI)
+const ADAPTIVE_COLS = {
+  equity: {
+    col1: { key: 'lots',          label: 'Lot',          ph: '10'          },
+    col2: { key: 'pricePerShare', label: 'Harga/Lembar', ph: '5000'        },
+    calc: (it) => (parseFloat(it.lots) || 0) * (parseFloat(it.pricePerShare) || 0) * 100,
+    hint: '1 lot = 100 lembar',
+  },
+  mixed: {
+    col1: { key: 'gramWeight',  label: 'Berat (gr)',  ph: '50'        },
+    col2: { key: 'pricePerGram', label: 'Harga/gram', ph: '1800000'   },
+    calc: (it) => (parseFloat(it.gramWeight) || 0) * (parseFloat(it.pricePerGram) || 0),
+    hint: '',
+  },
+  crypto: {
+    col1: { key: 'quantity',     label: 'Jumlah',     ph: '0.5'         },
+    col2: { key: 'pricePerCoin', label: 'Harga/Koin', ph: '900000000'   },
+    calc: (it) => (parseFloat(it.quantity) || 0) * (parseFloat(it.pricePerCoin) || 0),
+    hint: '',
+  },
+};
+
 function PortfolioScene({
   assets,
   setAssets,
@@ -301,7 +323,14 @@ function PortfolioScene({
       const data = await res.json();
       const raw = data.content?.[0]?.text || "[]";
       const items = JSON.parse(raw.replace(/```json|```/g, "").trim());
-      setPdfParsed(items.map((it, i) => ({ ...it, id: i, selected: true })));
+      setPdfParsed(items.map((it, i) => ({
+        ...it, id: i, selected: true,
+        // adaptive extra fields
+        lots: "", pricePerShare: "",
+        gramWeight: "", pricePerGram: "",
+        quantity: "", pricePerCoin: "",
+        showManual: false, // toggle for manual nominal override
+      })));
       const thisMonth = new Date().toISOString().slice(0, 7);
       if (pdfAllowed) {
         // Use free quota
@@ -348,6 +377,13 @@ function PortfolioScene({
           valueIDR: vIDR,
           sourceAmount: it.value,
           sourceCurrency: it.currency,
+          // persist adaptive fields when filled
+          ...(it.lots         && { lots:         parseFloat(it.lots) }),
+          ...(it.pricePerShare && { pricePerShare: parseFloat(it.pricePerShare) }),
+          ...(it.gramWeight   && { gramWeight:   parseFloat(it.gramWeight) }),
+          ...(it.pricePerGram && { pricePerGram: parseFloat(it.pricePerGram) }),
+          ...(it.quantity     && { quantity:     parseFloat(it.quantity) }),
+          ...(it.pricePerCoin && { pricePerCoin: parseFloat(it.pricePerCoin) }),
         });
       }
     });
@@ -1593,6 +1629,11 @@ function PortfolioScene({
                 const conflict = assets.find(
                   (a) => a.name.toLowerCase() === it.name.toLowerCase()
                 );
+                const adaptive = ADAPTIVE_COLS[it.classKey];
+                const updItem = (patch) => setPdfParsed(p => p.map((x, j) => j === i ? { ...x, ...patch } : x));
+                // Auto-calc value from adaptive fields when filled
+                const adaptiveValue = adaptive ? adaptive.calc(it) : 0;
+                const showAdaptive = !!adaptive && !it.showManual;
                 return (
                   <div
                     key={it.id}
@@ -1601,9 +1642,7 @@ function PortfolioScene({
                       padding: "12px 14px",
                       background: T.surface,
                       borderRadius: 10,
-                      border: `1px solid ${
-                        it.selected ? T.accent + "33" : T.border
-                      }`,
+                      border: `1px solid ${it.selected ? T.accent + "33" : T.border}`,
                       opacity: it.selected ? 1 : 0.5,
                     }}
                   >
@@ -1611,50 +1650,27 @@ function PortfolioScene({
                       <input
                         type="checkbox"
                         checked={it.selected}
-                        onChange={(e) =>
-                          setPdfParsed((p) =>
-                            p.map((x, j) =>
-                              j === i ? { ...x, selected: e.target.checked } : x
-                            )
-                          )
-                        }
+                        onChange={(e) => updItem({ selected: e.target.checked })}
                         style={{ marginTop: 3 }}
                       />
                       <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            marginBottom: 8,
-                            flexWrap: "wrap",
-                          }}
-                        >
+                        {/* Row 1: Nama + Kategori */}
+                        <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
                           <TInput
                             T={T}
                             value={it.name}
                             placeholder="Nama"
-                            style={{ flex: 1, minWidth: 100 }}
-                            onChange={(e) =>
-                              setPdfParsed((p) =>
-                                p.map((x, j) =>
-                                  j === i ? { ...x, name: e.target.value } : x
-                                )
-                              )
-                            }
+                            style={{ flex: 2, minWidth: 100 }}
+                            onChange={(e) => updItem({ name: e.target.value })}
                           />
                           <TSelect
                             T={T}
                             value={it.classKey}
-                            style={{ flex: 1 }}
-                            onChange={(e) =>
-                              setPdfParsed((p) =>
-                                p.map((x, j) =>
-                                  j === i
-                                    ? { ...x, classKey: e.target.value }
-                                    : x
-                                )
-                              )
-                            }
+                            style={{ flex: 1, minWidth: 100 }}
+                            onChange={(e) => {
+                              const k = e.target.value;
+                              updItem({ classKey: k, showManual: false });
+                            }}
                           >
                             {ASSET_CLASSES.map((ac) => (
                               <option key={ac.key} value={ac.key}>
@@ -1663,55 +1679,102 @@ function PortfolioScene({
                             ))}
                           </TSelect>
                         </div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <TInput
-                            T={T}
-                            value={it.value}
-                            type="number"
-                            style={{ flex: 1 }}
-                            onChange={(e) =>
-                              setPdfParsed((p) =>
-                                p.map((x, j) =>
-                                  j === i
-                                    ? {
-                                        ...x,
-                                        value: parseFloat(e.target.value) || 0,
-                                      }
-                                    : x
-                                )
-                              )
-                            }
-                          />
-                          <TSelect
-                            T={T}
-                            value={it.currency}
-                            style={{ width: 80 }}
-                            onChange={(e) =>
-                              setPdfParsed((p) =>
-                                p.map((x, j) =>
-                                  j === i
-                                    ? { ...x, currency: e.target.value }
-                                    : x
-                                )
-                              )
-                            }
-                          >
-                            {CURRENCIES.map((c) => (
-                              <option key={c.code} value={c.code}>
-                                {c.code}
-                              </option>
-                            ))}
-                          </TSelect>
-                        </div>
-                        {it.currency !== "IDR" && it.value > 0 && (
-                          <div
-                            style={{
-                              color: T.blue,
-                              fontSize: 10,
-                              marginTop: 4,
-                            }}
-                          >
-                            = {fMoney(toIDR(it.value, it.currency), "IDR")}
+
+                        {/* Row 2: Adaptive columns (Lot+Harga / Berat+Harga / Koin+Harga) */}
+                        {showAdaptive && (
+                          <div style={{ marginBottom: 8 }}>
+                            <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 10, color: T.muted, marginBottom: 3 }}>{adaptive.col1.label}</div>
+                                <TInput
+                                  T={T}
+                                  type="number"
+                                  value={it[adaptive.col1.key]}
+                                  placeholder={adaptive.col1.ph}
+                                  onChange={(e) => {
+                                    const patch = { [adaptive.col1.key]: e.target.value };
+                                    const newCalc = adaptive.calc({ ...it, ...patch });
+                                    if (newCalc > 0) patch.value = newCalc;
+                                    updItem(patch);
+                                  }}
+                                />
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 10, color: T.muted, marginBottom: 3 }}>{adaptive.col2.label}</div>
+                                <TInput
+                                  T={T}
+                                  type="number"
+                                  value={it[adaptive.col2.key]}
+                                  placeholder={adaptive.col2.ph}
+                                  onChange={(e) => {
+                                    const patch = { [adaptive.col2.key]: e.target.value };
+                                    const newCalc = adaptive.calc({ ...it, ...patch });
+                                    if (newCalc > 0) patch.value = newCalc;
+                                    updItem(patch);
+                                  }}
+                                />
+                              </div>
+                              <TSelect
+                                T={T}
+                                value={it.currency}
+                                style={{ width: 72, alignSelf: "flex-end" }}
+                                onChange={(e) => updItem({ currency: e.target.value })}
+                              >
+                                {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                              </TSelect>
+                            </div>
+                            {/* Auto-calculated total preview */}
+                            {adaptiveValue > 0 && (
+                              <div style={{ fontSize: 10, color: T.accent, marginTop: 2 }}>
+                                = {fMoney(toIDR(adaptiveValue, it.currency), "IDR")}
+                                {adaptive.hint && <span style={{ color: T.muted, marginLeft: 6 }}>{adaptive.hint}</span>}
+                              </div>
+                            )}
+                            {/* Manual override toggle */}
+                            <button
+                              onClick={() => updItem({ showManual: true })}
+                              style={{ marginTop: 5, fontSize: 10, color: T.muted, background: "none", border: `1px solid ${T.border}`, borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}
+                            >
+                              ✏️ Input nominal manual
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Row 2 (manual / non-adaptive): Nominal + Mata Uang */}
+                        {!showAdaptive && (
+                          <div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <TInput
+                                T={T}
+                                value={it.value}
+                                type="number"
+                                placeholder="Nominal"
+                                style={{ flex: 1 }}
+                                onChange={(e) => updItem({ value: parseFloat(e.target.value) || 0 })}
+                              />
+                              <TSelect
+                                T={T}
+                                value={it.currency}
+                                style={{ width: 80 }}
+                                onChange={(e) => updItem({ currency: e.target.value })}
+                              >
+                                {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                              </TSelect>
+                            </div>
+                            {it.currency !== "IDR" && it.value > 0 && (
+                              <div style={{ color: T.blue, fontSize: 10, marginTop: 4 }}>
+                                = {fMoney(toIDR(it.value, it.currency), "IDR")}
+                              </div>
+                            )}
+                            {/* Back to adaptive (if available) */}
+                            {adaptive && it.showManual && (
+                              <button
+                                onClick={() => updItem({ showManual: false })}
+                                style={{ marginTop: 5, fontSize: 10, color: T.muted, background: "none", border: `1px solid ${T.border}`, borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}
+                              >
+                                ↩ Gunakan {adaptive.col1.label} / {adaptive.col2.label}
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
