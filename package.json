@@ -2,9 +2,6 @@
   "name": "wealth-pulse",
   "version": "1.0.0",
   "private": true,
-  "engines": {
-    "node": "20.x"
-  },
   "dependencies": {
     "firebase": "^10.7.0",
     "react": "^18.2.0",
