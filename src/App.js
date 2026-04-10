@@ -470,10 +470,9 @@ function WealthPulseV7() {
     try { localStorage.setItem('wc_keep_signin', val ? 'true' : 'false'); } catch {}
   };
 
-  // Global notifications toggle — syncs all debt notifyEnabled
+  // Global notifications toggle — master ON/OFF flag (does not modify per-feature settings)
   const handleToggleGlobalNotif = (val) => {
     setSettings(p => ({ ...p, notifications: val }));
-    setDebts(p => p.map(d => ({ ...d, notifyEnabled: val })));
   };
 
   // Auto-logout after 1 hour inactivity when keepSignIn is false
@@ -505,7 +504,8 @@ function WealthPulseV7() {
       const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
       if (cached && Date.now() - cached.ts < TTL) {
         setLivePrices(p => ({ ...p, crypto: cached.crypto, gold: cached.gold, silver: cached.silver }));
-        if (cached.rates) Object.assign(RATES, cached.rates);
+        // Only restore USD from crypto cache — EUR/CNY/SGD are managed by fetchForex
+        if (cached.rates?.USD) RATES.USD = cached.rates.USD;
         setAssets(prev => prev.map(a => {
           // Only update liveValue for legacy assets without manual pricePerCoin
           if (a.coinId && cached.crypto?.[a.coinId] && !a.pricePerCoin)
@@ -544,16 +544,11 @@ function WealthPulseV7() {
       const goldPerGram = goldUsdOz > 0 ? Math.round((goldUsdOz * usdToIdr) / 31.1035) : 1580000;
       const silverPerGram = silverUsdOz > 0 ? Math.round((silverUsdOz * usdToIdr) / 31.1035) : 20000;
 
-      const newRates = { IDR: 1, USD: usdToIdr };
-      try {
-        const fxCache = JSON.parse(localStorage.getItem('wc_cache_forex') || 'null');
-        if (fxCache?.rates?.EUR) newRates.EUR = fxCache.rates.EUR;
-        if (fxCache?.rates?.CNY) newRates.CNY = fxCache.rates.CNY;
-        if (fxCache?.rates?.SGD) newRates.SGD = fxCache.rates.SGD;
-      } catch {}
-      Object.assign(RATES, newRates);
+      // Only update USD from CoinCap — EUR/CNY/SGD are managed exclusively by fetchForex
+      // to avoid race condition overwriting freshly-fetched forex rates with stale cache values
+      RATES.USD = usdToIdr;
 
-      const toSave = { ts: Date.now(), crypto: cryptoData, gold: goldPerGram, silver: silverPerGram, rates: newRates };
+      const toSave = { ts: Date.now(), crypto: cryptoData, gold: goldPerGram, silver: silverPerGram };
       localStorage.setItem(CACHE_KEY, JSON.stringify(toSave));
 
       setLivePrices(p => ({ ...p, crypto: cryptoData, gold: goldPerGram, silver: silverPerGram }));
@@ -576,9 +571,14 @@ function WealthPulseV7() {
     const CACHE_KEY = 'wc_cache_forex';
     const TTL = 30 * 60 * 1000; // 30 minutes
 
+    // Only apply valid (non-null, non-NaN, positive) rate values
     const applyRates = (rates, cacheKey) => {
-      try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), rates })); } catch {}
-      Object.assign(RATES, rates);
+      const valid = {};
+      Object.entries(rates).forEach(([k, v]) => {
+        if (v != null && typeof v === 'number' && !isNaN(v) && v > 0) valid[k] = v;
+      });
+      try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), rates: valid })); } catch {}
+      Object.assign(RATES, valid);
       setLivePrices(p => ({ ...p })); // trigger re-render so UI reads updated RATES
     };
 
@@ -586,8 +586,7 @@ function WealthPulseV7() {
       try {
         const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
         if (cached && Date.now() - cached.ts < TTL) {
-          Object.assign(RATES, cached.rates);
-          setLivePrices(p => ({ ...p }));
+          applyRates(cached.rates, CACHE_KEY);
           return;
         }
       } catch {}
@@ -604,21 +603,27 @@ function WealthPulseV7() {
       }
     } catch (e) { console.warn('[fetchForex] Server failed:', e.message); }
 
-    // Layer 2: browser → jsDelivr CDN (@fawazahmed0, CORS-free, no rate limits)
+    // Layer 2: browser → jsDelivr CDN per-currency direct endpoints (no cross-rate math)
+    const CDN = 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies';
     try {
-      const r = await fetch(
-        'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json'
-      );
-      if (!r.ok) throw new Error(`CDN HTTP ${r.status}`);
-      const d = await r.json();
-      const usd = d && d.usd;
-      if (!usd || !usd.idr) throw new Error('CDN: usd.idr missing');
+      const [usdRes, eurRes, cnyRes, sgdRes] = await Promise.all([
+        fetch(`${CDN}/usd.json`),
+        fetch(`${CDN}/eur.json`),
+        fetch(`${CDN}/cny.json`),
+        fetch(`${CDN}/sgd.json`),
+      ]);
+      if (!usdRes.ok || !eurRes.ok || !cnyRes.ok || !sgdRes.ok) throw new Error('CDN fetch failed');
+      const [usdD, eurD, cnyD, sgdD] = await Promise.all([usdRes.json(), eurRes.json(), cnyRes.json(), sgdRes.json()]);
+      if (!usdD?.usd?.idr) throw new Error('CDN: usd.idr missing');
+      if (!eurD?.eur?.idr) throw new Error('CDN: eur.idr missing');
+      if (!cnyD?.cny?.idr) throw new Error('CDN: cny.idr missing');
+      if (!sgdD?.sgd?.idr) throw new Error('CDN: sgd.idr missing');
       const rates = {
         IDR: 1,
-        USD: Math.round(usd.idr),
-        EUR: Math.round(usd.idr / usd.eur),
-        CNY: Math.round(usd.idr / usd.cny),
-        SGD: Math.round(usd.idr / usd.sgd),
+        USD: Math.round(usdD.usd.idr),
+        EUR: Math.round(eurD.eur.idr),
+        CNY: Math.round(cnyD.cny.idr),
+        SGD: Math.round(sgdD.sgd.idr),
       };
       applyRates(rates, CACHE_KEY);
     } catch (e) { console.warn('[fetchForex] CDN fallback failed:', e.message); }
@@ -1406,7 +1411,6 @@ function WealthPulseV7() {
                 ajTransactions={ajTransactions}
                 pulseCredits={totalAvailablePulse}
                 setPulseCredits={consumePulse_compat}
-                globalNotif={settings.notifications}
               />
             )}
             {tab === "ai" && (
