@@ -1710,10 +1710,10 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => confirmSaveWithFlag(false)} style={{ flex: 1, padding: "11px", borderRadius: 9, border: `1px solid ${T.accent}44`, background: T.accentDim, color: T.accent, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-                Tidak — Tambahkan
+                Ya — Sudah Ada
               </button>
               <button onClick={() => confirmSaveWithFlag(true)} style={{ flex: 1, padding: "11px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.textSoft, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                Ya — Sudah Ada
+                Tidak — Tambahkan
               </button>
             </div>
             <button onClick={() => setPendingSnapshotConfirm(null)} style={{ width: "100%", marginTop: 8, padding: "8px", background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 12 }}>
