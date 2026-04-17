@@ -4,6 +4,39 @@ import SettingsPopup from "./SettingsPopup";
 import { recalcAllCreditDebts, checkTxDateVsSnapshot, CREDIT_DEBT_TO_WALLET, filterSyncableDebts } from "../utils/creditSync";
 import { fMoney } from "../utils/helpers";
 
+// ─── App logo icons ──────────────────────────────────────────────────────────
+const AJLogo = ({ size = 24 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="11" stroke="#f59e0b" strokeWidth="1.6"/>
+    {/* wallet body */}
+    <rect x="5.5" y="11.5" width="13" height="7" rx="1.5" stroke="#f59e0b" strokeWidth="1.2"/>
+    <rect x="5.5" y="9.5" width="8.5" height="3" rx="1" stroke="#f59e0b" strokeWidth="1.1"/>
+    {/* rising bars */}
+    <rect x="7" y="14" width="1.8" height="2.5" rx="0.4" fill="#f59e0b" opacity="0.6"/>
+    <rect x="10" y="13" width="1.8" height="3.5" rx="0.4" fill="#f59e0b" opacity="0.8"/>
+    <rect x="13" y="11.5" width="1.8" height="5" rx="0.4" fill="#f59e0b"/>
+    {/* arrow up */}
+    <polyline points="14.5,11 16.5,9 18.5,11" stroke="#f59e0b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    <line x1="16.5" y1="9" x2="16.5" y2="14" stroke="#f59e0b" strokeWidth="1.2" strokeLinecap="round"/>
+    {/* pulse flanks */}
+    <polyline points="1.5,12 3.5,12 4.2,10.5 5,13.5" stroke="#f59e0b" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
+    <polyline points="19,12 20.5,12 21.2,10.5 22,13.5" stroke="#f59e0b" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
+  </svg>
+);
+
+const WPLogo = ({ size = 24 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <rect x="1" y="1" width="22" height="22" rx="5" fill="#111827" stroke="#f59e0b" strokeWidth="1.4"/>
+    {/* W */}
+    <polyline points="4,7 6,17 8,12 10,17 12,7" stroke="#f59e0b" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    {/* P */}
+    <polyline points="13,17 13,7 16.5,7" stroke="#f59e0b" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M13,7 Q19,7 19,10 Q19,13 13,13" stroke="#f59e0b" strokeWidth="1.6" strokeLinecap="round"/>
+    {/* pulse line through middle */}
+    <polyline points="1.5,19 4,19 5.5,17 7,21 8.5,19 22.5,19" stroke="#f59e0b" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" opacity="0.7"/>
+  </svg>
+);
+
 // ─── Sidebar nav items for Artha Journey ────────────────────────────────────
 const AJ_NAV = [
   { id: "wallet",    label: "Wallet",    icon: "👛", color: "#5b9cf6" },
@@ -15,7 +48,9 @@ const AJ_NAV = [
 ];
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
-function AJSidebar({ tab, setTab, T, sideOpen, setSideOpen, setShowSettings }) {
+function AJSidebar({ tab, setTab, T, sideOpen, setSideOpen, setShowSettings, activeApp, setActiveApp }) {
+  const isAJ = activeApp === "arthajourney";
+  const switchApp = () => setActiveApp && setActiveApp(isAJ ? "wealthcompass" : "arthajourney");
   return (
     <div
       style={{
@@ -31,24 +66,34 @@ function AJSidebar({ tab, setTab, T, sideOpen, setSideOpen, setShowSettings }) {
         flexShrink: 0,
       }}
     >
-      {/* App branding */}
-      <div
+      {/* App branding — click to switch dashboard */}
+      <button
+        onClick={switchApp}
+        title={isAJ ? "Pindah ke Wealth Pulse" : "Pindah ke Artha Journey"}
         style={{
-          padding: sideOpen ? "16px 14px 12px" : "16px 0 12px",
+          padding: sideOpen ? "14px 14px 12px" : "14px 0 12px",
           borderBottom: `1px solid ${T.border}`,
           display: "flex",
           alignItems: "center",
           justifyContent: sideOpen ? "flex-start" : "center",
           gap: 8,
+          background: "transparent",
+          border: "none",
+          borderBottom: `1px solid ${T.border}`,
+          cursor: "pointer",
+          width: "100%",
         }}
       >
-        <span style={{ fontSize: 20 }}>📒</span>
+        {isAJ ? <AJLogo size={26} /> : <WPLogo size={26} />}
         {sideOpen && (
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#3ecf8e", letterSpacing: 0.3 }}>
-            Artha Journey
-          </span>
+          <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#f59e0b", letterSpacing: 0.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {isAJ ? "Artha Journey" : "Wealth Pulse"}
+            </div>
+            <div style={{ fontSize: 9, color: T.muted, marginTop: 1 }}>tap untuk pindah</div>
+          </div>
         )}
-      </div>
+      </button>
 
       {/* Nav items */}
       <div style={{ flex: 1, paddingTop: 6 }}>
@@ -2786,6 +2831,8 @@ export default function ArthaJourneyApp({
         sideOpen={sideOpen}
         setSideOpen={setSideOpen}
         setShowSettings={setShowSettings}
+        activeApp={activeApp}
+        setActiveApp={setActiveApp}
       />
 
       {/* Main area */}

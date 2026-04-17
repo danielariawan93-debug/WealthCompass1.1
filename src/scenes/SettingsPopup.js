@@ -190,50 +190,6 @@ function SettingsPopup({
                   {isPro ? "⭐ PRO" : "Upgrade PRO"}
                 </button>
               </div>
-              {/* App Switcher */}
-              {setActiveApp && (
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
-                  <div style={{ fontSize: 10, color: T.muted, marginBottom: 6, letterSpacing: 0.5 }}>
-                    APLIKASI AKTIF
-                  </div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button
-                      onClick={() => { setActiveApp("wealthcompass"); onClose(); }}
-                      style={{
-                        flex: 1,
-                        padding: "6px 0",
-                        borderRadius: 7,
-                        border: "1.5px solid",
-                        borderColor: activeApp !== "arthajourney" ? T.accent : T.border,
-                        background: activeApp !== "arthajourney" ? T.accentDim : "transparent",
-                        color: activeApp !== "arthajourney" ? T.accent : T.muted,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      💎 Wealth Pulse
-                    </button>
-                    <button
-                      onClick={() => { setActiveApp("arthajourney"); onClose(); }}
-                      style={{
-                        flex: 1,
-                        padding: "6px 0",
-                        borderRadius: 7,
-                        border: "1.5px solid",
-                        borderColor: activeApp === "arthajourney" ? "#3ecf8e" : T.border,
-                        background: activeApp === "arthajourney" ? "#3ecf8e22" : "transparent",
-                        color: activeApp === "arthajourney" ? "#3ecf8e" : T.muted,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      📒 Artha Journey
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </Card>
