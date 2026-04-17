@@ -847,7 +847,7 @@ function WealthPulseV7() {
   );
   if (!user) return <LoginScreen onLogin={handleLogin} T={T} keepSignIn={keepSignIn} setKeepSignIn={handleSetKeepSignIn} />;
 
-  // Onboarding — hard lock for new users until 10-step tutorial is complete
+  // Onboarding — hard lock for new users until 13-step tutorial is complete
   if (!onboardingComplete) {
     return (
       <OnboardingFlow
@@ -858,6 +858,8 @@ function WealthPulseV7() {
         setRiskProfile={setRiskProfile}
         setAssets={setAssets}
         setGoals={setGoals}
+        setMonthlyIncome={setMonthlyFixedIncome}
+        setDebts={setDebts}
       />
     );
   }
