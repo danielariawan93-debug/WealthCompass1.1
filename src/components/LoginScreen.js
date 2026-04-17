@@ -1,4 +1,15 @@
 import React, { useState, useEffect } from 'react';
+
+const WPLogo = ({ size = 24 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <rect x="0.5" y="0.5" width="23" height="23" rx="5" fill="#0d1117" stroke="#f59e0b" strokeWidth="1.2"/>
+    <polyline points="0.5,13 2,13 2.8,10.5 3.8,15.5 4.6,13 5.5,13" stroke="#f59e0b" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" opacity="0.85"/>
+    <polyline points="5,5.5 7,16.5 9.5,10 12,16.5 14,5.5" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+    <line x1="15" y1="5.5" x2="15" y2="17" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round"/>
+    <path d="M15,5.5 Q21.5,5.5 21.5,9.25 Q21.5,13 15,13" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" fill="none"/>
+    <polyline points="21.5,13 22,13 22.5,11 23,15 23.5,13" stroke="#f59e0b" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" opacity="0.85"/>
+  </svg>
+);
 import { initializeApp, getApps } from 'firebase/app';
 import {
   getAuth,
@@ -154,8 +165,11 @@ function LoginScreen({ onLogin, T, keepSignIn, setKeepSignIn }) {
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <div style={{ color: T.accent, fontSize: 32, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 'bold', letterSpacing: 2 }}>
-            WEALTH◎PULSE
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <WPLogo size={80} />
+          </div>
+          <div style={{ color: T.accent, fontSize: 18, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 'bold', letterSpacing: 3 }}>
+            WEALTH PULSE
           </div>
           <div style={{ color: T.muted, fontSize: 11, letterSpacing: 3, marginTop: 4 }}>
             PORTFOLIO INTELLIGENCE

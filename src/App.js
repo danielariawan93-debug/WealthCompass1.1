@@ -965,6 +965,8 @@ function WealthPulseV7() {
         setSideOpen={setSideOpen}
         modules={settings.modules}
         setShowUpgrade={setShowUpgrade}
+        activeApp={activeApp}
+        setActiveApp={handleSetActiveApp}
       />
 
       {/* Main */}
