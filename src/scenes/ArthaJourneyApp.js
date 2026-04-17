@@ -1971,8 +1971,8 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: isCatatan ? T.muted : (isIncome ? T.green : T.red) }}>
-                      {isIncome ? "+" : "-"}{fmtRp(t.amount)}
+                    <div style={{ fontWeight: 700, fontSize: 14, color: isCatatan ? T.muted : (t.type === "debt_payment" || t.type === "transfer" ? "#f59e0b" : isIncome ? T.green : T.red) }}>
+                      {t.type === "income" ? "+" : t.type === "expense" ? "-" : ""}{fmtRp(t.amount)}
                     </div>
                     <div style={{ display: "flex", gap: 2, justifyContent: "flex-end", marginTop: 3 }}>
                       <button onClick={() => isEditing ? cancelEditTx() : startEditTx(t)} style={{ fontSize: 9, color: isEditing ? T.accent : T.muted, background: "none", border: "none", cursor: "pointer", padding: "2px 4px" }}>{isEditing ? "✕" : "✏️"}</button>
