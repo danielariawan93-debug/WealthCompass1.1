@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { FeaturePopup } from "../components/FeaturePopup";
 import SettingsPopup from "./SettingsPopup";
-import { recalcAllCreditDebts, checkTxDateVsSnapshot } from "../utils/creditSync";
+import { recalcAllCreditDebts, checkTxDateVsSnapshot, CREDIT_DEBT_TO_WALLET } from "../utils/creditSync";
 import { fMoney } from "../utils/helpers";
 
 // ─── Sidebar nav items for Artha Journey ────────────────────────────────────
@@ -305,10 +305,9 @@ function PlaceholderScene({ icon, title, desc, features, ctaLabel, T, extra }) {
 // ─── Wallet Scene ─────────────────────────────────────────────────────────────
 const DANA_WALLET_TYPES   = ["Bank", "E-Wallet", "Tunai"];
 const KREDIT_WALLET_TYPES = ["Paylater", "Kartu Kredit", "Rekening Koran"];
-// CREDIT_WALLET_TYPES kept for creditSync.js backward compat (Rekening Koran excluded —
-// it maps to WP "krek" debt type via WALLET_TYPE_DEBT_KEY extension below)
 const CREDIT_WALLET_TYPES = ["Paylater", "Kartu Kredit", "Rekening Koran"];
-const WALLET_TYPE_DEBT_KEY = { "Paylater": "paylater", "Kartu Kredit": "cc", "Rekening Koran": "krek" };
+// Derived from the canonical CREDIT_DEBT_TO_WALLET map (single source of truth in creditSync.js)
+const WALLET_TYPE_DEBT_KEY = Object.fromEntries(Object.entries(CREDIT_DEBT_TO_WALLET).map(([k, v]) => [v, k]));
 const EMPTY_WALLET_FORM = { name: "", type: "Bank", icon: "🏦", color: "#5b9cf6", initialBalance: "", debtId: "", limit: "", initialOutstanding: "" };
 
 function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [], setDebts = () => {}, isPro, isProPlus }) {
@@ -402,6 +401,8 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
     const bal      = getWalletBalance(w, transactions);
     const txCount  = transactions.filter(t => t.walletId === w.id || t.toWalletId === w.id).length;
     const isWCredit = KREDIT_WALLET_TYPES.includes(w.type);
+    // A credit wallet is orphaned when it has no debtId or its debt no longer exists in Wealth Kompas
+    const isOrphaned = isWCredit && (!w.debtId || !debts.find(d => d.id === w.debtId));
     // TD1: use WP debt.outstanding as source-of-truth for "used"; fallback to AJ tx balance
     const linkedDebt = isWCredit && w.debtId ? debts.find(d => d.id === w.debtId) : null;
     const used     = isWCredit ? (linkedDebt ? parseNum(linkedDebt.outstanding || "0") : Math.abs(bal)) : 0;
@@ -417,7 +418,9 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: 14, color: T.text }}>{w.name}</div>
-            <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{w.type} · {txCount} transaksi</div>
+            <div style={{ fontSize: 11, color: isOrphaned ? "#f26b6b" : T.muted, marginTop: 2 }}>
+              {w.type} · {txCount} transaksi{isOrphaned ? " · ⚠️ Belum link hutang" : ""}
+            </div>
           </div>
           <div style={{ textAlign: "right" }}>
             {isWCredit ? (
@@ -1584,24 +1587,25 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
   };
 
   const canSave = form.amount && parseNum(form.amount) > 0 && form.walletId &&
-    (form.type === "debt_payment" ? form.debtId : form.type === "transfer" ? form.toWalletId : form.category);
+    (form.type === "debt_payment"
+      ? (form.debtId && (debts || []).some(d => d.id === form.debtId))
+      : form.type === "transfer" ? form.toWalletId : form.category);
 
-  // Sync credit wallet expense → increment linked debt outstanding in WealthPulse
-  // Auto-link credit wallet → debt on first use (finds matching debt by type/name)
-  const autoLinkCreditWallet = (walletId) => {
-    if (!setWallets || !debts) return;
-    const wallet = wallets.find(w => w.id === walletId);
-    if (!wallet || wallet.debtId || !CREDIT_WALLET_TYPES.includes(wallet.type)) return;
-    const debtTypeKey = WALLET_TYPE_DEBT_KEY[wallet.type];
-    const candidates = debts.filter(d => d.type === debtTypeKey);
-    let match = candidates.length === 1 ? candidates[0] : null;
-    if (!match && candidates.length > 1) {
-      const wName = wallet.name.toLowerCase();
-      match = candidates.find(d =>
+  // Pure helper: finds the best-matching Wealth debt for a credit wallet (no state mutation).
+  // Excludes debts already claimed by other wallets to prevent double-linking.
+  const findDebtForWallet = (w) => {
+    if (!w || !CREDIT_WALLET_TYPES.includes(w.type)) return null;
+    const debtTypeKey = WALLET_TYPE_DEBT_KEY[w.type];
+    const taken = new Set(wallets.filter(x => x.id !== w.id).map(x => x.debtId).filter(Boolean));
+    const candidates = (debts || []).filter(d => d.type === debtTypeKey && !taken.has(d.id));
+    if (candidates.length === 1) return candidates[0];
+    if (candidates.length > 1) {
+      const wName = w.name.toLowerCase();
+      return candidates.find(d =>
         (d.name || "").toLowerCase().split(/\s+/).some(tok => wName.includes(tok) && tok.length > 2)
-      ) || candidates.find(d => wName.includes((d.name || "").toLowerCase()));
+      ) || candidates.find(d => wName.includes((d.name || "").toLowerCase())) || null;
     }
-    if (match) setWallets(prev => prev.map(w => w.id === walletId ? { ...w, debtId: match.id } : w));
+    return null;
   };
 
   const commitTx = (txData) => {
@@ -1613,7 +1617,24 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
   const save = () => {
     if (!canSave) return;
     const amt = parseNum(form.amount);
-    if (form.type === "expense") autoLinkCreditWallet(form.walletId);
+
+    // Single-source-of-truth enforcement: expenses from credit wallets must be linked to a Wealth debt.
+    // Attempt auto-link; if no matching debt exists, block the save and prompt the user.
+    if (form.type === "expense") {
+      const w = wallets.find(v => v.id === form.walletId);
+      if (w && CREDIT_WALLET_TYPES.includes(w.type)) {
+        const hasValidLink = w.debtId && (debts || []).some(d => d.id === w.debtId);
+        if (!hasValidLink) {
+          const matchDebt = findDebtForWallet(w);
+          if (matchDebt) {
+            setWallets(prev => prev.map(v => v.id === w.id ? { ...v, debtId: matchDebt.id } : v));
+          } else {
+            window.alert("Wallet kredit ini belum terhubung ke data hutang di Wealth Kompas.\nSilakan pilih atau tambahkan hutang untuk wallet ini di menu Wallet terlebih dahulu.");
+            return;
+          }
+        }
+      }
+    }
 
     const txDate = form.date || today;
     const txBase = {
@@ -2595,6 +2616,31 @@ export default function ArthaJourneyApp({
       if (newLimit === w.limit) return w;
       changed = true;
       return { ...w, limit: newLimit };
+    });
+    if (changed) setAjWallets(updated);
+  }, [debts]); // eslint-disable-line
+
+  // ── Single-Source-of-Truth enforcement: every credit wallet MUST derive from a Wealth debt ──
+  // Runs when debts change (e.g. on load or debt edit). Orphaned wallets that can be matched
+  // by type+name are auto-linked; unresolvable orphans are left as-is and shown with a UI warning.
+  useEffect(() => {
+    if (!ajWallets?.some(w => CREDIT_WALLET_TYPES.includes(w.type))) return;
+    let changed = false;
+    const updated = ajWallets.map(w => {
+      if (!CREDIT_WALLET_TYPES.includes(w.type)) return w;
+      if (w.debtId && (debts || []).some(d => d.id === w.debtId)) return w; // link already valid
+      const debtTypeKey = WALLET_TYPE_DEBT_KEY[w.type];
+      const taken = new Set(ajWallets.filter(x => x.id !== w.id).map(x => x.debtId).filter(Boolean));
+      const candidates = (debts || []).filter(d => d.type === debtTypeKey && !taken.has(d.id));
+      let match = candidates.length === 1 ? candidates[0] : null;
+      if (!match && candidates.length > 1) {
+        const wName = w.name.toLowerCase();
+        match = candidates.find(d =>
+          (d.name || "").toLowerCase().split(/\s+/).some(tok => wName.includes(tok) && tok.length > 2)
+        ) || candidates.find(d => wName.includes((d.name || "").toLowerCase())) || null;
+      }
+      if (match) { changed = true; return { ...w, debtId: match.id }; }
+      return w; // unresolvable — renderWalletCard will display orphan warning
     });
     if (changed) setAjWallets(updated);
   }, [debts]); // eslint-disable-line
