@@ -153,7 +153,9 @@ function nextMonth(m) {
 }
 function getWalletBalance(wallet, transactions) {
   let bal = Number(wallet.initialBalance || 0);
+  const cutoff = wallet.lastBalanceUpdate || null;
   for (const t of transactions) {
+    if (cutoff && t.date && t.date < cutoff) continue; // catatan saja — doesn't affect balance
     if (t.walletId === wallet.id) {
       if (t.type === "income") bal += Number(t.amount || 0);
       else bal -= Number(t.amount || 0);
@@ -332,6 +334,24 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
   };
   const closeForm = () => { setShowFormFor(null); setForm(EMPTY_WALLET_FORM); };
 
+  const [editingWalletId, setEditingWalletId] = useState(null);
+  const [wEdit, setWEdit] = useState({});
+  const startEditWallet = (w) => {
+    setEditingWalletId(w.id);
+    setWEdit({ type: w.type, initialBalance: String(w.initialBalance || 0) });
+  };
+  const cancelEditWallet = () => setEditingWalletId(null);
+  const saveEditWallet = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    setWallets(prev => prev.map(w => {
+      if (w.id !== editingWalletId) return w;
+      const newBal = parseNum(wEdit.initialBalance);
+      const balChanged = newBal !== Number(w.initialBalance || 0);
+      return { ...w, type: wEdit.type, initialBalance: newBal, ...(balChanged && { lastBalanceUpdate: today }) };
+    }));
+    setEditingWalletId(null);
+  };
+
   const cashAssets    = (assets || []).filter(a => a.classKey === "cash");
   // Any wallet type not in KREDIT_WALLET_TYPES is treated as Dana (incl. "Lainnya")
   const danaWallets   = wallets.filter(w => !KREDIT_WALLET_TYPES.includes(w.type));
@@ -408,10 +428,20 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
             )}
             {w.isSystemGenerated
               ? <div style={{ fontSize: 9, color: T.muted, marginTop: 4 }}>dari Wealth Kompas</div>
-              : <button
-                  onClick={() => { if (window.confirm(`Hapus wallet "${w.name}"?`)) setWallets(prev => prev.filter(x => x.id !== w.id)); }}
-                  style={{ fontSize: 10, color: T.muted, background: "none", border: "none", cursor: "pointer", marginTop: 4, padding: "2px 6px" }}
-                >🗑 hapus</button>
+              : (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                  {editingWalletId !== w.id && (
+                    <button
+                      onClick={() => startEditWallet(w)}
+                      style={{ fontSize: 10, color: T.accent, background: "none", border: "none", cursor: "pointer", marginTop: 4, padding: "2px 6px" }}
+                    >✏️ edit</button>
+                  )}
+                  <button
+                    onClick={() => { if (window.confirm(`Hapus wallet "${w.name}"?`)) setWallets(prev => prev.filter(x => x.id !== w.id)); }}
+                    style={{ fontSize: 10, color: T.muted, background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+                  >🗑 hapus</button>
+                </div>
+              )
             }
           </div>
         </div>
@@ -423,6 +453,26 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, color: T.muted }}>
               <span style={{ color: barColor }}>Terpakai {fmtRp(used)}</span>
               <span>Limit {fmtRp(lim)}</span>
+            </div>
+          </div>
+        )}
+        {!isWCredit && editingWalletId === w.id && (
+          <div style={{ marginTop: 12, borderTop: `1px solid ${T.border}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: T.text }}>Edit Wallet Dana</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Sel T={T} value={wEdit.type} onChange={e => setWEdit(p => ({ ...p, type: e.target.value }))} style={{ flex: 1 }}>
+                {["Bank", "E-Wallet", "Tunai", "Lainnya"].map(t => <option key={t}>{t}</option>)}
+              </Sel>
+              <Inp T={T} type="number" value={wEdit.initialBalance} onChange={e => setWEdit(p => ({ ...p, initialBalance: e.target.value }))} placeholder="Saldo awal (Rp)" style={{ flex: 2 }} />
+            </div>
+            {w.lastBalanceUpdate && (
+              <div style={{ fontSize: 10, color: T.muted }}>
+                ⏱ Last update saldo: {new Date(w.lastBalanceUpdate + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} · transaksi sebelum tanggal ini hanya catatan
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={saveEditWallet} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: T.accent, color: "#000", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>Simpan</button>
+              <button onClick={cancelEditWallet} style={{ flex: 1, padding: "8px", borderRadius: 8, border: `1px solid ${T.border}`, background: "none", color: T.textSoft, cursor: "pointer", fontSize: 12 }}>Batal</button>
             </div>
           </div>
         )}
@@ -1524,6 +1574,14 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
   const [page, setPage] = useState(1);
   const ccWallets = wallets.filter(w => CREDIT_WALLET_TYPES.includes(w.type));
 
+  const [editingTxId, setEditingTxId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const startEditTx = (t) => {
+    setEditingTxId(t.id);
+    setEditForm({ date: t.date, type: t.type, amount: String(t.amount), category: t.category, debtId: t.debtId || '', toWalletId: t.toWalletId || '', walletId: t.walletId, description: t.description || '' });
+  };
+  const cancelEditTx = () => setEditingTxId(null);
+
   const PAGE_SIZE = 20;
 
   // Month navigation helpers
@@ -1658,6 +1716,31 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
     if (!window.confirm("Hapus transaksi ini?")) return;
     // Removing the tx triggers the recalc useEffect automatically (Rule 4)
     setTransactions(prev => prev.filter(t => t.id !== id));
+  };
+
+  const canSaveEdit = editForm.amount && parseNum(editForm.amount) > 0 &&
+    (editForm.type === 'debt_payment'
+      ? (editForm.debtId && (debts || []).some(d => d.id === editForm.debtId))
+      : editForm.type === 'transfer' ? editForm.toWalletId : editForm.category);
+
+  const saveEditTx = () => {
+    if (!canSaveEdit) return;
+    setTransactions(prev => prev.map(x => {
+      if (x.id !== editingTxId) return x;
+      return {
+        ...x,
+        date: editForm.date || x.date,
+        type: editForm.type,
+        amount: parseNum(editForm.amount),
+        category: editForm.type === 'debt_payment'
+          ? ((debts || []).find(d => d.id === editForm.debtId)?.name || 'Bayar Hutang')
+          : editForm.type === 'transfer' ? 'Transfer' : editForm.category,
+        debtId: editForm.debtId || '',
+        toWalletId: editForm.type === 'transfer' ? (editForm.toWalletId || '') : '',
+        description: editForm.description || '',
+      };
+    }));
+    setEditingTxId(null);
   };
 
   const monthTxs = transactions.filter(t => t.date && t.date.slice(0, 7) === filterMonth);
@@ -1866,25 +1949,80 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
           {paginated.map(t => {
             const meta = TYPE_META[t.type] || TYPE_META.expense;
             const isIncome = t.type === "income";
+            const isEditing = editingTxId === t.id;
+            // Check if this tx is before the wallet's lastBalanceUpdate cutoff (catatan saja)
+            const srcWallet = wallets.find(w => w.id === t.walletId);
+            const isCatatan = srcWallet?.lastBalanceUpdate && t.date && t.date < srcWallet.lastBalanceUpdate;
             return (
-              <Card T={T} key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px" }}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
-                  {CAT_ICONS[t.category] || meta.icon}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {t.category}{t.description ? ` · ${t.description}` : ""}
+              <Card T={T} key={t.id} style={{ padding: "12px 14px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0, opacity: isCatatan ? 0.5 : 1 }}>
+                    {CAT_ICONS[t.category] || meta.icon}
                   </div>
-                  <div style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>
-                    {new Date(t.date + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })} · {walletName(t.walletId)}{t.toWalletId ? ` → ${walletName(t.toWalletId)}` : ""}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <span style={{ fontWeight: 600, fontSize: 13, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {t.category}{t.description ? ` · ${t.description}` : ""}
+                      </span>
+                      {isCatatan && <span style={{ fontSize: 9, padding: "1px 5px", background: T.surface, color: T.muted, borderRadius: 4, whiteSpace: "nowrap", flexShrink: 0 }}>catatan</span>}
+                    </div>
+                    <div style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>
+                      {new Date(t.date + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })} · {walletName(t.walletId)}{t.toWalletId ? ` → ${walletName(t.toWalletId)}` : ""}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: isCatatan ? T.muted : (isIncome ? T.green : T.red) }}>
+                      {isIncome ? "+" : "-"}{fmtRp(t.amount)}
+                    </div>
+                    <div style={{ display: "flex", gap: 2, justifyContent: "flex-end", marginTop: 3 }}>
+                      <button onClick={() => isEditing ? cancelEditTx() : startEditTx(t)} style={{ fontSize: 9, color: isEditing ? T.accent : T.muted, background: "none", border: "none", cursor: "pointer", padding: "2px 4px" }}>{isEditing ? "✕" : "✏️"}</button>
+                      <button onClick={() => del(t.id)} style={{ fontSize: 9, color: T.muted, background: "none", border: "none", cursor: "pointer", padding: "2px 4px" }}>🗑</button>
+                    </div>
                   </div>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: isIncome ? T.green : T.red }}>
-                    {isIncome ? "+" : "-"}{fmtRp(t.amount)}
+                {isEditing && (
+                  <div style={{ marginTop: 12, borderTop: `1px solid ${T.border}`, paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                    {/* Type tabs */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 4 }}>
+                      {Object.entries(TYPE_META).map(([k, m]) => (
+                        <button key={k} onClick={() => {
+                          const cat = k === "income" ? "Gaji/Salary" : k === "expense" ? "Makan & Minum" : "";
+                          setEditForm(p => ({ ...p, type: k, category: cat, debtId: "", toWalletId: "" }));
+                        }} style={{ padding: "6px 2px", borderRadius: 7, border: `1px solid ${editForm.type===k ? m.color : T.border}`, background: editForm.type===k ? m.color+"22" : T.surface, color: editForm.type===k ? m.color : T.textSoft, fontSize: 9, cursor: "pointer", fontWeight: editForm.type===k ? 700 : 400, textAlign: "center" }}>
+                          <div style={{ fontSize: 14 }}>{m.icon}</div>
+                          <div>{m.label}</div>
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Inp T={T} type="date" value={editForm.date} onChange={e => setEditForm(p => ({ ...p, date: e.target.value }))} style={{ flex: 1 }} />
+                      <Inp T={T} type="number" value={editForm.amount} onChange={e => setEditForm(p => ({ ...p, amount: e.target.value }))} placeholder="Jumlah (Rp)" style={{ flex: 2 }} />
+                    </div>
+                    {editForm.type === "expense" && (
+                      <CategoryPicker T={T} value={editForm.category} onChange={v => setEditForm(p => ({ ...p, category: v }))} type="expense" />
+                    )}
+                    {editForm.type === "income" && (
+                      <CategoryPicker T={T} value={editForm.category} onChange={v => setEditForm(p => ({ ...p, category: v }))} type="income" />
+                    )}
+                    {editForm.type === "debt_payment" && (
+                      <Sel T={T} value={editForm.debtId} onChange={e => setEditForm(p => ({ ...p, debtId: e.target.value }))}>
+                        <option value="">-- Pilih Hutang --</option>
+                        {(debts || []).map(d => <option key={d.id} value={d.id}>{d.name} (sisa {fmtRp(d.outstanding)})</option>)}
+                      </Sel>
+                    )}
+                    {editForm.type === "transfer" && (
+                      <Sel T={T} value={editForm.toWalletId} onChange={e => setEditForm(p => ({ ...p, toWalletId: e.target.value }))}>
+                        <option value="">-- Ke Akun Dana --</option>
+                        {wallets.filter(w => !KREDIT_WALLET_TYPES.includes(w.type) && w.id !== t.walletId).map(w => <option key={w.id} value={w.id}>{w.icon} {w.name}</option>)}
+                      </Sel>
+                    )}
+                    <Inp T={T} value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} placeholder="Keterangan (opsional)" />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={saveEditTx} disabled={!canSaveEdit} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: canSaveEdit ? T.accent : T.border, color: canSaveEdit ? "#000" : T.muted, cursor: canSaveEdit ? "pointer" : "not-allowed", fontSize: 12, fontWeight: 700 }}>Simpan</button>
+                      <button onClick={cancelEditTx} style={{ flex: 1, padding: "8px", borderRadius: 8, border: `1px solid ${T.border}`, background: "none", color: T.textSoft, cursor: "pointer", fontSize: 12 }}>Batal</button>
+                    </div>
                   </div>
-                  <button onClick={() => del(t.id)} style={{ fontSize: 9, color: T.muted, background: "none", border: "none", cursor: "pointer", marginTop: 3, padding: "2px 4px" }}>🗑</button>
-                </div>
+                )}
               </Card>
             );
           })}
