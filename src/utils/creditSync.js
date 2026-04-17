@@ -106,10 +106,10 @@ function recalcAllCreditDebts(debts, ajTransactions, ajWallets) {
   const updated = (debts || []).map(d => {
     const calc = calcCreditOutstanding(d, ajTransactions, ajWallets);
     if (calc === null) return d;
-    const calcStr = String(Math.round(calc));
-    if (d.outstanding === calcStr) return d;
+    const calcRounded = Math.round(calc);
+    if (Number(d.outstanding) === calcRounded) return d;
     changed = true;
-    return { ...d, outstanding: calcStr };
+    return { ...d, outstanding: calcRounded };
   });
   return changed ? updated : null;
 }

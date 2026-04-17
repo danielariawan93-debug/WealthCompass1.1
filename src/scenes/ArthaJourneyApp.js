@@ -349,48 +349,18 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
   // Reset credit fields when type changes
   const handleTypeChange = (v) => setForm(p => ({ ...p, type: v, debtId: "", limit: "", initialBalance: "" }));
 
-  const canSave = form.name.trim() &&
-    (!isCredit || form.debtId) &&
-    (form.debtId !== "new" || (parseNum(form.limit) > 0 && !atDebtLimit));
+  // Credit wallets are system-generated from Wealth debts — only Dana wallets can be added here
+  const canSave = form.name.trim() && !isCredit;
 
   const save = () => {
     if (!canSave) return;
-
-    let debtId = form.debtId;
-    let creditLimit = 0;
-
-    if (isCredit) {
-      if (form.debtId === "new") {
-        const newDebt = {
-          id: genId(),
-          name: form.name.trim(),
-          type: WALLET_TYPE_DEBT_KEY[form.type],
-          category: "konsumtif",
-          outstanding: String(Math.round(parseNum(form.initialOutstanding) || 0)),
-          limit: parseNum(form.limit),
-          interestRate: form.type === "Paylater" ? "24" : "27",
-          inputMode: "B",
-          tenorMonths: "12",
-          monthlyPayment: "0",
-          createdAt: new Date().toISOString(),
-        };
-        setDebts(prev => [...prev, newDebt]);
-        debtId = newDebt.id;
-        creditLimit = newDebt.limit;
-      } else {
-        const linked = debts.find(d => d.id === form.debtId);
-        creditLimit = linked?.limit || parseNum(linked?.outstanding || "0");
-      }
-    }
-
     setWallets(prev => [...prev, {
       id: genId(),
       name: form.name.trim(),
       type: form.type,
       icon: form.icon,
       color: form.color,
-      initialBalance: isCredit ? 0 : parseNum(form.initialBalance),
-      ...(isCredit && { debtId, limit: creditLimit }),
+      initialBalance: parseNum(form.initialBalance),
       createdAt: new Date().toISOString(),
     }]);
     closeForm();
@@ -417,7 +387,10 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
             {w.icon}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 600, fontSize: 14, color: T.text }}>{w.name}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ fontWeight: 600, fontSize: 14, color: T.text }}>{w.name}</span>
+              {w.isSystemGenerated && <span style={{ fontSize: 9, padding: "1px 5px", background: "#f59e0b22", color: "#f59e0b", borderRadius: 4, fontWeight: 700, whiteSpace: "nowrap" }}>🔒 Sistem</span>}
+            </div>
             <div style={{ fontSize: 11, color: isOrphaned ? "#f26b6b" : T.muted, marginTop: 2 }}>
               {w.type} · {txCount} transaksi{isOrphaned ? " · ⚠️ Belum link hutang" : ""}
             </div>
@@ -433,10 +406,13 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
                 {bal < 0 && <span style={{ fontSize: 12 }}>−</span>}{fmtRp(Math.abs(bal))}
               </div>
             )}
-            <button
-              onClick={() => { if (window.confirm(`Hapus wallet "${w.name}"?`)) setWallets(prev => prev.filter(x => x.id !== w.id)); }}
-              style={{ fontSize: 10, color: T.muted, background: "none", border: "none", cursor: "pointer", marginTop: 4, padding: "2px 6px" }}
-            >🗑 hapus</button>
+            {w.isSystemGenerated
+              ? <div style={{ fontSize: 9, color: T.muted, marginTop: 4 }}>dari Wealth Kompas</div>
+              : <button
+                  onClick={() => { if (window.confirm(`Hapus wallet "${w.name}"?`)) setWallets(prev => prev.filter(x => x.id !== w.id)); }}
+                  style={{ fontSize: 10, color: T.muted, background: "none", border: "none", cursor: "pointer", marginTop: 4, padding: "2px 6px" }}
+                >🗑 hapus</button>
+            }
           </div>
         </div>
         {isWCredit && lim > 0 && (
@@ -595,23 +571,17 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
       {/* ── Akun Kredit Section ────────────────────────── */}
       <div style={{ borderLeft: "3px solid #f59e0b", paddingLeft: 10, marginBottom: 6, marginTop: 4 }}>
         <div style={{ fontWeight: 700, fontSize: 13, color: T.text }}>💳 Akun Kredit</div>
-        <div style={{ fontSize: 11, color: T.muted }}>Paylater · Kartu Kredit{(isPro || isProPlus) ? " · Rekening Koran" : ""} · Wajib link ke Hutang di Wealth Kompas</div>
+        <div style={{ fontSize: 11, color: T.muted }}>Paylater · Kartu Kredit{(isPro || isProPlus) ? " · Rekening Koran" : ""} · Otomatis dari Wealth Kompas</div>
       </div>
-      {kreditWallets.length === 0 && showFormFor !== "kredit" && (
-        <div style={{ textAlign: "center", padding: "16px", fontSize: 12, color: T.muted, marginBottom: 8 }}>
-          Belum ada Akun Kredit.
+      {kreditWallets.map(renderWalletCard)}
+      {kreditWallets.length === 0 && (
+        <div style={{ textAlign: "center", padding: "14px", fontSize: 12, color: T.muted, marginBottom: 8 }}>
+          Belum ada Akun Kredit — tambahkan hutang CC/Paylater di Wealth Kompas.
         </div>
       )}
-      {kreditWallets.map(renderWalletCard)}
-      {showFormFor === "kredit" ? renderAddForm("kredit") : (
-        <button
-          onClick={() => { if (!atKreditLimit) openForm("kredit"); }}
-          disabled={atKreditLimit}
-          style={{ width: "100%", padding: "8px", borderRadius: 8, border: `1px dashed ${atKreditLimit ? T.border : "#f59e0b"}`, background: "transparent", color: atKreditLimit ? T.muted : "#f59e0b", cursor: atKreditLimit ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600, marginBottom: 16 }}
-        >
-          {atKreditLimit ? `Batas ${maxKredit} Akun Kredit (upgrade untuk lebih)` : "+ Tambah Akun Kredit"}
-        </button>
-      )}
+      <div style={{ padding: "10px 14px", background: "#f59e0b11", border: "1px dashed #f59e0b55", borderRadius: 8, marginBottom: 16, fontSize: 11, color: T.textSoft, lineHeight: 1.6 }}>
+        🔒 Wallet kredit dibuat otomatis dari data hutang di <strong style={{ color: "#f59e0b" }}>Wealth Kompas</strong>. Tambahkan atau kelola hutang CC/Paylater di sana — wallet akan muncul & tersinkron di sini.
+      </div>
 
       {/* WealthPulse cash assets reference */}
       {cashAssets.length > 0 && (
@@ -2603,46 +2573,48 @@ export default function ArthaJourneyApp({
   }, [ajTransactions]); // eslint-disable-line
 
 
-  // ── Rule 1: Sync debt plafon (limit) → linked wallet limits ──────────────────────
-  // Source of truth = debt.plafon (Wealth Pulse). Wallets are read-only derivates.
+  // ── Wallet Sync: derive ALL credit wallets from Wealth debts (single source of truth) ──
+  // Runs on every debts change (load, edit, delete). Guarantees:
+  //   1. Credit wallets whose debt was deleted are removed.
+  //   2. Each credit debt gets exactly one system wallet (created if missing).
+  //   3. Existing wallets are updated (name, limit) and marked isSystemGenerated.
   useEffect(() => {
-    if (!debts?.length || !ajWallets?.length) return;
+    const creditDebts = (debts || []).filter(d => CREDIT_DEBT_TO_WALLET[d.type]);
+    const validDebtIds = new Set(creditDebts.map(d => d.id));
     let changed = false;
-    const updated = ajWallets.map(w => {
-      if (!CREDIT_WALLET_TYPES.includes(w.type) || !w.debtId) return w;
-      const debt = debts.find(d => d.id === w.debtId);
-      if (!debt) return w;
-      const newLimit = Number(debt.plafon) || w.limit;
-      if (newLimit === w.limit) return w;
-      changed = true;
-      return { ...w, limit: newLimit };
-    });
-    if (changed) setAjWallets(updated);
-  }, [debts]); // eslint-disable-line
 
-  // ── Single-Source-of-Truth enforcement: every credit wallet MUST derive from a Wealth debt ──
-  // Runs when debts change (e.g. on load or debt edit). Orphaned wallets that can be matched
-  // by type+name are auto-linked; unresolvable orphans are left as-is and shown with a UI warning.
-  useEffect(() => {
-    if (!ajWallets?.some(w => CREDIT_WALLET_TYPES.includes(w.type))) return;
-    let changed = false;
-    const updated = ajWallets.map(w => {
-      if (!CREDIT_WALLET_TYPES.includes(w.type)) return w;
-      if (w.debtId && (debts || []).some(d => d.id === w.debtId)) return w; // link already valid
-      const debtTypeKey = WALLET_TYPE_DEBT_KEY[w.type];
-      const taken = new Set(ajWallets.filter(x => x.id !== w.id).map(x => x.debtId).filter(Boolean));
-      const candidates = (debts || []).filter(d => d.type === debtTypeKey && !taken.has(d.id));
-      let match = candidates.length === 1 ? candidates[0] : null;
-      if (!match && candidates.length > 1) {
-        const wName = w.name.toLowerCase();
-        match = candidates.find(d =>
-          (d.name || "").toLowerCase().split(/\s+/).some(tok => wName.includes(tok) && tok.length > 2)
-        ) || candidates.find(d => wName.includes((d.name || "").toLowerCase())) || null;
-      }
-      if (match) { changed = true; return { ...w, debtId: match.id }; }
-      return w; // unresolvable — renderWalletCard will display orphan warning
+    // Step 1: remove orphaned credit wallets (debt deleted or debtId invalid)
+    let synced = (ajWallets || []).filter(w => {
+      if (!CREDIT_WALLET_TYPES.includes(w.type)) return true;
+      if (w.debtId && validDebtIds.has(w.debtId)) return true;
+      changed = true;
+      return false;
     });
-    if (changed) setAjWallets(updated);
+
+    // Step 2: create / update one system wallet per credit debt
+    for (const debt of creditDebts) {
+      const walletType = CREDIT_DEBT_TO_WALLET[debt.type];
+      const newLimit = Number(debt.plafon) || Number(debt.limit) || 0;
+      const newName  = debt.name || walletType;
+      const existing = synced.find(w => w.debtId === debt.id);
+
+      if (!existing) {
+        synced = [...synced, {
+          id: genId(), name: newName, type: walletType,
+          icon: "💳", color: "#f59e0b", initialBalance: 0,
+          debtId: debt.id, limit: newLimit,
+          isSystemGenerated: true, createdAt: new Date().toISOString(),
+        }];
+        changed = true;
+      } else if (!existing.isSystemGenerated || existing.name !== newName || existing.limit !== newLimit) {
+        synced = synced.map(w => w.id === existing.id
+          ? { ...w, name: newName, limit: newLimit, isSystemGenerated: true }
+          : w);
+        changed = true;
+      }
+    }
+
+    if (changed) setAjWallets(synced);
   }, [debts]); // eslint-disable-line
 
   const renderScene = () => {
