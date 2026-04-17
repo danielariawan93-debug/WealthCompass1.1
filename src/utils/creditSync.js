@@ -115,6 +115,17 @@ function recalcAllCreditDebts(debts, ajTransactions, ajWallets) {
 }
 
 /**
+ * Returns debts that should be mirrored as AJ wallets, filtered by tier.
+ * Free: cc + paylater only.  Pro/Pro+: cc + paylater + krek.
+ */
+function filterSyncableDebts(debts, isPro) {
+  return (debts || []).filter(d => {
+    if (!isPro) return d.type === 'cc' || d.type === 'paylater';
+    return d.type === 'cc' || d.type === 'paylater' || d.type === 'krek';
+  });
+}
+
+/**
  * Checks if a transaction date conflicts with a debt's tanggal_outstanding.
  * Returns 'before' | 'same' | 'after' | 'no_snapshot'.
  */
@@ -127,4 +138,4 @@ function checkTxDateVsSnapshot(txDate, debt) {
   return 'after';
 }
 
-export { getBillingPeriod, calcCreditOutstanding, recalcAllCreditDebts, checkTxDateVsSnapshot, CREDIT_DEBT_TO_WALLET };
+export { getBillingPeriod, calcCreditOutstanding, recalcAllCreditDebts, checkTxDateVsSnapshot, CREDIT_DEBT_TO_WALLET, filterSyncableDebts };

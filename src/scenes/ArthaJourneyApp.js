@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { FeaturePopup } from "../components/FeaturePopup";
 import SettingsPopup from "./SettingsPopup";
-import { recalcAllCreditDebts, checkTxDateVsSnapshot, CREDIT_DEBT_TO_WALLET } from "../utils/creditSync";
+import { recalcAllCreditDebts, checkTxDateVsSnapshot, CREDIT_DEBT_TO_WALLET, filterSyncableDebts } from "../utils/creditSync";
 import { fMoney } from "../utils/helpers";
 
 // ─── Sidebar nav items for Artha Journey ────────────────────────────────────
@@ -543,7 +543,7 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
         </div>
         <div style={{ textAlign: "right", fontSize: 11, color: T.muted, lineHeight: 1.8 }}>
           <div>🏦 {danaCount}/{maxDana === Infinity ? "∞" : maxDana} Dana</div>
-          <div>💳 {kreditCount}/{maxKredit === Infinity ? "∞" : maxKredit} Kredit</div>
+          <div>💳 {kreditWallets.length} Kredit (dari Wealth)</div>
         </div>
       </Card>
 
@@ -2579,7 +2579,7 @@ export default function ArthaJourneyApp({
   //   2. Each credit debt gets exactly one system wallet (created if missing).
   //   3. Existing wallets are updated (name, limit) and marked isSystemGenerated.
   useEffect(() => {
-    const creditDebts = (debts || []).filter(d => CREDIT_DEBT_TO_WALLET[d.type]);
+    const creditDebts = filterSyncableDebts(debts, isPro || isProPlus);
     const validDebtIds = new Set(creditDebts.map(d => d.id));
     let changed = false;
 
