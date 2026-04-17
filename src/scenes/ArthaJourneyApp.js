@@ -1748,7 +1748,7 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
   const monthIncome  = monthTxs.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount || 0), 0);
   const monthExpense = monthTxs.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount || 0), 0);
   const monthHutang  = monthTxs.filter(t => t.type === "debt_payment").reduce((s, t) => s + Number(t.amount || 0), 0);
-  const monthNet     = monthIncome - monthExpense - monthHutang;
+  const monthNet     = monthIncome - monthExpense;
 
   const filtered = [...monthTxs]
     .filter(t => filter === "all" || t.type === filter)
