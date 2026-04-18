@@ -2868,7 +2868,8 @@ export default function ArthaJourneyApp({
         </div>
 
         {/* Scene content */}
-        <div style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ flex: 1, overflowY: "auto", position: "relative" }}>
+          <Watermark app="aj" />
           {renderScene()}
         </div>
       </div>
