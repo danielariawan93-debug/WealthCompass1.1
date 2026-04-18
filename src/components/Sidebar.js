@@ -1,28 +1,52 @@
 import React from 'react';
 
 const WPLogo = ({ size = 24 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <rect x="0.5" y="0.5" width="23" height="23" rx="5" fill="#0d1117" stroke="#f59e0b" strokeWidth="1.2"/>
-    <polyline points="0.5,13 2,13 2.8,10.5 3.8,15.5 4.6,13 5.5,13" stroke="#f59e0b" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" opacity="0.85"/>
-    <polyline points="5,5.5 7,16.5 9.5,10 12,16.5 14,5.5" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-    <line x1="15" y1="5.5" x2="15" y2="17" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round"/>
-    <path d="M15,5.5 Q21.5,5.5 21.5,9.25 Q21.5,13 15,13" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" fill="none"/>
-    <polyline points="21.5,13 22,13 22.5,11 23,15 23.5,13" stroke="#f59e0b" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" opacity="0.85"/>
+  <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+    <circle cx="50" cy="50" r="47" stroke="url(#wpg)" strokeWidth="3"/>
+    <defs>
+      <linearGradient id="wpg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#ffe066"/>
+        <stop offset="100%" stopColor="#b8860b"/>
+      </linearGradient>
+    </defs>
+    {/* Heartbeat left */}
+    <polyline points="4,50 14,50 18,38 23,62 27,50 36,50" stroke="#d4a017" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+    {/* Heartbeat right */}
+    <polyline points="64,50 73,50 77,38 82,62 86,50 96,50" stroke="#d4a017" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+    {/* W letter */}
+    <polyline points="28,65 35,35 43,55 50,35 57,55 65,35 72,65" stroke="url(#wpg)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"/>
+    {/* Arrow up-right */}
+    <line x1="55" y1="38" x2="72" y2="20" stroke="#ffe066" strokeWidth="4" strokeLinecap="round"/>
+    <polyline points="62,18 74,18 74,30" stroke="#ffe066" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
 const AJLogo = ({ size = 24 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <circle cx="12" cy="12" r="11" stroke="#f59e0b" strokeWidth="1.6"/>
-    <rect x="5.5" y="11.5" width="13" height="7" rx="1.5" stroke="#f59e0b" strokeWidth="1.2"/>
-    <rect x="5.5" y="9.5" width="8.5" height="3" rx="1" stroke="#f59e0b" strokeWidth="1.1"/>
-    <rect x="7" y="14" width="1.8" height="2.5" rx="0.4" fill="#f59e0b" opacity="0.6"/>
-    <rect x="10" y="13" width="1.8" height="3.5" rx="0.4" fill="#f59e0b" opacity="0.8"/>
-    <rect x="13" y="11.5" width="1.8" height="5" rx="0.4" fill="#f59e0b"/>
-    <polyline points="14.5,11 16.5,9 18.5,11" stroke="#f59e0b" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-    <line x1="16.5" y1="9" x2="16.5" y2="14" stroke="#f59e0b" strokeWidth="1.2" strokeLinecap="round"/>
-    <polyline points="1.5,12 3.5,12 4.2,10.5 5,13.5" stroke="#f59e0b" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
-    <polyline points="19,12 20.5,12 21.2,10.5 22,13.5" stroke="#f59e0b" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" opacity="0.6"/>
+  <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+    <circle cx="50" cy="50" r="47" stroke="url(#ajg)" strokeWidth="3"/>
+    <defs>
+      <linearGradient id="ajg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#ffe066"/>
+        <stop offset="100%" stopColor="#b8860b"/>
+      </linearGradient>
+    </defs>
+    {/* Heartbeat left */}
+    <polyline points="4,50 14,50 18,40 23,60 27,50 34,50" stroke="#d4a017" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+    {/* Heartbeat right */}
+    <polyline points="66,50 73,50 77,40 82,60 86,50 96,50" stroke="#d4a017" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+    {/* Wallet body */}
+    <rect x="28" y="48" width="44" height="26" rx="4" stroke="url(#ajg)" strokeWidth="3"/>
+    {/* Wallet flap */}
+    <path d="M28,56 Q28,48 36,48 L56,48" stroke="url(#ajg)" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+    {/* Wallet clasp */}
+    <circle cx="65" cy="61" r="3" stroke="url(#ajg)" strokeWidth="2"/>
+    {/* Bar chart */}
+    <rect x="34" y="37" width="6" height="12" rx="1.5" fill="#d4a017" opacity="0.7"/>
+    <rect x="43" y="30" width="6" height="19" rx="1.5" fill="#d4a017" opacity="0.85"/>
+    <rect x="52" y="22" width="6" height="27" rx="1.5" fill="url(#ajg)"/>
+    {/* Arrow */}
+    <line x1="55" y1="25" x2="68" y2="14" stroke="#ffe066" strokeWidth="3.5" strokeLinecap="round"/>
+    <polyline points="62,13 70,13 70,21" stroke="#ffe066" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
