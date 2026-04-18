@@ -168,8 +168,8 @@ function LoginScreen({ onLogin, T, keepSignIn, setKeepSignIn }) {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
             <WPLogo size={80} />
           </div>
-          <div style={{ color: T.accent, fontSize: 18, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 'bold', letterSpacing: 3 }}>
-            WEALTH PULSE
+         <div style={{ color: T.accent, fontSize: 18, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 'bold', letterSpacing: 3 }}>
+            WEALTH<span style={{ color: "#b8860b" }}>◆</span>PULSE
           </div>
           <div style={{ color: T.muted, fontSize: 11, letterSpacing: 3, marginTop: 4 }}>
             PORTFOLIO INTELLIGENCE
