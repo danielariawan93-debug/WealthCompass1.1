@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import TnCModal from "./TnCModal";
 
-import { WPLogo, AJLogo } from "./logoSVG";
+import { WPLogo, AJLogo } from "../assets/logoSVG";
 
 export default function AppSelector({ user, T, onSelect, onLogout, logoutSaving }) {
   const [hoveredApp, setHoveredApp] = useState(null);
