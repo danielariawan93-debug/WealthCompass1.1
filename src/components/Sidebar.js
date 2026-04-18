@@ -105,7 +105,7 @@ function Sidebar({ tab, setTab, T, isPro = false, isProPlus = false, sideOpen, s
         <div style={{ flexShrink: 0 }}><WPLogo size={sideOpen ? 26 : 22} /></div>
         {sideOpen && (
           <div style={{ textAlign: "left", minWidth: 0 }}>
-            <div style={{ color: "#f59e0b", fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>WEALTH PULSE</div>
+            <div style={{ color: "#f59e0b", fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>WEALTH<span style={{color:"#b8860b"}}>◆</span>PULSE</div>
             <div style={{ color: T.muted, fontSize: 8, marginTop: 1 }}>tap untuk pindah</div>
           </div>
         )}
