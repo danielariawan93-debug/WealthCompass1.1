@@ -21,7 +21,7 @@ export const AJLogo = ({ size = 24 }) => (
   />
 );
 
-export const combineLogo = ({ size = 28 }) => (
+export const CombineLogo = ({ size = 28 }) => (
   <img
     src={`${process.env.PUBLIC_URL}/combinelogo.png`}
     alt="Combine Logo"
