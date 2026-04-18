@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CombineLogo } from "../assets/logoSVG";
+import { combineLogo } from "../assets/logoSVG";
 import { initializeApp, getApps } from 'firebase/app';
 import {
   getAuth,
