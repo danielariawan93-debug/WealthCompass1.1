@@ -1162,7 +1162,8 @@ function WealthPulseV7() {
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "18px 16px 80px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 0 80px", position: "relative" }}>
+            <Watermark app="wp" />
           <div style={{ maxWidth: 640, margin: "0 auto" }}>
             {/* First-time feature popup — show once per WP tab, keyed so it resets per tab */}
             {(() => {
