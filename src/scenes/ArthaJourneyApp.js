@@ -5,8 +5,7 @@ import { recalcAllCreditDebts, checkTxDateVsSnapshot, CREDIT_DEBT_TO_WALLET, fil
 import { fMoney } from "../utils/helpers";
 
 // ─── App logo icons ──────────────────────────────────────────────────────────
-import { WPLogo, AJLogo } from "../assets/logoSVG";
-
+import { WPLogo, AJLogo, Watermark } from "../assets/logoSVG";
 // ─── Sidebar nav items for Artha Journey ────────────────────────────────────
 const AJ_NAV = [
   { id: "wallet",    label: "Wallet",    icon: "👛", color: "#5b9cf6" },
