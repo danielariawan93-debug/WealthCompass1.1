@@ -68,6 +68,7 @@ import { RealAssetsScene } from "./scenes/RealAssetsScene";
 import ComingSoonScene from "./scenes/ComingSoonScene";
 import InsuranceScene from "./scenes/InsuranceScene";
 import PdfExportModal from "./components/PdfExportModal";
+import { Watermark } from "./assets/logoSVG";
 
 // CoinCap API credentials
 const CC_KEY = '29eb9eb7f921e41d70cb469c1ea9f23bddf88694c9c9873064c38c02183a5234';
