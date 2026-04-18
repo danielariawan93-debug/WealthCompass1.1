@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { combineLogo } from "../assets/logoSVG";
+import { CombineLogo } from "../assets/logoSVG";
 import { initializeApp, getApps } from 'firebase/app';
 import {
   getAuth,
@@ -156,7 +156,7 @@ function LoginScreen({ onLogin, T, keepSignIn, setKeepSignIn }) {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-            <combineLogo size={120} />
+            <CombineLogo size={120} />
           </div>
           <div style={{ color: T.accent, fontSize: 18, fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 'bold', letterSpacing: 3 }}>
             WEALTH PULSE
