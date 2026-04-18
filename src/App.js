@@ -475,9 +475,44 @@ function WealthPulseV7() {
   };
 
   // Global notifications toggle — master ON/OFF flag (does not modify per-feature settings)
-  const handleToggleGlobalNotif = (val) => {
+  const handleToggleGlobalNotif = useCallback(async (val) => {
     setSettings(p => ({ ...p, notifications: val }));
-  };
+    if (!val) return;
+    const now = Date.now();
+    (debts || []).forEach(async (d) => {
+      if (!d.dueDate || !d.name) return;
+      const daysLeft = Math.floor((new Date(d.dueDate).getTime() - now) / 86400000);
+      const lastKey = `notif_debt_${d.id}`;
+      const lastSent = parseInt(localStorage.getItem(lastKey) || "0", 10);
+      if (daysLeft <= 7 && daysLeft >= 0 && now - lastSent > 86400000) {
+        await fetch("/api/send-notification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "debt_due", payload: {
+            name: d.name, dueDate: d.dueDate, amount: d.remaining,
+            email: user?.email, userName: settings.userName,
+          }}),
+        });
+        localStorage.setItem(lastKey, String(now));
+      }
+    });
+    if (proExpiry) {
+      const daysLeft = Math.floor((new Date(proExpiry).getTime() - now) / 86400000);
+      const lastKey = `notif_sub_${user?.uid}`;
+      const lastSent = parseInt(localStorage.getItem(lastKey) || "0", 10);
+      if (daysLeft <= 5 && daysLeft >= 0 && now - lastSent > 86400000) {
+        await fetch("/api/send-notification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "subscription_expiry", payload: {
+            tier: isPro ? "Pro" : "Free", expiryDate: proExpiry,
+            email: user?.email, userName: settings.userName,
+          }}),
+        });
+        localStorage.setItem(lastKey, String(now));
+      }
+    }
+  }, [debts, settings, user, isPro, proExpiry]);
 
   // Sync money format singleton so fMoney respects the setting without prop drilling
   useEffect(() => {
