@@ -21,12 +21,22 @@ export const AJLogo = ({ size = 24 }) => (
   />
 );
 
+export const CombineLogo = ({ size = 28 }) => (
+  <img
+    src={`${process.env.PUBLIC_URL}/combinelogo.png`}
+    alt="Combine Logo"
+    width={size}
+    height={size}
+    style={{ objectFit: "contain", display: "block" }}
+  />
+);
+
 export const Watermark = ({ app = "wp" }) => (
   <div style={{
     position: "fixed",
     top: "50%",
     left: "50%",
-    transform: "translate(-30%, -30%)",
+    transform: "translate(-50%, -50%)",
     pointerEvents: "none",
     zIndex: 0,
     opacity: 0.045,
