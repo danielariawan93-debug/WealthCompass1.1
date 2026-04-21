@@ -1270,8 +1270,8 @@ function PassiveIncomeScene({
                       >
 {/* Tanggal pembayaran pertama / berikutnya */}
 <div style={{ marginBottom: 10 }}>
-  <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>
-    Tanggal Pembayaran Berikutnya
+  <div style={{ color: T.text, fontSize: 11, fontWeight: "bold", marginBottom: 6 }}>
+    📅 Tanggal Pembayaran Berikutnya
   </div>
   <input
     type="date"
@@ -1279,23 +1279,25 @@ function PassiveIncomeScene({
     onChange={(e) =>
       setIncomeForm((p) => ({ ...p, nextDate: e.target.value }))
     }
+    onClick={(e) => e.stopPropagation()}
     style={{
       width: "100%",
-      background: T.inputBg,
-      border: `1px solid ${T.border}`,
-      color: T.text,
+      background: "#1a1a2e",
+      border: `1.5px solid ${T.accent}`,
+      color: "#ffffff",
       borderRadius: 8,
-      padding: "9px 12px",
-      fontSize: 12,
+      padding: "10px 12px",
+      fontSize: 13,
       outline: "none",
       colorScheme: "dark",
+      boxSizing: "border-box",
     }}
   />
-  <div style={{ color: T.muted, fontSize: 10, marginTop: 3 }}>
-    Opsional. Isi untuk auto-catat di Artha Journey.
+  <div style={{ color: T.accent, fontSize: 10, marginTop: 4, fontWeight: 500 }}>
+    Isi untuk auto-catat passive income ke Artha Journey
   </div>
-</div>
-                        ✓ Simpan
+</div>                        
+      ✓ Simpan
                       </button>
                     </div>
                   )}
