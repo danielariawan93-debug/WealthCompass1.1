@@ -86,42 +86,40 @@ function RecurringScene({ recurringItems, setRecurringItems, T, dispCur, hideVal
             <TInput
               label="Nama Pengeluaran"
               value={form.name}
-              onChange={v => setForm(p => ({ ...p, name: v }))}
+              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
               placeholder="cth. Netflix, Sewa Kost"
               T={T}
             />
             <TSelect
-              label="Kategori"
-              value={form.category}
-              onChange={v => setForm(p => ({ ...p, category: v }))}
-              options={CATEGORIES.map(c => ({ value: c.value, label: c.label }))}
-              T={T}
-            />
+  value={form.category}
+  onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
+  T={T}
+>
+  {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+</TSelect>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
             <TInput
               label="Jumlah (IDR)"
               value={form.amount}
-              onChange={v => setForm(p => ({ ...p, amount: v }))}
+              onChange={e => setForm(p => ({ ...p, amount: e.target.value }))}
               placeholder="cth. 150000"
               T={T}
             />
             <TSelect
-              label="Frekuensi"
-              value={form.frequency}
-              onChange={v => setForm(p => ({ ...p, frequency: v }))}
-              options={[
-                { value: 'monthly',   label: 'Bulanan' },
-                { value: 'quarterly', label: 'Kuartalan (3 bln)' },
-                { value: 'yearly',    label: 'Tahunan' },
-              ]}
-              T={T}
-            />
+  value={form.frequency}
+  onChange={e => setForm(p => ({ ...p, frequency: e.target.value }))}
+  T={T}
+>
+  <option value="monthly">Bulanan</option>
+  <option value="quarterly">Kuartalan (3 bln)</option>
+  <option value="yearly">Tahunan</option>
+</TSelect>
           </div>
           <TInput
             label="Catatan (opsional)"
             value={form.notes}
-            onChange={v => setForm(p => ({ ...p, notes: v }))}
+            onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
             placeholder="Tambahan keterangan..."
             T={T}
           />
