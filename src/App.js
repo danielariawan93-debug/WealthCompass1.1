@@ -29,6 +29,7 @@ import { DebtScene } from "./scenes/DebtScene";
 import { RealAssetsScene } from "./scenes/RealAssetsScene";
 import ComingSoonScene from "./scenes/ComingSoonScene";
 import InsuranceScene from "./scenes/InsuranceScene";
+import { RecurringScene } from "./scenes/RecurringScene";
 import PdfExportModal from "./components/PdfExportModal";
 import { Watermark } from "./assets/logoSVG";
 
@@ -98,6 +99,7 @@ function WealthPulseV7() {
   const [assets, setAssets] = useState([]);
   const [activeIncomes, setActiveIncomes] = useState([]);
   const [insurances, setInsurances] = useState([]);
+  const [recurringItems, setRecurringItems] = useState([]);
   const [activeApp, setActiveApp] = useState(null); // null | 'wealthcompass' | 'arthajourney'
   const [bonusPulse, setBonusPulse] = useState([]); // [{id,amount,expiresAt,source,earnedAt}]
   const [referrals, setReferrals] = useState([]);   // users referred by this account
@@ -177,7 +179,7 @@ function WealthPulseV7() {
     assets, debts, goals, riskProfile,
     isPro, isProPlus, uploadCount, monthlyUploadCount, monthlyUploadMonth,
     pulseCredits, proExpiry, dispCur, settings, theme, customPresetId,
-    activeIncomes, insurances, monthlyExpense, monthlyFixedIncome,
+    activeIncomes, insurances, recurringItems, monthlyExpense, monthlyFixedIncome,
     bonusPulse, referrals, referredBy, networthSnapshots,
     ajWallets, ajTransactions, ajBudgets,
     onboardingComplete,
@@ -219,6 +221,7 @@ function WealthPulseV7() {
     setCustomPresetId(d.customPresetId || "midnight");
     setActiveIncomes(d.activeIncomes || []);
     setInsurances(d.insurances || []);
+    setRecurringItems(d.recurringItems || []);
     setMonthlyExpense(d.monthlyExpense || "");
     setMonthlyFixedIncome(d.monthlyFixedIncome || "");
     setBonusPulse(d.bonusPulse || []);
@@ -293,6 +296,7 @@ function WealthPulseV7() {
         setCustomPresetId(cloud.customPresetId || "midnight");
         setActiveIncomes(cloud.activeIncomes || []);
         setInsurances(cloud.insurances || []);
+        setRecurringItems(cloud.recurringItems || []);
         setMonthlyExpense(cloud.monthlyExpense || "");
         setMonthlyFixedIncome(cloud.monthlyFixedIncome || "");
         setBonusPulse(cloud.bonusPulse || []);
@@ -370,6 +374,7 @@ function WealthPulseV7() {
     setProExpiry(null);
     setActiveIncomes([]);
     setInsurances([]);
+    setRecurringItems([]);
     setMonthlyExpense("");
     setMonthlyFixedIncome("");
     setBonusPulse([]);
@@ -704,6 +709,7 @@ function WealthPulseV7() {
       customPresetId,
       activeIncomes,
       insurances,
+      recurringItems,
       monthlyExpense,
       monthlyFixedIncome,
       bonusPulse,
@@ -738,6 +744,7 @@ function WealthPulseV7() {
     settings,
     activeIncomes,
     insurances,
+    recurringItems,
     monthlyExpense,
     monthlyFixedIncome,
     bonusPulse,
@@ -1224,7 +1231,7 @@ function WealthPulseV7() {
                   T={T}
                   hideValues={hideValues}
                   setShowUpgrade={setShowUpgrade}
-                  monthlyExpense={monthlyExpense}
+                  recurringItems={recurringItems}
                   activeIncomes={activeIncomes}
                   monthlyFixedIncome={monthlyFixedIncome}
                   insurances={insurances}
@@ -1300,8 +1307,8 @@ function WealthPulseV7() {
                 setActiveIncomes={setActiveIncomes}
                 isPro={isPro}
                 isProPlus={isProPlus}
-                monthlyExpense={monthlyExpense}
-                setMonthlyExpense={setMonthlyExpense}
+                recurringItems={recurringItems}
+                setRecurringItems={setRecurringItems}
                 monthlyFixedIncome={monthlyFixedIncome}
                 setMonthlyFixedIncome={setMonthlyFixedIncome}
                 insurances={insurances}
@@ -1320,8 +1327,8 @@ function WealthPulseV7() {
                 setActiveIncomes={setActiveIncomes}
                 isPro={isPro}
                 isProPlus={isProPlus}
-                monthlyExpense={monthlyExpense}
-                setMonthlyExpense={setMonthlyExpense}
+                recurringItems={recurringItems}
+                setRecurringItems={setRecurringItems}
                 monthlyFixedIncome={monthlyFixedIncome}
                 setMonthlyFixedIncome={setMonthlyFixedIncome}
                 insurances={insurances}
@@ -1436,6 +1443,15 @@ function WealthPulseV7() {
                 setInsurances={setInsurances}
                 pulseCredits={totalAvailablePulse}
                 setPulseCredits={consumePulse_compat}
+              />
+            )}
+            {tab === "recurring" && (
+              <RecurringScene
+                recurringItems={recurringItems}
+                setRecurringItems={setRecurringItems}
+                T={T}
+                dispCur={dispCur}
+                hideValues={hideValues}
               />
             )}
             {tab === "peers" && (
