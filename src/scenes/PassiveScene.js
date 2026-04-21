@@ -5,7 +5,7 @@ import { fMoney, fM, parseVal, getIDR, FREQ_MULT, LS, LS2, getWealthSegment } fr
 import { ASSET_CLASSES, RATES, CURRENCIES } from '../constants/data';
 
 function DebtIncomeCard({ assets, debts, dispCur, isPro, T, hideValues, setShowUpgrade,
-  monthlyExpense = 0,
+  recurringItems = [],
   activeIncomes = [],
   monthlyFixedIncome = "",
   insurances = [],
@@ -43,7 +43,10 @@ function DebtIncomeCard({ assets, debts, dispCur, isPro, T, hideValues, setShowU
     return parseVal(d.monthlyPayment);
   };
   const totalDebtMon = debts.reduce((s, d) => s + getDebtMonthly(d), 0);
-  const biayaBulanan = parseVal(monthlyExpense);
+  const biayaBulanan = recurringItems.reduce((s, item) => {
+    const FREQ_M = { monthly: 1, quarterly: 1/3, yearly: 1/12 };
+    return s + (item.amount || 0) * (FREQ_M[item.frequency] || 1);
+  }, 0);
   // Insurance premiums: annualize then divide to monthly
   const totalInsuranceMon = insurances.reduce((s, ins) => {
     const annual = parseVal(ins.premium) * (FREQ_MULT[ins.premiumFreq] || 1);
@@ -504,8 +507,8 @@ function PassiveIncomeScene({
   T,
   hideValues = false,
   activeIncomes: activeIncomesProp = null,
-  monthlyExpense: monthlyExpenseProp = undefined,
-  setMonthlyExpense: setMonthlyExpenseProp = null,
+  recurringItems = [],
+  setRecurringItems = null,
   monthlyFixedIncome: monthlyFixedIncomeProp = undefined,
   setMonthlyFixedIncome: setMonthlyFixedIncomeProp = null,
   insurances = [],
@@ -532,10 +535,6 @@ function PassiveIncomeScene({
     { value: "other", label: "Lainnya", usePct: false },
   ];
 
-  // monthlyExpense from App.js prop (per-user) when available
-  const [_localExpense, _setLocalExpense] = useState("");
-  const monthlyExpense = monthlyExpenseProp !== undefined ? monthlyExpenseProp : _localExpense;
-  const setMonthlyExpense = setMonthlyExpenseProp || _setLocalExpense;
   const [_localFixed, _setLocalFixed] = useState("");
   const monthlyFixedIncome = monthlyFixedIncomeProp !== undefined ? monthlyFixedIncomeProp : _localFixed;
   const setMonthlyFixedIncome = setMonthlyFixedIncomeProp || _setLocalFixed;
@@ -569,7 +568,10 @@ function PassiveIncomeScene({
     0
   );
   const totalMonthly = totalAnnual / 12;
-  const expense = parseVal(monthlyExpense);
+  const expense = recurringItems.reduce((s, i) => {
+    const m = { monthly: 1, quarterly: 1/3, yearly: 1/12 };
+    return s + (i.amount || 0) * (m[i.frequency] || 1);
+  }, 0);
   // Combined cashflow = passive income + active income (gaji, dll)
   const fixedIncome = parseVal(monthlyFixedIncome);
   const totalCashflowMonthly = totalMonthly + totalActiveMonthly + fixedIncome;
@@ -668,20 +670,23 @@ function PassiveIncomeScene({
           <span style={{ color:T.accent, fontSize:13, fontWeight:"bold", letterSpacing:0.5 }}>Target Financial Freedom</span>
         </div>
 
-        {/* Row 1: Input Pengeluaran + Auto Target */}
+        {/* Row 1: Recurring summary + Auto Target */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
-          {/* Pengeluaran bulanan - manual input */}
+          {/* Pengeluaran Rutin - readonly summary */}
           <div>
             <div style={{ color:T.textSoft, fontSize:10, marginBottom:4, display:"flex", alignItems:"center", gap:4 }}>
               Pengeluaran Bulanan (IDR)
-              <InfoBtn T={T} content={"Kebutuhan hidup bulanan: makan, transportasi, gaya hidup, tagihan rutin. Tidak termasuk cicilan hutang yang sudah tercatat di modul Hutang."} />
+              <InfoBtn T={T} content={"Total pengeluaran rutin bulanan dari modul Pengeluaran Rutin. Klik Kelola untuk menambah atau mengubah item."} />
             </div>
-            <input
-              value={monthlyExpense}
-              onChange={e => setMonthlyExpense(e.target.value)}
-              placeholder="Contoh: 5000000"
-              style={{ width:"100%", background:T.inputBg, border:`1px solid ${T.border}`, color:T.text, borderRadius:9, padding:"9px 12px", fontSize:12, outline:"none", boxSizing:"border-box" }}
-            />
+            <div style={{ background:T.inputBg, border:`1px solid ${T.border}`, borderRadius:9, padding:"9px 12px" }}>
+              <div style={{ color:T.red, fontSize:13, fontWeight:"bold" }}>{fV(expense, dispCur)}/bln</div>
+              <div style={{ color: T.muted, fontSize: 9, marginTop: 2 }}>
+                Pengeluaran Rutin: {fV(expense, dispCur)} /bln
+                <span style={{ color: T.accent, marginLeft: 8, cursor:'pointer' }} onClick={() => setTab && setTab('recurring')}>
+                  Kelola →
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Target FF - auto = hutang/bln + pengeluaran */}
@@ -1334,8 +1339,8 @@ function FinanceToolsScene({
   setActiveIncomes = null,
   isPro = false,
   isProPlus = false,
-  monthlyExpense = undefined,
-  setMonthlyExpense = null,
+  recurringItems = [],
+  setRecurringItems = null,
   monthlyFixedIncome = undefined,
   setMonthlyFixedIncome = null,
   insurances = [],
@@ -1384,8 +1389,8 @@ function FinanceToolsScene({
           activeIncomes={activeIncomes}
           isPro={isPro}
           isProPlus={isProPlus}
-          monthlyExpense={monthlyExpense}
-          setMonthlyExpense={setMonthlyExpense}
+          recurringItems={recurringItems}
+          setRecurringItems={setRecurringItems}
           monthlyFixedIncome={monthlyFixedIncome}
           setMonthlyFixedIncome={setMonthlyFixedIncome}
           insurances={insurances}

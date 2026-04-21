@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { id: "goal",          label: "Goals",              icon: "🎯", color: "#f26b6b" },
   { id: "finance-tools", label: "Finance Tools",      icon: "📊", color: "#9b7ef8" },
   { id: "debt",          label: "Hutang",             icon: "💳", color: "#f59e0b" },
+  { id: "recurring",     label: "Pengeluaran Rutin",  icon: "🔄", color: "#f87239" },
   { id: "networth",      label: "Net Worth",          icon: "📈", color: "#34d399" },
   { id: "real-assets",   label: "Properti & Bisnis",  icon: "🏡", color: "#f87239", alwaysShow: true, proGate: true },
   { id: "insurance",     label: "Asuransi",           icon: "🛡️", color: "#818cf8", alwaysShow: true, proGate: true },
