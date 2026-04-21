@@ -2,44 +2,12 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { auth } from "./components/LoginScreen";
 import { signOut, onAuthStateChanged } from "firebase/auth";
 import { THEMES, CUSTOM_PRESETS, applyPreset } from "./constants/themes";
-import {
-  ASSET_CLASSES,
-  CURRENCIES,
-  RATES,
-  RISK_PROFILES,
-} from "./constants/data";
+import { ASSET_CLASSES, CURRENCIES, RATES,RISK_PROFILES } from "./constants/data";
 import { TIERS, getTier } from "./constants/tiers";
-import {
-  fMoney,
-  fM,
-  parseVal,
-  getIDR,
-  LS,
-  getWealthSegment,
-  setMoneyFull,
-} from "./utils/helpers";
-import {
-  saveAccountData,
-  loadAccountData,
-  saveAccountDataCloud,
-  loadAccountDataCloud,
-  registerReferralCode,
-  lookupReferralCode,
-  creditReferrer,
-  DEFAULT_ACCOUNT_STATE,
-} from "./utils/storage";
-import {
-  Card,
-  SL,
-  Chip,
-  Bar,
-  TInput,
-  TSelect,
-  TBtn,
-  Donut,
-  InfoBtn,
-  LineChart,
-} from "./components/ui";
+import { fMoney, fM, parseVal, getIDR, LS, getWealthSegment, setMoneyFull } from "./utils/helpers";
+import { syncPassiveIncome } from "./utils/passiveIncomeSync";
+import { saveAccountData, loadAccountData, saveAccountDataCloud, loadAccountDataCloud, registerReferralCode, lookupReferralCode, creditReferrer, DEFAULT_ACCOUNT_STATE } from "./utils/storage";
+import { Card, SL, Chip, Bar, TInput, TSelect, TBtn, Donut, InfoBtn, LineChart } from "./components/ui";
 import { NAV_ITEMS, Sidebar } from "./components/Sidebar";
 import UpgradePanel from "./components/UpgradePanel";
 import LoginScreen from "./components/LoginScreen";
@@ -56,13 +24,7 @@ import SettingsPopup from "./scenes/SettingsPopup";
 import AppSelector from "./components/AppSelector";
 import ArthaJourneyApp from "./scenes/ArthaJourneyApp";
 import NetWorthTrackerScene from "./scenes/NetWorthScene";
-import {
-  DebtIncomeCard,
-  PassiveIncomeSummary,
-  ActiveIncomeSummary,
-  PassiveIncomeScene,
-  FinanceToolsScene,
-} from "./scenes/PassiveScene";
+import { DebtIncomeCard, PassiveIncomeSummary, ActiveIncomeSummary, PassiveIncomeScene, FinanceToolsScene } from "./scenes/PassiveScene";
 import { DebtScene } from "./scenes/DebtScene";
 import { RealAssetsScene } from "./scenes/RealAssetsScene";
 import ComingSoonScene from "./scenes/ComingSoonScene";
@@ -801,6 +763,27 @@ function WealthPulseV7() {
     }
   }, [assets]); // eslint-disable-line
 
+  useEffect(() => {
+  // Guard 1: tunggu cloud load selesai (hindari race condition Firestore)
+  if (!cloudLoadDone.current) return;
+  // Guard 2: data belum siap
+  if (!assets.length || !ajWallets.length) return;
+ 
+  const walletId = ajWallets[0]?.id;
+  if (!walletId) return;
+ 
+  const { newTransactions, updatedAssets } = syncPassiveIncome(
+    assets,
+    ajTransactions,
+    walletId
+  );
+ 
+  if (newTransactions.length === 0) return;
+ 
+  setAjTransactions(prev => [...prev, ...newTransactions]);
+  setAssets(updatedAssets); // update incomeSchedule.lastPaid + nextDate
+}, [cloudLoadDone.current, assets, ajWallets]); // eslint-disable-line
+  
   // handleLoginRef: always points to the latest handleLogin so onAuthStateChanged
   // (which runs inside a useEffect([], []) closure) never calls a stale version.
   const handleLoginRef = React.useRef(null);
