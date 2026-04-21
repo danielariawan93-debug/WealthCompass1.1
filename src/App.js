@@ -1726,6 +1726,12 @@ function WealthPulseV7() {
         referrals={referrals}
         addBonusPulse={addBonusPulse_fn}
       />
+      <QuickTxWidget
+        wallets={ajWallets}
+        setAjTransactions={setAjTransactions}
+        T={T}
+        visible={activeApp === "arthajourney"}
+      />
     </div>
   );
 }
