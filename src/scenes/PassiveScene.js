@@ -4,14 +4,7 @@ import { Card, SL, Chip, Bar, TInput, TSelect, TBtn, Donut, InfoBtn, LineChart }
 import { fMoney, fM, parseVal, getIDR, FREQ_MULT, LS, LS2, getWealthSegment } from '../utils/helpers';
 import { ASSET_CLASSES, RATES, CURRENCIES } from '../constants/data';
 
-function DebtIncomeCard({
-  assets,
-  debts,
-  dispCur,
-  isPro,
-  T,
-  hideValues,
-  setShowUpgrade,
+function DebtIncomeCard({ assets, debts, dispCur, isPro, T, hideValues, setShowUpgrade,
   monthlyExpense = 0,
   activeIncomes = [],
   monthlyFixedIncome = "",
@@ -563,6 +556,7 @@ function PassiveIncomeScene({
     inputMode: "nominal",
     frequency: "monthly",
     type: "dividend",
+    nextDate: ""
   });
 
   // Exclude bisnis aktif dari passive income (sudah masuk activeIncomes)
@@ -631,6 +625,13 @@ function PassiveIncomeScene({
                       type: incomeForm.type,
                     }
                   : undefined,
+            incomeSchedule:
+  amt > 0 && incomeForm.nextDate
+    ? {
+        nextDate: incomeForm.nextDate,
+        lastPaid: a.incomeSchedule?.lastPaid || null,
+      }
+    : a.incomeSchedule,
             }
           : a
       )
@@ -644,6 +645,7 @@ function PassiveIncomeScene({
     const existAmt = asset.income?.amount || 0;
     const existFreq = asset.income?.frequency || "monthly";
     const existType = asset.income?.type || "dividend";
+    const existNextDate = asset.incomeSchedule?.nextDate || "";
     // Pre-fill pct if we have amount and asset value
     const annualExist = existAmt * (FREQ_MULT[existFreq] || 1);
     const impliedPct =
@@ -1252,7 +1254,6 @@ function PassiveIncomeScene({
                           </div>
                         )}
                       </div>
-
                       <button
                         onClick={() => saveIncome(a.id, assetIDR)}
                         style={{
@@ -1267,6 +1268,33 @@ function PassiveIncomeScene({
                           fontWeight: "bold",
                         }}
                       >
+{/* Tanggal pembayaran pertama / berikutnya */}
+<div style={{ marginBottom: 10 }}>
+  <div style={{ color: T.textSoft, fontSize: 10, marginBottom: 4 }}>
+    Tanggal Pembayaran Berikutnya
+  </div>
+  <input
+    type="date"
+    value={incomeForm.nextDate}
+    onChange={(e) =>
+      setIncomeForm((p) => ({ ...p, nextDate: e.target.value }))
+    }
+    style={{
+      width: "100%",
+      background: T.inputBg,
+      border: `1px solid ${T.border}`,
+      color: T.text,
+      borderRadius: 8,
+      padding: "9px 12px",
+      fontSize: 12,
+      outline: "none",
+      colorScheme: "dark",
+    }}
+  />
+  <div style={{ color: T.muted, fontSize: 10, marginTop: 3 }}>
+    Opsional. Isi untuk auto-catat di Artha Journey.
+  </div>
+</div>
                         ✓ Simpan
                       </button>
                     </div>
