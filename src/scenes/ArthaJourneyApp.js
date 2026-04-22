@@ -2067,22 +2067,6 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
         </div>
       )}
 
-      {/* FAB buttons */}
-      {wallets.length > 0 && !showForm && (
-        <div style={{ position: "fixed", bottom: 24, right: 16, display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end", zIndex: 50 }}>
-          <button
-            onClick={() => setShowScanner(true)}
-            style={{ width: 44, height: 44, borderRadius: "50%", background: T.card, border: `1px solid ${T.border}`, color: T.accent, fontSize: 20, cursor: "pointer", boxShadow: "0 2px 12px #0004" }}
-            title="Scan Struk"
-          >📸</button>
-          <button
-            onClick={() => { setForm({ ...emptyForm, walletId: defaultWallet }); setShowForm(true); }}
-            style={{ width: 52, height: 52, borderRadius: "50%", background: T.accent, color: "#000", border: "none", fontSize: 24, cursor: "pointer", boxShadow: `0 4px 20px ${T.accent}66`, fontWeight: 700 }}
-            title="Catat Transaksi"
-          >+</button>
-        </div>
-      )}
-
       {/* Receipt Scanner modal */}
       {showScanner && (
         <ReceiptScanner
