@@ -19,30 +19,133 @@ function genId() { return Date.now().toString(36) + Math.random().toString(36).s
 function parseNum(v) { return parseFloat(String(v||"0").replace(/[^\d.]/g,""))||0; }
 function fmtIDR(v) { return "Rp" + Math.round(v).toLocaleString("id-ID"); }
 
-const TX_EXPENSE_CATS = ["Makan & Minum","Transportasi","Belanja","Tagihan & Utilitas","Hiburan","Kesehatan","Pendidikan","Perawatan Diri","Lainnya"];
+const DANA_WALLET_TYPES = ["Bank", "E-Wallet", "Tunai"];
+const KREDIT_WALLET_TYPES = ["Paylater", "Kartu Kredit", "Rekening Koran"];
+
+const AREA_DEFS = {
+  kebutuhan: {
+    label: "Kebutuhan", icon: "🏠", color: "#5b9cf6",
+    cats: ["Makan & Minum","Belanja Dapur","Transportasi","Tagihan & Utilitas","Listrik & Air","Internet & Phone","Kesehatan","Pendidikan","Anak & Keluarga","Sewa / KPR","Kebutuhan Lainnya"],
+  },
+  keinginan: {
+    label: "Keinginan", icon: "🛍️", color: "#f59e0b",
+    cats: ["Makan di Luar","Hiburan","Belanja","Perawatan Diri","Liburan","Hobi & Game","Langganan (Netflix dll)","Keinginan Lainnya"],
+  },
+  tabungan: {
+    label: "Tabungan & Investasi", icon: "💰", color: "#3ecf8e",
+    cats: ["Dana Darurat","Investasi Saham/Reksa","Cicilan Aset","Asuransi","Tabungan Tujuan","Tabungan Lainnya"],
+  },
+};
+
 const TX_INCOME_CATS = ["Gaji/Salary","Bonus","Freelance","Passive Income","Penjualan","Transfer Masuk","Lainnya"];
+
 const CAT_ICONS = {
-  "Makan & Minum":"🍜","Transportasi":"🚗","Tagihan & Utilitas":"💡","Kesehatan":"❤️","Pendidikan":"📚",
-  "Belanja":"🛍️","Hiburan":"🎬","Perawatan Diri":"✨","Gaji/Salary":"💼","Bonus":"🎁",
-  "Freelance":"💻","Passive Income":"📊","Penjualan":"🏷️","Transfer Masuk":"↩️","Lainnya":"📦",
+  "Makan & Minum":"🍜","Belanja Dapur":"🛒","Transportasi":"🚗","Tagihan & Utilitas":"💡",
+  "Listrik & Air":"⚡","Internet & Phone":"📶","Kesehatan":"❤️","Pendidikan":"📚",
+  "Anak & Keluarga":"👶","Sewa / KPR":"🏠","Kebutuhan Lainnya":"📦",
+  "Makan di Luar":"🍽️","Hiburan":"🎬","Belanja":"🛍️","Perawatan Diri":"✨",
+  "Liburan":"✈️","Hobi & Game":"🎮","Langganan (Netflix dll)":"📺","Keinginan Lainnya":"🌟",
+  "Dana Darurat":"🛡️","Investasi Saham/Reksa":"📈","Cicilan Aset":"🏡","Asuransi":"☂️",
+  "Tabungan Tujuan":"🎯","Tabungan Lainnya":"💰",
+  "Gaji/Salary":"💼","Bonus":"🎁","Freelance":"💻","Passive Income":"📊",
+  "Penjualan":"🏷️","Transfer Masuk":"↩️","Lainnya":"📦",
+};
+
+const TYPE_META = {
+  income:       { label: "Pemasukan",    icon: "💰", color: "#3ecf8e" },
+  expense:      { label: "Pengeluaran",  icon: "💸", color: "#f26b6b" },
+  debt_payment: { label: "Bayar Hutang", icon: "💳", color: "#f59e0b" },
+  transfer:     { label: "Transfer",     icon: "↔️", color: "#9b7ef8" },
 };
 
 const T = {
   bg: "#0d0f14", card: "#1c2130", surface: "#161a24",
-  border: "#252b3b", accent: "#f59e0b", text: "#e8eaf0",
+  border: "#252b3b", accent: "#f59e0b", accentDim: "#f59e0b22", text: "#e8eaf0",
   muted: "#6b7280", textSoft: "#9aa3b0",
   green: "#3ecf8e", red: "#f26b6b",
   inputBg: "#1c2130",
 };
 
+function CategoryPicker({ value, onChange, type = "expense" }) {
+  const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+
+  const areas = Object.entries(AREA_DEFS).map(([key, def]) => ({
+    key, label: def.label, icon: def.icon, color: def.color,
+    cats: def.cats.filter(c => !c.endsWith("Lainnya")),
+  }));
+
+  const displayLabel = value ? `${CAT_ICONS[value] || "📦"} ${value}` : "Pilih kategori...";
+  const matchesSearch = (c) => !search || c.toLowerCase().includes(search.toLowerCase());
+
+  return (
+    <div style={{ position: "relative", marginBottom: 10 }}>
+      <button
+        onClick={() => { setOpen(o => !o); setSearch(""); }}
+        style={{ width: "100%", padding: "11px 14px", borderRadius: 10, border: `1px solid ${open ? T.accent : T.border}`, background: T.inputBg, color: value ? T.text : T.muted, textAlign: "left", cursor: "pointer", fontSize: 14, display: "flex", justifyContent: "space-between", alignItems: "center", boxSizing: "border-box" }}
+      >
+        <span>{displayLabel}</span>
+        <span style={{ fontSize: 10, color: T.muted }}>▾</span>
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />
+          <div style={{ position: "absolute", zIndex: 200, top: "calc(100% + 4px)", left: 0, right: 0, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, maxHeight: 280, overflowY: "auto", boxShadow: "0 8px 32px #0008" }}>
+            <div style={{ padding: "8px 10px", borderBottom: `1px solid ${T.border}`, position: "sticky", top: 0, background: T.card, zIndex: 1 }}>
+              <input
+                value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="🔍 Cari kategori..." autoFocus
+                style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.accent}`, background: T.surface, color: T.text, fontSize: 12, outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+            {type === "income" ? (
+              TX_INCOME_CATS.filter(matchesSearch).map(cat => (
+                <button key={cat} onClick={() => { onChange(cat); setOpen(false); }}
+                  style={{ width: "100%", padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, background: value === cat ? T.accentDim : "transparent", border: "none", borderBottom: `1px solid ${T.border}44`, color: T.text, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
+                  <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{CAT_ICONS[cat] || "💰"}</span>
+                  <span style={{ flex: 1 }}>{cat}</span>
+                  {value === cat && <span style={{ color: T.accent }}>✓</span>}
+                </button>
+              ))
+            ) : (
+              areas.map(area => {
+                const cats = area.cats.filter(matchesSearch);
+                if (cats.length === 0) return null;
+                return (
+                  <div key={area.key}>
+                    <div style={{ padding: "7px 14px 6px", background: area.color + "30", fontSize: 10, fontWeight: 800, color: area.color, letterSpacing: 1.5, textTransform: "uppercase", position: "sticky", top: 45, zIndex: 1 }}>
+                      {area.icon} {area.label}
+                    </div>
+                    {cats.map(cat => (
+                      <button key={cat} onClick={() => { onChange(cat); setOpen(false); }}
+                        style={{ width: "100%", padding: "10px 14px 10px 20px", display: "flex", alignItems: "center", gap: 10, background: value === cat ? T.accentDim : "transparent", border: "none", borderBottom: `1px solid ${T.border}33`, color: T.text, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
+                        <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{CAT_ICONS[cat] || "📦"}</span>
+                        <span style={{ flex: 1 }}>{cat}</span>
+                        {value === cat && <span style={{ color: T.accent }}>✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function QuickInputApp() {
   const [authState, setAuthState] = useState("checking");
   const [uid, setUid] = useState(null);
   const [wallets, setWallets] = useState([]);
+  const [debts, setDebts] = useState([]);
   const [form, setForm] = useState({
     type: "expense",
     walletId: "",
     toWalletId: "",
+    debtId: "",
     category: "Makan & Minum",
     amount: "",
     description: "",
@@ -66,7 +169,9 @@ export default function QuickInputApp() {
         const snap = await getDoc(doc(db, "users", user.uid));
         const data = snap.exists() ? (snap.data().data || {}) : {};
         setWallets(data.ajWallets || []);
-        const firstWallet = (data.ajWallets || [])[0]?.id || "";
+        setDebts(data.debts || []);
+        const danaWallets = (data.ajWallets || []).filter(w => DANA_WALLET_TYPES.includes(w.type));
+        const firstWallet = danaWallets[0]?.id || (data.ajWallets || [])[0]?.id || "";
         setForm(p => ({ ...p, walletId: firstWallet }));
       } catch {}
       setAuthState("ok");
@@ -74,12 +179,10 @@ export default function QuickInputApp() {
     return () => unsub();
   }, []);
 
-  useEffect(() => {
-    if (form.type === "expense") setForm(p => ({ ...p, category: TX_EXPENSE_CATS[0] }));
-    else if (form.type === "income") setForm(p => ({ ...p, category: TX_INCOME_CATS[0] }));
-  }, [form.type]); // eslint-disable-line
-
-  const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
+  const setType = (t) => {
+    const cat = t === "income" ? "Gaji/Salary" : t === "expense" ? "Makan & Minum" : "";
+    setForm(p => ({ ...p, type: t, category: cat, debtId: "", toWalletId: "" }));
+  };
 
   const walletName = (id) => wallets.find(w => w.id === id)?.name || id;
 
@@ -88,19 +191,24 @@ export default function QuickInputApp() {
     if (!amt) { setError("Jumlah wajib diisi."); return; }
     if (!form.walletId) { setError("Pilih wallet."); return; }
     if (form.type === "transfer" && !form.toWalletId) { setError("Pilih wallet tujuan."); return; }
+    if (form.type === "debt_payment" && !form.debtId) { setError("Pilih hutang yang dibayar."); return; }
     setError("");
+    const debtName = debts.find(d => d.id === form.debtId)?.name || "Bayar Hutang";
     const tx = {
       id: genId(),
       date: form.date,
       type: form.type,
-      category: form.type === "transfer" ? "Transfer" : form.category,
+      category: form.type === "debt_payment" ? debtName
+              : form.type === "transfer" ? "Transfer"
+              : form.category,
       amount: amt,
       walletId: form.walletId,
-      ...(form.type === "transfer" && { toWalletId: form.toWalletId }),
+      toWalletId: form.type === "transfer" ? form.toWalletId : "",
+      debtId: form.type === "debt_payment" ? form.debtId : "",
       description: form.description,
     };
     setStaging(prev => [...prev, tx]);
-    setForm(p => ({ ...p, amount: "", description: "" }));
+    setForm(p => ({ ...p, amount: "", description: "", debtId: "" }));
   };
 
   const removeFromStaging = (id) => setStaging(prev => prev.filter(t => t.id !== id));
@@ -137,12 +245,10 @@ export default function QuickInputApp() {
   };
   const selStyle = { ...inpStyle, marginBottom: 10 };
 
-  const amtColor = (type) => type === "income" ? T.green : type === "transfer" ? T.accent : T.red;
+  const amtColor = (type) => TYPE_META[type]?.color || T.red;
 
-  const totalExpense = staging.filter(t => t.type === "expense").reduce((s,t) => s + t.amount, 0);
+  const totalExpense = staging.filter(t => t.type === "expense" || t.type === "debt_payment").reduce((s,t) => s + t.amount, 0);
   const totalIncome  = staging.filter(t => t.type === "income").reduce((s,t) => s + t.amount, 0);
-
-  const catOptions = form.type === "income" ? TX_INCOME_CATS : TX_EXPENSE_CATS;
 
   // --- Checking state ---
   if (authState === "checking") {
@@ -194,90 +300,65 @@ export default function QuickInputApp() {
       {/* Body */}
       <div style={{ padding: "16px 16px 120px" }}>
 
-        {/* Type toggle */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-          {[["expense","Pengeluaran"],["income","Pemasukan"],["transfer","Transfer"]].map(([v,l]) => (
-            <button
-              key={v}
-              onClick={() => set("type", v)}
-              style={{
-                flex: 1, padding: "10px 0", borderRadius: 9, fontSize: 12, fontWeight: "bold",
-                border: "none", cursor: "pointer",
-                background: form.type === v ? T.accent : T.surface,
-                color: form.type === v ? "#000" : T.muted,
-                transition: "all 0.15s",
-              }}
-            >
-              {l}
+        {/* Type selector — 4 buttons */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+          {Object.entries(TYPE_META).map(([k, m]) => (
+            <button key={k} onClick={() => setType(k)}
+              style={{ padding: "10px 4px", borderRadius: 10, border: `1px solid ${form.type===k ? m.color : T.border}`, background: form.type===k ? m.color+"22" : T.surface, color: form.type===k ? m.color : T.muted, fontSize: 10, cursor: "pointer", fontWeight: form.type===k ? 700 : 400, textAlign: "center" }}>
+              <div style={{ fontSize: 20, marginBottom: 4 }}>{m.icon}</div>
+              <div>{m.label}</div>
             </button>
           ))}
         </div>
 
-        {/* Wallet */}
-        {wallets.length === 0 ? (
-          <div style={{ color: T.muted, fontSize: 13, marginBottom: 10, padding: "11px 14px", background: T.surface, borderRadius: 10 }}>
-            Buat wallet di Artha Journey dulu
-          </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: form.type === "transfer" ? "1fr 1fr" : "1fr", gap: 8, marginBottom: 0 }}>
-            <div>
-              <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 4 }}>
-                {form.type === "transfer" ? "Dari Wallet" : "Wallet"}
-              </div>
-              <select value={form.walletId} onChange={e => set("walletId", e.target.value)} style={selStyle}>
-                {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-            </div>
-            {form.type === "transfer" && (
-              <div>
-                <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 4 }}>Ke Wallet</div>
-                <select value={form.toWalletId} onChange={e => set("toWalletId", e.target.value)} style={selStyle}>
-                  <option value="">Pilih wallet</option>
-                  {wallets.filter(w => w.id !== form.walletId).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
-              </div>
-            )}
-          </div>
+        {/* Date + Amount row */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <input type="date" value={form.date} onChange={e => setForm(p=>({...p, date: e.target.value}))}
+            style={{ ...inpStyle, flex: 1, marginBottom: 0 }} />
+          <input type="number" value={form.amount} onChange={e => setForm(p=>({...p, amount: e.target.value}))}
+            placeholder="Jumlah (Rp)" style={{ ...inpStyle, flex: 2, marginBottom: 0 }} />
+        </div>
+
+        {/* Category picker */}
+        {form.type === "expense" && (
+          <CategoryPicker value={form.category} onChange={v => setForm(p=>({...p, category: v}))} type="expense" />
+        )}
+        {form.type === "income" && (
+          <CategoryPicker value={form.category} onChange={v => setForm(p=>({...p, category: v}))} type="income" />
         )}
 
-        {/* Category */}
-        {form.type !== "transfer" && (
-          <>
-            <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 4 }}>Kategori</div>
-            <select value={form.category} onChange={e => set("category", e.target.value)} style={selStyle}>
-              {catOptions.map(c => <option key={c} value={c}>{CAT_ICONS[c]} {c}</option>)}
+        {/* Debt selector */}
+        {form.type === "debt_payment" && (
+          <select value={form.debtId} onChange={e => setForm(p=>({...p, debtId: e.target.value}))} style={selStyle}>
+            <option value="">-- Pilih Hutang --</option>
+            {debts.map(d => <option key={d.id} value={d.id}>{d.name} (sisa Rp{Math.round(d.outstanding||0).toLocaleString("id-ID")})</option>)}
+          </select>
+        )}
+
+        {/* Wallet selector */}
+        {(() => {
+          const danaOnly = form.type === "transfer" || form.type === "debt_payment";
+          const srcWallets = danaOnly ? wallets.filter(w => DANA_WALLET_TYPES.includes(w.type)) : wallets;
+          return (
+            <select value={form.walletId} onChange={e => setForm(p=>({...p, walletId: e.target.value}))} style={selStyle}>
+              <option value="">{danaOnly ? "-- Dari Akun Dana --" : "-- Dari Wallet --"}</option>
+              {srcWallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
-          </>
-        )}
+          );
+        })()}
 
-        {/* Amount */}
-        <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 4 }}>Jumlah (IDR)</div>
-        <input
-          type="number"
-          value={form.amount}
-          onChange={e => set("amount", e.target.value)}
-          placeholder="0"
-          style={inpStyle}
-        />
+        {/* To wallet (transfer only) */}
+        {form.type === "transfer" && (
+          <select value={form.toWalletId} onChange={e => setForm(p=>({...p, toWalletId: e.target.value}))} style={selStyle}>
+            <option value="">-- Ke Akun Dana --</option>
+            {wallets.filter(w => DANA_WALLET_TYPES.includes(w.type) && w.id !== form.walletId)
+              .map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+        )}
 
         {/* Description */}
-        <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 4 }}>Catatan (opsional)</div>
-        <input
-          type="text"
-          value={form.description}
-          onChange={e => set("description", e.target.value)}
-          placeholder="Tambahan keterangan..."
-          style={inpStyle}
-        />
-
-        {/* Date */}
-        <div style={{ color: T.textSoft, fontSize: 11, marginBottom: 4 }}>Tanggal</div>
-        <input
-          type="date"
-          value={form.date}
-          onChange={e => set("date", e.target.value)}
-          style={inpStyle}
-        />
+        <input type="text" value={form.description} onChange={e => setForm(p=>({...p, description: e.target.value}))}
+          placeholder="Keterangan (opsional)" style={inpStyle} />
 
         {error && <div style={{ color: T.red, fontSize: 12, marginBottom: 10 }}>{error}</div>}
 
