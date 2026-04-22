@@ -88,7 +88,7 @@ export function OnboardingFlow({
   setDebts = () => {},
 }) {
   const [step, setStep] = useState(1);
-  const TOTAL = 13;
+  const TOTAL = 14;
 
   // Step 2 — income
   const [income,     setIncome]     = useState("");
@@ -222,7 +222,7 @@ export function OnboardingFlow({
       currency: "IDR",
       createdAt: new Date().toISOString(),
     }]);
-    onComplete();
+    next();
   };
 
   // ── Shared styles ──
@@ -666,6 +666,55 @@ export function OnboardingFlow({
             </PrimaryBtn>
           </>
         );
+
+      // Step 14: Quick Input shortcut tip
+      case 14: {
+        const isIOS     = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        const isAndroid = /android/i.test(navigator.userAgent);
+        const steps = isAndroid
+          ? ['Tap menu di Chrome', '"Tambahkan ke layar utama"', 'Konfirmasi — shortcut siap!']
+          : isIOS
+          ? ['Tap ikon Share di Safari', '"Tambahkan ke Layar Utama"', 'Konfirmasi — shortcut siap!']
+          : ['Buka /quick-input di browser mobile', 'Tambahkan ke home screen', 'Input transaksi tanpa buka app'];
+
+        return (
+          <>
+            <div style={{ textAlign: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 48, marginBottom: 10 }}>⚡</div>
+              <div style={{ fontWeight: 700, fontSize: 17, color: T.text, marginBottom: 6 }}>
+                Tip: Input Cepat
+              </div>
+              <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.6 }}>
+                Pasang shortcut ke home screen agar bisa catat transaksi langsung tanpa buka app.
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+              {steps.map((s, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: T.surface, borderRadius: 9 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#3ecf8e22", color: "#3ecf8e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                    {i + 1}
+                  </div>
+                  <div style={{ fontSize: 12, color: T.text }}>{s}</div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => window.open('/quick-input', '_blank')}
+              style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", background: "#3ecf8e", color: "#000", fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 8 }}
+            >
+              Buka &amp; Pasang Sekarang ↗
+            </button>
+            <button
+              onClick={onComplete}
+              style={{ width: "100%", padding: "11px", borderRadius: 10, border: `1px solid ${T.border}`, background: "none", color: T.muted, fontSize: 13, cursor: "pointer" }}
+            >
+              Lewati — Mulai Gunakan App
+            </button>
+          </>
+        );
+      }
 
       default: return null;
     }

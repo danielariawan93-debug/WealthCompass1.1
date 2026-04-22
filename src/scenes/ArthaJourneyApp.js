@@ -2207,6 +2207,65 @@ function HutangScene({ T, debts }) {
 }
 
 // ─── Tools Scene ─────────────────────────────────────────────────────────────
+function QuickInputCard({ T }) {
+  const isIOS     = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isAndroid = /android/i.test(navigator.userAgent);
+
+  const STEPS_ANDROID = [
+    { icon: "⋮",  text: 'Tap menu (titik tiga) di Chrome' },
+    { icon: "➕", text: '"Tambahkan ke layar utama"' },
+    { icon: "✅", text: 'Konfirmasi — shortcut siap!' },
+  ];
+  const STEPS_IOS = [
+    { icon: "📤", text: 'Tap ikon Share di Safari' },
+    { icon: "📲", text: '"Tambahkan ke Layar Utama"' },
+    { icon: "✅", text: 'Konfirmasi — shortcut siap!' },
+  ];
+  const STEPS_DESKTOP = [
+    { icon: "🌐", text: 'Buka di Chrome / Safari mobile' },
+    { icon: "📲", text: 'Tambahkan ke home screen' },
+    { icon: "⚡", text: 'Input transaksi tanpa buka app' },
+  ];
+
+  const steps = isAndroid ? STEPS_ANDROID : isIOS ? STEPS_IOS : STEPS_DESKTOP;
+  const platformLabel = isAndroid ? "Android" : isIOS ? "iOS" : "Mobile";
+
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.accent}44`, borderRadius: 14, padding: "16px", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 20 }}>⚡</span>
+        <div>
+          <div style={{ color: T.accent, fontSize: 13, fontWeight: 700 }}>Input Cepat — Shortcut Home Screen</div>
+          <div style={{ color: T.muted, fontSize: 11, marginTop: 2 }}>Catat transaksi tanpa buka aplikasi</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+        {steps.map((s, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: T.surface, borderRadius: 9 }}>
+            <div style={{ width: 28, height: 28, borderRadius: "50%", background: T.accentDim, color: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
+              {s.icon}
+            </div>
+            <div style={{ color: T.text, fontSize: 12 }}>{s.text}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={() => window.open('/quick-input', '_blank')}
+          style={{ flex: 2, padding: "11px 0", borderRadius: 10, background: T.accent, color: "#000", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+        >
+          Buka Input Cepat ↗
+        </button>
+        <div style={{ flex: 1, padding: "11px 8px", borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, color: T.muted, fontSize: 10, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {platformLabel} detected
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ToolsScene({ T, transactions, wallets }) {
   const curMonth = getMonth();
   const lastMonth = prevMonth(curMonth);
@@ -2250,6 +2309,7 @@ function ToolsScene({ T, transactions, wallets }) {
 
   return (
     <div style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
+      <QuickInputCard T={T} />
       <FeaturePopup T={T} featureKey="aj_tools" icon="🔧" title="Tools Analisis"
         content="Di halaman ini Anda dapat melihat analisis arus kas bulanan, tabungan rate, dan breakdown pengeluaran per kategori untuk memahami pola keuangan Anda." />
       {/* Cash flow this month */}
