@@ -30,7 +30,6 @@ import { RealAssetsScene } from "./scenes/RealAssetsScene";
 import ComingSoonScene from "./scenes/ComingSoonScene";
 import InsuranceScene from "./scenes/InsuranceScene";
 import { RecurringScene } from "./scenes/RecurringScene";
-import QuickTxWidget from "./components/QuickTxWidget";
 import PdfExportModal from "./components/PdfExportModal";
 import { Watermark } from "./assets/logoSVG";
 
@@ -930,12 +929,6 @@ function WealthPulseV7() {
           referralCode={referralCode}
           referrals={referrals}
           addBonusPulse={addBonusPulse_fn}
-        />
-        <QuickTxWidget
-          wallets={ajWallets}
-          setAjTransactions={setAjTransactions}
-          T={T}
-          visible={activeApp === "arthajourney"}
         />
       </>
     );
