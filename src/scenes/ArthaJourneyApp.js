@@ -185,8 +185,6 @@ function parseNum(v) { return parseFloat(String(v || "0").replace(/[^\d.]/g, "")
 const calcPulseCost = (count) => count > 50 ? 3 : count > 20 ? 2 : 1;
 
 const TX_INCOME_CATS = ["Gaji/Salary","Bonus","Freelance","Passive Income","Penjualan","Transfer Masuk","Lainnya"];
-const TX_EXPENSE_CATS = ["Makan & Minum","Transportasi","Belanja","Tagihan & Utilitas","Hiburan","Kesehatan","Pendidikan","Perawatan Diri","Lainnya"];
-const BUDGET_CATS = ["Makan & Minum","Transportasi","Belanja","Tagihan & Utilitas","Hiburan","Kesehatan","Pendidikan","Perawatan Diri","Lainnya"];
 const CAT_ICONS = {
   // Kebutuhan
   "Makan & Minum":"🍜","Transportasi":"🚗","Tagihan & Utilitas":"💡","Kesehatan":"❤️","Pendidikan":"📚",
@@ -667,18 +665,18 @@ function WalletScene({ T, wallets, setWallets, transactions, assets, debts = [],
 }
 
 // ─── CategoryPicker ───────────────────────────────────────────────────────────
-function CategoryPicker({ T, value, onChange, type = "expense" }) {
+function CategoryPicker({ T, value, onChange, type = "expense", budgets = [] }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  const areas = Object.entries(AREA_DEFS).map(([key, def]) => ({
-    key, label: def.label, icon: def.icon, color: def.color,
-    cats: def.cats.filter(c => !c.endsWith("Lainnya")),
-  }));
+  // Source: unique categories from ajBudgets only
+  const expenseCats = [...new Set(budgets.filter(b => b.category).map(b => b.category))];
+  const incomeCats = TX_INCOME_CATS;
 
+  const cats = type === "income" ? incomeCats : expenseCats;
   const displayLabel = value ? `${CAT_ICONS[value] || "📦"} ${value}` : "Pilih kategori...";
-
   const matchesSearch = (c) => !search || c.toLowerCase().includes(search.toLowerCase());
+  const filtered = cats.filter(matchesSearch);
 
   return (
     <div style={{ position: "relative" }}>
@@ -692,7 +690,6 @@ function CategoryPicker({ T, value, onChange, type = "expense" }) {
 
       {open && (
         <div style={{ position: "absolute", zIndex: 200, top: "calc(100% + 4px)", left: 0, right: 0, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, maxHeight: 300, overflowY: "auto", boxShadow: "0 8px 32px #0008" }}>
-          {/* Search bar */}
           <div style={{ padding: "8px 10px", borderBottom: `1px solid ${T.border}`, position: "sticky", top: 0, background: T.card, zIndex: 1 }}>
             <input
               value={search} onChange={e => setSearch(e.target.value)}
@@ -700,40 +697,21 @@ function CategoryPicker({ T, value, onChange, type = "expense" }) {
               style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.accent}`, background: T.surface, color: T.text, fontSize: 12, outline: "none", boxSizing: "border-box" }}
             />
           </div>
-
-          {type === "income" ? (
-            TX_INCOME_CATS.filter(matchesSearch).map(cat => (
-              <button key={cat} onClick={() => { onChange(cat); setOpen(false); }}
-                style={{ width: "100%", padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, background: value === cat ? T.accentDim : "transparent", border: "none", borderBottom: `1px solid ${T.border}44`, color: T.text, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
-                <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{CAT_ICONS[cat] || "💰"}</span>
-                <span style={{ flex: 1 }}>{cat}</span>
-                {value === cat && <span style={{ color: T.accent, fontSize: 14 }}>✓</span>}
-              </button>
-            ))
-          ) : (
-            areas.map(area => {
-              const cats = area.cats.filter(matchesSearch);
-              if (cats.length === 0) return null;
-              return (
-                <div key={area.key}>
-                  <div style={{ padding: "7px 14px 6px", background: area.color + "30", fontSize: 10, fontWeight: 800, color: area.color, letterSpacing: 1.5, textTransform: "uppercase", position: "sticky", top: 45, zIndex: 1 }}>
-                    {area.icon} {area.label}
-                  </div>
-                  {cats.map(cat => (
-                    <button key={cat} onClick={() => { onChange(cat); setOpen(false); }}
-                      style={{ width: "100%", padding: "10px 14px 10px 20px", display: "flex", alignItems: "center", gap: 10, background: value === cat ? T.accentDim : "transparent", border: "none", borderBottom: `1px solid ${T.border}33`, color: T.text, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
-                      <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{CAT_ICONS[cat] || "📦"}</span>
-                      <span style={{ flex: 1 }}>{cat}</span>
-                      {value === cat && <span style={{ color: T.accent, fontSize: 14 }}>✓</span>}
-                    </button>
-                  ))}
-                </div>
-              );
-            })
+          {filtered.length === 0 && (
+            <div style={{ padding: "16px 14px", color: T.muted, fontSize: 12, textAlign: "center" }}>
+              {type === "expense" ? "Belum ada kategori budget. Buat budget dulu di menu Budget." : "Tidak ada kategori."}
+            </div>
           )}
+          {filtered.map(cat => (
+            <button key={cat} onClick={() => { onChange(cat); setOpen(false); }}
+              style={{ width: "100%", padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, background: value === cat ? T.accentDim : "transparent", border: "none", borderBottom: `1px solid ${T.border}44`, color: T.text, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
+              <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{CAT_ICONS[cat] || "📦"}</span>
+              <span style={{ flex: 1 }}>{cat}</span>
+              {value === cat && <span style={{ color: T.accent, fontSize: 14 }}>✓</span>}
+            </button>
+          ))}
         </div>
       )}
-      {/* Overlay to close */}
       {open && <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />}
     </div>
   );
@@ -1047,7 +1025,7 @@ function BudgetScene({ T, budgets, setBudgets, transactions, assets, activeIncom
 }
 
 // ─── Receipt Scanner (4-step flow) ────────────────────────────────────────────
-function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCredits }) {
+function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCredits, budgets = [] }) {
   const [step, setStep] = useState(1); // 1=upload, 2=scanning, 3=review, 4=assign
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -1118,7 +1096,7 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
       id: genId(),
       date: scanData?.date || new Date().toISOString().slice(0, 10),
       type: "expense",
-      category: i.category || "Makan & Minum",
+      category: i.category || "",
       amount: Number(i.amount),
       walletId,
       description: i.name + (scanData?.storeName ? ` (${scanData.storeName})` : ""),
@@ -1273,7 +1251,7 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
                     <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{it.name}</span>
                     <span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>{fmtRp(it.amount)}</span>
                   </div>
-                  <CategoryPicker T={T} value={it.category} onChange={v => setItem(it.id, "category", v)} type="expense" />
+                  <CategoryPicker T={T} value={it.category} onChange={v => setItem(it.id, "category", v)} type="expense" budgets={budgets} />
                 </div>
               ))}
               <div style={{ marginTop: 14, padding: "12px 14px", background: T.accentDim, borderRadius: 10, display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
@@ -1299,7 +1277,7 @@ function ReceiptScanner({ T, wallets, onDone, onClose, pulseCredits, setPulseCre
 // Stage 1: Upload + select CC wallet → AI extracts transactions
 // Stage 2: Review/categorize — expenses get category, credit_entries get type
 // Stage 3: Confirm → bulk save transactions
-function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, setPulseCredits }) {
+function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, setPulseCredits, budgets = [] }) {
   const ccWallets = wallets.filter(w => CREDIT_WALLET_TYPES.includes(w.type));
   const [step, setStep]       = useState(1);
   const [file, setFile]       = useState(null);
@@ -1349,7 +1327,7 @@ function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, s
         date: t.date || new Date().toISOString().slice(0, 10),
         txType: t.txType || "expense",     // "expense" | "credit_entry"
         include: true,
-        category: t.txType === "expense" ? "Belanja" : "",
+        category: "",
         classifiedAs: "",   // for credit_entry: "income" | "debt_payment" | "transfer"
         toWalletId: "",
       })));
@@ -1366,7 +1344,7 @@ function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, s
     const linked = wallet?.debtId ? debts?.find(d => d.id === wallet.debtId) : null;
     const txs = txList.filter(t => t.include && t.amount > 0).map(t => {
       if (t.txType === "expense") {
-        return { id: genId(), date: t.date, type: "expense", category: t.category || "Belanja", amount: t.amount, walletId, description: t.name };
+        return { id: genId(), date: t.date, type: "expense", category: t.category || "", amount: t.amount, walletId, description: t.name };
       }
       // credit_entry — user classified as income / debt_payment / transfer
       const ca = t.classifiedAs || "income";
@@ -1512,7 +1490,7 @@ function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, s
                   </div>
 
                   {t.include && t.txType === "expense" && (
-                    <CategoryPicker T={T} value={t.category} onChange={v => setTx(t.id, "category", v)} type="expense" />
+                    <CategoryPicker T={T} value={t.category} onChange={v => setTx(t.id, "category", v)} type="expense" budgets={budgets} />
                   )}
 
                   {t.include && t.txType === "credit_entry" && (
@@ -1568,7 +1546,7 @@ function EStatementScanner({ T, wallets, debts, onDone, onClose, pulseCredits, s
 }
 
 // ─── Transaksi Scene ──────────────────────────────────────────────────────────
-function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets, debts, setDebts, pulseCredits, setPulseCredits, openScannerOnMount, onScannerMounted }) {
+function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets, debts, setDebts, pulseCredits, setPulseCredits, openScannerOnMount, onScannerMounted, budgets = [] }) {
   const today = new Date().toISOString().slice(0, 10);
   // Default to first Dana wallet (preferred source); fall back to any wallet
   const defaultWallet = (wallets.find(w => !KREDIT_WALLET_TYPES.includes(w.type)) || wallets[0])?.id || "";
@@ -1885,10 +1863,10 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
 
             {/* Category — grouped picker for expense, flat for income */}
             {(form.type === "expense") && (
-              <CategoryPicker T={T} value={form.category} onChange={v => setF("category", v)} type="expense" />
+              <CategoryPicker T={T} value={form.category} onChange={v => setF("category", v)} type="expense" budgets={budgets} />
             )}
             {form.type === "income" && (
-              <CategoryPicker T={T} value={form.category} onChange={v => setF("category", v)} type="income" />
+              <CategoryPicker T={T} value={form.category} onChange={v => setF("category", v)} type="income" budgets={budgets} />
             )}
             {form.type === "debt_payment" && (
               <Sel T={T} value={form.debtId} onChange={e => setF("debtId", e.target.value)}>
@@ -2013,10 +1991,10 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
                       <Inp T={T} type="number" value={editForm.amount} onChange={e => setEditForm(p => ({ ...p, amount: e.target.value }))} placeholder="Jumlah (Rp)" style={{ flex: 2 }} />
                     </div>
                     {editForm.type === "expense" && (
-                      <CategoryPicker T={T} value={editForm.category} onChange={v => setEditForm(p => ({ ...p, category: v }))} type="expense" />
+                      <CategoryPicker T={T} value={editForm.category} onChange={v => setEditForm(p => ({ ...p, category: v }))} type="expense" budgets={budgets} />
                     )}
                     {editForm.type === "income" && (
-                      <CategoryPicker T={T} value={editForm.category} onChange={v => setEditForm(p => ({ ...p, category: v }))} type="income" />
+                      <CategoryPicker T={T} value={editForm.category} onChange={v => setEditForm(p => ({ ...p, category: v }))} type="income" budgets={budgets} />
                     )}
                     {editForm.type === "debt_payment" && (
                       <Sel T={T} value={editForm.debtId} onChange={e => setEditForm(p => ({ ...p, debtId: e.target.value }))}>
@@ -2090,6 +2068,7 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
           pulseCredits={pulseCredits} setPulseCredits={setPulseCredits}
           onDone={handleScanDone}
           onClose={() => setShowScanner(false)}
+          budgets={budgets}
         />
       )}
 
@@ -2100,6 +2079,7 @@ function TransaksiScene({ T, transactions, setTransactions, wallets, setWallets,
           pulseCredits={pulseCredits} setPulseCredits={setPulseCredits}
           onDone={handleEStatementDone}
           onClose={() => setShowEStatement(false)}
+          budgets={budgets}
         />
       )}
     </div>
@@ -2579,7 +2559,7 @@ function UploadCenterModal({ T, wallets, debts, setDebts, setTransactions, pulse
       id: genId(),
       date: t.date || new Date().toISOString().slice(0, 10),
       type: t.type || "expense",
-      category: t.category || "Belanja",
+      category: t.category || "",
       amount: Number(t.amount) || 0,
       walletId: ccWallet?.id || "",
       toWalletId: "",
@@ -2747,42 +2727,6 @@ export default function ArthaJourneyApp({
     setDebts(prev => recalcAllCreditDebts(prev, ajTransactions, ajWallets) || prev);
   }, [ajTransactions, ajWallets]); // eslint-disable-line
 
-  // ── Auto Budget Sync: create/remove budget entries from expense transactions ──
-  // Creates is_set:false budgets for new (month,category) pairs and removes stale
-  // auto-budgets when all transactions for that pair are gone. Manual budgets
-  // (is_set:true) are never auto-deleted. actual_spending stays dynamic (getSpent).
-  useEffect(() => {
-    // Collect unique (month, category) pairs from expense transactions
-    const expensePairs = new Map(); // key: "month|category" → {month, category, area}
-    for (const t of ajTransactions) {
-      if (t.type !== "expense" || !t.category) continue; // debt_payment excluded from auto-budget
-      const month = getMonth(t.date);
-      const key = `${month}|${t.category}`;
-      if (!expensePairs.has(key)) {
-        expensePairs.set(key, { month, category: t.category, area: inferArea(t.category) });
-      }
-    }
-
-    let changed = false;
-    // Remove auto-budgets whose (month, category) no longer has transactions
-    let synced = ajBudgets.filter(b => {
-      if (b.is_set) return true; // manual budget: never auto-remove
-      if (expensePairs.has(`${b.month}|${b.category}`)) return true;
-      changed = true;
-      return false;
-    });
-
-    // Auto-create budget entry for each new (month, category) pair
-    for (const [key, { month, category, area }] of expensePairs) {
-      const exists = synced.some(b => b.month === month && b.category === category);
-      if (!exists) {
-        synced = [...synced, { id: genId(), category, limit: 0, month, area, is_set: false }];
-        changed = true;
-      }
-    }
-
-    if (changed) setAjBudgets(synced);
-  }, [ajTransactions]); // eslint-disable-line
 
 
   // ── Wallet Sync: derive ALL credit wallets from Wealth debts (single source of truth) ──
@@ -2836,7 +2780,7 @@ export default function ArthaJourneyApp({
       case "budget":
         return <BudgetScene T={T} budgets={ajBudgets} setBudgets={setAjBudgets} transactions={ajTransactions} assets={assets} activeIncomes={activeIncomes} monthlyFixedIncome={monthlyFixedIncome} />;
       case "transaksi":
-        return <TransaksiScene T={T} transactions={ajTransactions} setTransactions={setAjTransactions} wallets={ajWallets} setWallets={setAjWallets} debts={debts} setDebts={setDebts} pulseCredits={pulseCredits} setPulseCredits={setPulseCredits || (() => {})} openScannerOnMount={uploadCenterOpenScanner} onScannerMounted={() => setUploadCenterOpenScanner(false)} />;
+        return <TransaksiScene T={T} transactions={ajTransactions} setTransactions={setAjTransactions} wallets={ajWallets} setWallets={setAjWallets} debts={debts} setDebts={setDebts} pulseCredits={pulseCredits} setPulseCredits={setPulseCredits || (() => {})} openScannerOnMount={uploadCenterOpenScanner} onScannerMounted={() => setUploadCenterOpenScanner(false)} budgets={ajBudgets} />;
       case "hutang":
         return <HutangScene T={T} debts={debts} />;
       case "tools":

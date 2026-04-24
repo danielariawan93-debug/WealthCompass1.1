@@ -936,6 +936,7 @@ function WealthPulseV7() {
           setAjTransactions={setAjTransactions}
           T={T}
           visible={activeApp === "arthajourney"}
+          budgets={ajBudgets}
         />
       </>
     );
@@ -1731,6 +1732,7 @@ function WealthPulseV7() {
         setAjTransactions={setAjTransactions}
         T={T}
         visible={activeApp === "arthajourney"}
+        budgets={ajBudgets}
       />
     </div>
   );
