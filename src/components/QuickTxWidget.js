@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 
 const TX_INCOME_CATS = ["Gaji/Salary","Bonus","Freelance","Passive Income","Penjualan","Transfer Masuk","Lainnya"];
-const TX_EXPENSE_CATS = ["Makan & Minum","Transportasi","Belanja","Tagihan & Utilitas","Hiburan","Kesehatan","Pendidikan","Perawatan Diri","Lainnya"];
 const CAT_ICONS = {
   "Makan & Minum":"🍜","Transportasi":"🚗","Tagihan & Utilitas":"💡","Kesehatan":"❤️","Pendidikan":"📚",
   "Belanja":"🛍️","Hiburan":"🎬","Perawatan Diri":"✨","Gaji/Salary":"💼","Bonus":"🎁",
@@ -14,13 +13,13 @@ const EMPTY_FORM = {
   type: "expense",
   walletId: "",
   toWalletId: "",
-  category: "Makan & Minum",
+  category: "",
   amount: "",
   description: "",
   date: new Date().toISOString().slice(0,10),
 };
 
-export default function QuickTxWidget({ wallets = [], setAjTransactions, T, visible = true }) {
+export default function QuickTxWidget({ wallets = [], setAjTransactions, T, visible = true, budgets = [] }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM, walletId: wallets[0]?.id || "" });
   const [staging, setStaging] = useState([]);
@@ -35,9 +34,10 @@ export default function QuickTxWidget({ wallets = [], setAjTransactions, T, visi
     }
   }, [wallets]); // eslint-disable-line
 
-  // Reset category when type changes
+  // Reset category when type changes — default to first available budget cat or empty
   useEffect(() => {
-    if (form.type === "expense") setForm(p => ({ ...p, category: TX_EXPENSE_CATS[0] }));
+    const expCats = [...new Set((budgets || []).filter(b => b.category).map(b => b.category))];
+    if (form.type === "expense") setForm(p => ({ ...p, category: expCats[0] || "" }));
     else if (form.type === "income") setForm(p => ({ ...p, category: TX_INCOME_CATS[0] }));
   }, [form.type]); // eslint-disable-line
 
@@ -84,7 +84,8 @@ export default function QuickTxWidget({ wallets = [], setAjTransactions, T, visi
   const TYPE_LABELS = { expense: "Pengeluaran", income: "Pemasukan", transfer: "Transfer" };
   const amtColor = (type) => type === "income" ? (T.green || "#3ecf8e") : type === "transfer" ? (T.accent || "#5b9cf6") : (T.red || "#f26b6b");
 
-  const catOptions = form.type === "income" ? TX_INCOME_CATS : form.type === "expense" ? TX_EXPENSE_CATS : [];
+  const expenseCats = [...new Set((budgets || []).filter(b => b.category).map(b => b.category))];
+  const catOptions = form.type === "income" ? TX_INCOME_CATS : form.type === "expense" ? expenseCats : [];
 
   const inputStyle = {
     width: "100%", background: T.inputBg || T.surface, border: `1px solid ${T.border}`,
