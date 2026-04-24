@@ -831,6 +831,16 @@ function WealthPulseV7() {
     }
   }, []);
 
+  // PWA shortcut: ?action=quick → auto-select AJ and open QuickTx
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("action") === "quick") {
+      localStorage.setItem("wc_active_app", "arthajourney");
+      localStorage.setItem("wc_quick_open", "1");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   // -- Show login if not authenticated ----------------------------------------
   if (authChecking) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.bg }}>
