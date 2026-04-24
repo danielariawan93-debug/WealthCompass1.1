@@ -722,14 +722,18 @@ function CategoryPicker({ T, value, onChange, type = "expense", budgets = [] }) 
                 <div style={{ padding: "7px 14px 6px", background: color + "30", fontSize: 10, fontWeight: 800, color, letterSpacing: 1.5, textTransform: "uppercase", position: "sticky", top: 45, zIndex: 1 }}>
                   {icon} {label}
                 </div>
-                {cats.map(cat => (
-                  <button key={cat} onClick={() => { onChange(cat); setOpen(false); }}
-                    style={{ width: "100%", padding: "10px 14px 10px 20px", display: "flex", alignItems: "center", gap: 10, background: value === cat ? T.accentDim : "transparent", border: "none", borderBottom: `1px solid ${T.border}33`, color: T.text, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
-                    <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{CAT_ICONS[cat] || "📦"}</span>
-                    <span style={{ flex: 1 }}>{cat}</span>
-                    {value === cat && <span style={{ color: T.accent, fontSize: 14 }}>✓</span>}
-                  </button>
-                ))}
+                {cats.map(cat => {
+                    const bud = (budgets || []).find(b => b.category === cat);
+                    const ico = bud?.icon || CAT_ICONS[cat] || "📦";
+                    return (
+                      <button key={cat} onClick={() => { onChange(cat); setOpen(false); }}
+                        style={{ width: "100%", padding: "10px 14px 10px 20px", display: "flex", alignItems: "center", gap: 10, background: value === cat ? T.accentDim : "transparent", border: "none", borderBottom: `1px solid ${T.border}33`, color: T.text, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
+                        <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{ico}</span>
+                        <span style={{ flex: 1 }}>{cat}</span>
+                        {value === cat && <span style={{ color: T.accent, fontSize: 14 }}>✓</span>}
+                      </button>
+                    );
+                  })}
               </div>
             ))
           )}
@@ -818,6 +822,8 @@ function BudgetScene({ T, budgets, setBudgets, transactions, assets, activeIncom
   const [newCat, setNewCat] = useState("");
   const [customCat, setCustomCat] = useState("");
   const [newLim, setNewLim] = useState("");
+  const [newIcon, setNewIcon] = useState("📦");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const monthBudgets = budgets.filter(b => b.month === viewMonth);
   const usedCats = new Set(monthBudgets.map(b => b.category));
@@ -846,10 +852,10 @@ function BudgetScene({ T, budgets, setBudgets, transactions, assets, activeIncom
     const finalCat = isLainnya(newCat) ? (customCat.trim() || newCat) : newCat;
     if (!finalCat || !newLim) return;
     setBudgets(prev => [...prev, {
-      id: genId(), category: finalCat, limit: parseNum(newLim),
+      id: genId(), category: finalCat, icon: newIcon, limit: parseNum(newLim),
       month: viewMonth, area: showAddArea,
     }]);
-    setNewCat(""); setCustomCat(""); setNewLim(""); setShowAddArea(null);
+    setNewCat(""); setCustomCat(""); setNewLim(""); setNewIcon("📦"); setShowAddArea(null);
   };
 
   const delBudget = (id) => setBudgets(prev => prev.filter(b => b.id !== id));
@@ -990,7 +996,26 @@ function BudgetScene({ T, budgets, setBudgets, transactions, assets, activeIncom
                     {availCats.map(c => <option key={c} value={c}>{isLainnya(c) ? "✏️ Tulis Sendiri..." : c}</option>)}
                   </Sel>
                   {isLainnya(newCat) && (
-                    <Inp T={T} value={customCat} onChange={e => setCustomCat(e.target.value)} placeholder="Nama kategori (cth: Rokok, Kopi, Gym...)" />
+                    <>
+                      <Inp T={T} value={customCat} onChange={e => setCustomCat(e.target.value)} placeholder="Nama kategori (cth: Rokok, Kopi, Gym...)" />
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                        <span style={{ fontSize: 11, color: T.muted }}>Icon:</span>
+                        <button onClick={() => setShowEmojiPicker(p => !p)}
+                          style={{ fontSize: 22, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "4px 10px", cursor: "pointer" }}>
+                          {newIcon}
+                        </button>
+                        {showEmojiPicker && (
+                          <div style={{ position: "absolute", zIndex: 300, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 10, display: "flex", flexWrap: "wrap", gap: 6, maxWidth: 260, boxShadow: "0 8px 24px #0008" }}>
+                            {["🍜","🍔","🛒","🚗","🏠","💡","📚","🎬","✨","❤️","💊","🏋️","☕","🍺","✈️","🏖️","🎮","🐶","🐱","💼","💻","📱","🎁","💰","📊","🏦","💳","🔧","🧹","👔","👟","🎵","⚽","🏊","🌿","🧘","🍕","🥗","🛵","🚌","🚀","🎓","🏥","💈","🧴","🌸","🎀","🎯","🔑","⛽"].map(e => (
+                              <button key={e} onClick={() => { setNewIcon(e); setShowEmojiPicker(false); }}
+                                style={{ fontSize: 22, background: "none", border: "none", cursor: "pointer", padding: 2, borderRadius: 6 }}>
+                                {e}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                   <Inp T={T} type="number" value={newLim} onChange={e => setNewLim(e.target.value)} placeholder="Limit anggaran (Rp)" />
                   {totalIncome > 0 && newLim && (

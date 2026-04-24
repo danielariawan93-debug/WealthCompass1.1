@@ -25,7 +25,14 @@ const EMPTY_FORM = {
 };
 
 export default function QuickTxWidget({ wallets = [], setAjTransactions, T, visible = true, budgets = [] }) {
-  const [open, setOpen] = useState(false);
+  const shouldAutoOpen = localStorage.getItem("wc_quick_open") === "1";
+  const [open, setOpen] = useState(shouldAutoOpen);
+
+  useEffect(() => {
+    if (shouldAutoOpen) {
+      localStorage.removeItem("wc_quick_open");
+    }
+  }, []); // eslint-disable-line
   const [form, setForm] = useState({ ...EMPTY_FORM, walletId: wallets[0]?.id || "" });
   const [staging, setStaging] = useState([]);
   const [confirm, setConfirm] = useState(false);
@@ -209,7 +216,11 @@ export default function QuickTxWidget({ wallets = [], setAjTransactions, T, visi
                           if (!cats.length) return null;
                           return (
                             <optgroup key={key} label={`${icon} ${label}`}>
-                              {cats.map(c => <option key={c} value={c}>{CAT_ICONS[c] || "📦"} {c}</option>)}
+                              {cats.map(c => {
+                                const bud = (budgets || []).find(b => b.category === c);
+                                const ico = bud?.icon || CAT_ICONS[c] || "📦";
+                                return <option key={c} value={c}>{ico} {c}</option>;
+                              })}
                             </optgroup>
                           );
                         })
