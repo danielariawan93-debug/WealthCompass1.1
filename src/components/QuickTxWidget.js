@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
 
 const TX_INCOME_CATS = ["Gaji/Salary","Bonus","Freelance","Passive Income","Penjualan","Transfer Masuk","Lainnya"];
+const AREA_ORDER = [
+  { key: "kebutuhan", label: "Kebutuhan",          icon: "🏠" },
+  { key: "keinginan", label: "Keinginan",           icon: "🛍️" },
+  { key: "tabungan",  label: "Tabungan & Investasi", icon: "💰" },
+];
 const CAT_ICONS = {
   "Makan & Minum":"🍜","Transportasi":"🚗","Tagihan & Utilitas":"💡","Kesehatan":"❤️","Pendidikan":"📚",
   "Belanja":"🛍️","Hiburan":"🎬","Perawatan Diri":"✨","Gaji/Salary":"💼","Bonus":"🎁",
@@ -85,7 +90,6 @@ export default function QuickTxWidget({ wallets = [], setAjTransactions, T, visi
   const amtColor = (type) => type === "income" ? (T.green || "#3ecf8e") : type === "transfer" ? (T.accent || "#5b9cf6") : (T.red || "#f26b6b");
 
   const expenseCats = [...new Set((budgets || []).filter(b => b.category).map(b => b.category))];
-  const catOptions = form.type === "income" ? TX_INCOME_CATS : form.type === "expense" ? expenseCats : [];
 
   const inputStyle = {
     width: "100%", background: T.inputBg || T.surface, border: `1px solid ${T.border}`,
@@ -195,7 +199,21 @@ export default function QuickTxWidget({ wallets = [], setAjTransactions, T, visi
                 <div style={{ marginBottom: 10 }}>
                   <label style={labelStyle}>Kategori</label>
                   <select value={form.category} onChange={e => set("category", e.target.value)} style={inputStyle}>
-                    {catOptions.map(c => <option key={c} value={c}>{CAT_ICONS[c] || "📦"} {c}</option>)}
+                    {form.type === "income"
+                      ? TX_INCOME_CATS.map(c => <option key={c} value={c}>{CAT_ICONS[c] || "📦"} {c}</option>)
+                      : AREA_ORDER.map(({ key, label, icon }) => {
+                          const cats = expenseCats.filter(c => {
+                            const b = (budgets || []).find(bud => bud.category === c);
+                            return (b?.area || "kebutuhan") === key;
+                          });
+                          if (!cats.length) return null;
+                          return (
+                            <optgroup key={key} label={`${icon} ${label}`}>
+                              {cats.map(c => <option key={c} value={c}>{CAT_ICONS[c] || "📦"} {c}</option>)}
+                            </optgroup>
+                          );
+                        })
+                    }
                   </select>
                 </div>
               )}

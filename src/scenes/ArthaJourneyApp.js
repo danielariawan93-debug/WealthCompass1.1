@@ -669,14 +669,18 @@ function CategoryPicker({ T, value, onChange, type = "expense", budgets = [] }) 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Source: unique categories from ajBudgets only
-  const expenseCats = [...new Set(budgets.filter(b => b.category).map(b => b.category))];
-  const incomeCats = TX_INCOME_CATS;
-
-  const cats = type === "income" ? incomeCats : expenseCats;
   const displayLabel = value ? `${CAT_ICONS[value] || "📦"} ${value}` : "Pilih kategori...";
   const matchesSearch = (c) => !search || c.toLowerCase().includes(search.toLowerCase());
-  const filtered = cats.filter(matchesSearch);
+
+  // For income: flat list. For expense: grouped by area from budgets.
+  const incomeFiltered = TX_INCOME_CATS.filter(matchesSearch);
+  const grouped = ["kebutuhan", "keinginan", "tabungan"].map(areaKey => {
+    const def = AREA_DEFS[areaKey];
+    const cats = [...new Set(
+      budgets.filter(b => b.category && ((b.area || inferArea(b.category)) === areaKey)).map(b => b.category)
+    )].filter(matchesSearch);
+    return { areaKey, label: def.label, icon: def.icon, color: def.color, cats };
+  }).filter(g => g.cats.length > 0);
 
   return (
     <div style={{ position: "relative" }}>
@@ -697,19 +701,38 @@ function CategoryPicker({ T, value, onChange, type = "expense", budgets = [] }) 
               style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: `1px solid ${T.accent}`, background: T.surface, color: T.text, fontSize: 12, outline: "none", boxSizing: "border-box" }}
             />
           </div>
-          {filtered.length === 0 && (
+          {type === "income" ? (
+            incomeFiltered.length === 0
+              ? <div style={{ padding: "16px 14px", color: T.muted, fontSize: 12, textAlign: "center" }}>Tidak ada kategori.</div>
+              : incomeFiltered.map(cat => (
+                <button key={cat} onClick={() => { onChange(cat); setOpen(false); }}
+                  style={{ width: "100%", padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, background: value === cat ? T.accentDim : "transparent", border: "none", borderBottom: `1px solid ${T.border}44`, color: T.text, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
+                  <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{CAT_ICONS[cat] || "💰"}</span>
+                  <span style={{ flex: 1 }}>{cat}</span>
+                  {value === cat && <span style={{ color: T.accent, fontSize: 14 }}>✓</span>}
+                </button>
+              ))
+          ) : grouped.length === 0 ? (
             <div style={{ padding: "16px 14px", color: T.muted, fontSize: 12, textAlign: "center" }}>
-              {type === "expense" ? "Belum ada kategori budget. Buat budget dulu di menu Budget." : "Tidak ada kategori."}
+              Belum ada kategori budget. Buat budget dulu di menu Budget.
             </div>
+          ) : (
+            grouped.map(({ areaKey, label, icon, color, cats }) => (
+              <div key={areaKey}>
+                <div style={{ padding: "7px 14px 6px", background: color + "30", fontSize: 10, fontWeight: 800, color, letterSpacing: 1.5, textTransform: "uppercase", position: "sticky", top: 45, zIndex: 1 }}>
+                  {icon} {label}
+                </div>
+                {cats.map(cat => (
+                  <button key={cat} onClick={() => { onChange(cat); setOpen(false); }}
+                    style={{ width: "100%", padding: "10px 14px 10px 20px", display: "flex", alignItems: "center", gap: 10, background: value === cat ? T.accentDim : "transparent", border: "none", borderBottom: `1px solid ${T.border}33`, color: T.text, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
+                    <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{CAT_ICONS[cat] || "📦"}</span>
+                    <span style={{ flex: 1 }}>{cat}</span>
+                    {value === cat && <span style={{ color: T.accent, fontSize: 14 }}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            ))
           )}
-          {filtered.map(cat => (
-            <button key={cat} onClick={() => { onChange(cat); setOpen(false); }}
-              style={{ width: "100%", padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, background: value === cat ? T.accentDim : "transparent", border: "none", borderBottom: `1px solid ${T.border}44`, color: T.text, cursor: "pointer", fontSize: 13, textAlign: "left" }}>
-              <span style={{ fontSize: 20, width: 28, textAlign: "center" }}>{CAT_ICONS[cat] || "📦"}</span>
-              <span style={{ flex: 1 }}>{cat}</span>
-              {value === cat && <span style={{ color: T.accent, fontSize: 14 }}>✓</span>}
-            </button>
-          ))}
         </div>
       )}
       {open && <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 199 }} />}
