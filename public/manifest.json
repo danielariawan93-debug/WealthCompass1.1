@@ -11,11 +11,12 @@
   "background_color": "#07090c",
   "orientation": "portrait",
   "shortcuts": [
-  {
-    "name": "Catat Transaksi",
-    "short_name": "Quick Input",
-    "url": "/?action=quick",
-    "icons": [{ "src": "logo-aj.png", "sizes": "192x192" }]
-  }
+    {
+      "name": "Catat Transaksi",
+      "short_name": "Quick Input",
+      "description": "Input transaksi cepat di Artha Journey",
+      "url": "/?action=quick",
+      "icons": [{ "src": "logo-aj.png", "sizes": "192x192" }]
+    }
   ]
 }
