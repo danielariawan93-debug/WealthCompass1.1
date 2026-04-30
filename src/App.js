@@ -38,6 +38,18 @@ import { Watermark } from "./assets/logoSVG";
 const CC_KEY = '29eb9eb7f921e41d70cb469c1ea9f23bddf88694c9c9873064c38c02183a5234';
 const CC_HDR = { 'Authorization': `Bearer ${CC_KEY}` };
 
+// Runs synchronously before React renders — detects PWA quick-launch shortcut
+const _pwaQuickOpen = (() => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("action") === "quick") {
+    localStorage.setItem("wc_active_app", "arthajourney");
+    localStorage.setItem("wc_quick_open", "1");
+    window.history.replaceState({}, "", window.location.pathname);
+    return true;
+  }
+  return false;
+})();
+
 function WealthPulseV7() {
   // -- ALL STATE DECLARATIONS FIRST (handlers reference these via closure) -----
   const [user, setUser] = useState(null);
@@ -101,7 +113,7 @@ function WealthPulseV7() {
   const [activeIncomes, setActiveIncomes] = useState([]);
   const [insurances, setInsurances] = useState([]);
   const [recurringItems, setRecurringItems] = useState([]);
-  const [activeApp, setActiveApp] = useState(null); // null | 'wealthcompass' | 'arthajourney'
+  const [activeApp, setActiveApp] = useState(_pwaQuickOpen ? "arthajourney" : null); // null | 'wealthcompass' | 'arthajourney'
   const [bonusPulse, setBonusPulse] = useState([]); // [{id,amount,expiresAt,source,earnedAt}]
   const [referrals, setReferrals] = useState([]);   // users referred by this account
   const [referredBy, setReferredBy] = useState(""); // referral code this user came from
@@ -236,7 +248,10 @@ function WealthPulseV7() {
     // Brand new users (no saved data) start with onboardingComplete: false.
     setOnboardingComplete(localSaved ? (d.onboardingComplete !== false) : false);
     // Always redirect to AppSelector on every login (post_login_redirect rule)
-    setActiveApp(null);
+    // Exception: preserve arthajourney selection when PWA quick-open shortcut is active
+    if (!localStorage.getItem("wc_quick_open")) {
+      setActiveApp(null);
+    }
     // Read pending referral code — do NOT remove from localStorage yet;
     // the cloud callback will process it authoritatively after loading cloud data
     const pendingRef = localStorage.getItem("wc_pending_ref");
@@ -830,17 +845,6 @@ function WealthPulseV7() {
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
-
-  // PWA shortcut: ?action=quick → skip AppSelector, open QuickTx
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("action") === "quick") {
-      localStorage.setItem("wc_active_app", "arthajourney");
-      localStorage.setItem("wc_quick_open", "1");
-      window.history.replaceState({}, "", window.location.pathname);
-      setActiveApp("arthajourney");
-    }
-  }, []); // eslint-disable-line
 
   // -- Show login if not authenticated ----------------------------------------
   if (authChecking) return (
